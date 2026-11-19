@@ -23,6 +23,7 @@ import {
   VIRTUAL_WIDTH,
 } from './constants';
 import type {
+  CharacterId,
   FloatingText,
   GamePhase,
   GameState,
@@ -154,9 +155,14 @@ export function createInitialPlayer(): PlayerState {
   };
 }
 
-export function createInitialState(bestScore = 0, phase: GamePhase = 'title'): GameState {
+export function createInitialState(
+  bestScore = 0,
+  phase: GamePhase = 'title',
+  characterId: CharacterId = 'stride',
+): GameState {
   return {
     phase,
+    characterId,
     elapsed: 0,
     runTime: 0,
     distance: 0,
@@ -195,14 +201,14 @@ export function createInitialState(bestScore = 0, phase: GamePhase = 'title'): G
 
 export function startNewRun(state: GameState): GameState {
   const best = Math.max(state.bestScore, state.score);
-  const next = createInitialState(best, 'playing');
+  const next = createInitialState(best, 'playing', state.characterId);
   next.audioQueue.push({ type: 'start' });
   return next;
 }
 
 export function returnToTitle(state: GameState): GameState {
   const best = Math.max(state.bestScore, state.score);
-  return createInitialState(best, 'title');
+  return createInitialState(best, 'title', state.characterId);
 }
 
 export function spawnParticles(
@@ -986,6 +992,7 @@ export function stepSimulation(
 export function extractHudSnapshot(state: GameState): HudSnapshot {
   return {
     phase: state.phase,
+    characterId: state.characterId,
     score: Math.round(state.score),
     bestScore: Math.round(state.bestScore),
     distance: Math.round(state.distance),

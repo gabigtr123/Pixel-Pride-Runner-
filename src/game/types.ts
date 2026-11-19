@@ -1,5 +1,7 @@
 export type GamePhase = 'title' | 'playing' | 'paused' | 'gameover';
 
+export type CharacterId = 'stride' | 'lacramioara';
+
 export type HazardKind = 'spike' | 'hopper' | 'swooper' | 'flame';
 
 export type PickupKind = 'coin' | 'shield' | 'heart' | 'magnet';
@@ -156,6 +158,7 @@ export interface RunSnapshot {
 
 export interface HudSnapshot {
   phase: GamePhase;
+  characterId: CharacterId;
   score: number;
   bestScore: number;
   distance: number;
@@ -174,6 +177,7 @@ export interface HudSnapshot {
 
 export interface GameState {
   phase: GamePhase;
+  characterId: CharacterId;
   elapsed: number;
   runTime: number;
   distance: number; // meters-like unit

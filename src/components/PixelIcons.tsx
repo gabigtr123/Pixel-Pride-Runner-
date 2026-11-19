@@ -1,4 +1,37 @@
 import React from 'react';
+import { CHARACTER_SPRITES } from '../game/sprites';
+import type { CharacterId } from '../game/types';
+
+export function CharacterPreviewIcon({
+  characterId,
+  className = 'w-8 h-9',
+}: {
+  characterId: CharacterId;
+  className?: string;
+}) {
+  const sprite = CHARACTER_SPRITES[characterId];
+  const grid = sprite.frames.run[1];
+  const rows = grid.length;
+  const cols = grid[0].length;
+
+  return (
+    <svg
+      viewBox={`0 0 ${cols} ${rows}`}
+      className={className}
+      shapeRendering="crispEdges"
+      aria-hidden="true"
+    >
+      {grid.map((line, r) =>
+        Array.from(line).map((ch, c) => {
+          if (ch === '.' || ch === ' ') return null;
+          const fill = sprite.palette[ch];
+          if (!fill) return null;
+          return <rect key={`${r}-${c}`} x={c} y={r} width="1" height="1" fill={fill} />;
+        }),
+      )}
+    </svg>
+  );
+}
 
 export function HeartSocketIcon({ state }: { state: 'full' | 'cracked' | 'empty' }) {
   return (

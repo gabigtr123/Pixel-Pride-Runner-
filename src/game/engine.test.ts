@@ -6,6 +6,7 @@ import {
   computeDifficulty,
   createInitialState,
   getPlayerHitbox,
+  returnToTitle,
   startNewRun,
   stepSimulation,
 } from './engine';
@@ -252,4 +253,15 @@ test('finalRun.isNewBest is true when player beats previous best score during ru
   assert.equal(state.phase, 'gameover');
   assert.ok(state.finalRun !== null);
   assert.equal(state.finalRun.isNewBest, true, 'isNewBest must reflect beating runStartBestScore');
+});
+
+test('selected character (lacramioara) persists across startNewRun and returnToTitle', () => {
+  const initial = createInitialState(0, 'title', 'lacramioara');
+  assert.equal(initial.characterId, 'lacramioara');
+
+  const playing = startNewRun(initial);
+  assert.equal(playing.characterId, 'lacramioara');
+
+  const backToTitle = returnToTitle(playing);
+  assert.equal(backToTitle.characterId, 'lacramioara');
 });

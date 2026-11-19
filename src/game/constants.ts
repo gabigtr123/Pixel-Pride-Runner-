@@ -32,6 +32,7 @@ export const COMBO_DURATION = 3.2;
 
 export const BEST_SCORE_STORAGE_KEY = 'pixel_stride_best_score_v1';
 export const MUTED_STORAGE_KEY = 'pixel_stride_muted_v1';
+export const CHARACTER_STORAGE_KEY = 'pixel_stride_character_v1';
 
 export const BIOMES: BiomePalette[] = [
   {

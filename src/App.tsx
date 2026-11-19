@@ -5,6 +5,7 @@ import { TitleOverlay } from './components/TitleOverlay';
 import { ChiptuneAudio } from './game/audio';
 import {
   BEST_SCORE_STORAGE_KEY,
+  CHARACTER_STORAGE_KEY,
   MUTED_STORAGE_KEY,
   VIRTUAL_HEIGHT,
   VIRTUAL_WIDTH,
@@ -17,7 +18,7 @@ import {
   stepSimulation,
 } from './game/engine';
 import { renderGameWorld } from './game/renderer';
-import type { GameState, HudSnapshot, InputFrame } from './game/types';
+import type { CharacterId, GameState, HudSnapshot, InputFrame } from './game/types';
 
 function loadBestScore(): number {
   try {
@@ -53,6 +54,23 @@ function saveMuted(muted: boolean): void {
   }
 }
 
+function loadCharacter(): CharacterId {
+  try {
+    const raw = window.localStorage.getItem(CHARACTER_STORAGE_KEY);
+    return raw === 'lacramioara' ? 'lacramioara' : 'stride';
+  } catch {
+    return 'stride';
+  }
+}
+
+function saveCharacter(id: CharacterId): void {
+  try {
+    window.localStorage.setItem(CHARACTER_STORAGE_KEY, id);
+  } catch {
+    // Ignore storage failures in sandboxed frames
+  }
+}
+
 function shouldAutostart(): boolean {
   try {
     const params = new URLSearchParams(window.location.search);
@@ -65,6 +83,7 @@ function shouldAutostart(): boolean {
 function hudChanged(a: HudSnapshot, b: HudSnapshot): boolean {
   return (
     a.phase !== b.phase ||
+    a.characterId !== b.characterId ||
     a.score !== b.score ||
     a.bestScore !== b.bestScore ||
     a.distance !== b.distance ||
@@ -105,7 +124,11 @@ export default function App() {
   const [muted, setMuted] = useState<boolean>(() => (typeof window !== 'undefined' ? loadMuted() : false));
   const [hud, setHud] = useState<HudSnapshot>(() => {
     const initialPhase = typeof window !== 'undefined' && shouldAutostart() ? 'playing' : 'title';
-    const initial = createInitialState(typeof window !== 'undefined' ? loadBestScore() : 0, initialPhase);
+    const initial = createInitialState(
+      typeof window !== 'undefined' ? loadBestScore() : 0,
+      initialPhase,
+      typeof window !== 'undefined' ? loadCharacter() : 'stride',
+    );
     return extractHudSnapshot(initial);
   });
 
@@ -177,6 +200,17 @@ export default function App() {
     syncDomAndHud(next, true);
   }, [clearHeldInputs, syncDomAndHud]);
 
+  const handleSelectCharacter = useCallback(
+    (id: CharacterId) => {
+      saveCharacter(id);
+      const curr = stateRef.current;
+      if (!curr) return;
+      curr.characterId = id;
+      syncDomAndHud(curr, true);
+    },
+    [syncDomAndHud],
+  );
+
   const handleToggleMute = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -216,7 +250,8 @@ export default function App() {
 
     const autoStart = shouldAutostart();
     const initialBest = loadBestScore();
-    const initialState = createInitialState(initialBest, autoStart ? 'playing' : 'title');
+    const initialCharacter = loadCharacter();
+    const initialState = createInitialState(initialBest, autoStart ? 'playing' : 'title', initialCharacter);
     stateRef.current = initialState;
     document.body.dataset.state = initialState.phase;
     handlersRef.current.syncDomAndHud(initialState, true);
@@ -447,6 +482,8 @@ export default function App() {
         <TitleOverlay
           bestScore={hud.bestScore}
           muted={muted}
+          characterId={hud.characterId}
+          onSelectCharacter={handleSelectCharacter}
           onStart={handleStartOrRestart}
           onToggleMute={handleToggleMute}
         />

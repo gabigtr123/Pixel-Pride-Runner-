@@ -1,14 +1,27 @@
 import React from 'react';
-import { PixelStrideTitleLogo, SoundIcon } from './PixelIcons';
+import { CHARACTER_SPRITES } from '../game/sprites';
+import type { CharacterId } from '../game/types';
+import { CharacterPreviewIcon, PixelStrideTitleLogo, SoundIcon } from './PixelIcons';
+
+const CHARACTER_IDS: CharacterId[] = ['stride', 'lacramioara'];
 
 interface TitleOverlayProps {
   bestScore: number;
   muted: boolean;
+  characterId: CharacterId;
+  onSelectCharacter: (id: CharacterId) => void;
   onStart: () => void;
   onToggleMute: () => void;
 }
 
-export function TitleOverlay({ bestScore, muted, onStart, onToggleMute }: TitleOverlayProps) {
+export function TitleOverlay({
+  bestScore,
+  muted,
+  characterId,
+  onSelectCharacter,
+  onStart,
+  onToggleMute,
+}: TitleOverlayProps) {
   return (
     <div
       className="fixed inset-0 z-20 flex flex-col justify-between pointer-events-none safe-area-hud"
@@ -30,11 +43,46 @@ export function TitleOverlay({ bestScore, muted, onStart, onToggleMute }: TitleO
         </button>
       </div>
 
-      {/* Upper-center calm sky negative-space lockup & single primary CTA */}
-      <div className="flex flex-col items-center -mt-20 sm:-mt-28 gap-5">
+      {/* Upper-center calm sky negative-space lockup, character selector & primary CTA */}
+      <div className="flex flex-col items-center -mt-12 sm:-mt-20 gap-4">
         <PixelStrideTitleLogo />
 
-        <div className="flex flex-col items-center gap-3 pointer-events-auto">
+        {/* Retro 8-bit character selector */}
+        <div
+          className="flex items-center gap-2.5 sm:gap-3 pointer-events-auto"
+          role="radiogroup"
+          aria-label="Choose character"
+        >
+          {CHARACTER_IDS.map((id) => {
+            const selected = characterId === id;
+            const info = CHARACTER_SPRITES[id];
+            return (
+              <button
+                key={id}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                data-testid={`select-char-${id}`}
+                onClick={(e) => {
+                  e.currentTarget.blur();
+                  onSelectCharacter(id);
+                }}
+                className={`flex items-center gap-2 px-3 py-2 cursor-pointer transition-transform duration-75 active:translate-y-0.5 ${
+                  selected
+                    ? 'bg-[#1F2952] border-[3px] border-[#FFE05C] shadow-[0_4px_0_#0A0C18] text-[#FFF4A8]'
+                    : 'bg-[#141830]/90 border-2 border-[#6B79A8] shadow-[0_3px_0_#0A0C18] text-[#C8D2EE] hover:border-[#F4EFE0]'
+                }`}
+              >
+                <CharacterPreviewIcon characterId={id} className="w-7 h-8 shrink-0" />
+                <span className="font-pixel-display text-[10px] sm:text-xs tracking-wider whitespace-nowrap">
+                  {info.name}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex flex-col items-center gap-2.5 pointer-events-auto">
           <button
             type="button"
             data-start="true"

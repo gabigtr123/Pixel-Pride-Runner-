@@ -149,6 +149,156 @@ export const RUNNER_FRAMES = {
   duck: RUNNER_DUCK,
 };
 
+// Lacramioara — Lily-of-the-valley retro adventurer (16x19 run, 16x17 jump, 16x11 duck)
+export const LACRAMIOARA_PALETTE: Record<string, string> = {
+  K: '#121324', // dark outline
+  H: '#7B3428', // chestnut hair & ponytail
+  h: '#C86844', // hair highlight
+  F: '#FFFDF5', // white lily blossom
+  L: '#48C868', // emerald leaf hairband
+  S: '#FFD0A4', // warm skin
+  E: '#223868', // eye
+  R: '#E85898', // rose-magenta scarf ribbon
+  r: '#A82864', // ribbon shade
+  T: '#38B87C', // emerald tunic
+  t: '#207C58', // tunic shade
+  B: '#2E2854', // deep plum leggings
+  O: '#F4C848', // golden boots
+  o: '#B8781C', // boot shade
+};
+
+const LACRAMIOARA_RUN_0: PixelGrid = [
+  '.....KKKKKK.....',
+  '....KhhHHFFK....',
+  '...KhHHLLLHHK...',
+  '..KHHHKSSSSEK...',
+  '.KHHhKKSSSSSK...',
+  '..KK..KSSSSK....',
+  '..KKKRRRRRKK....',
+  '.KRrRRRRRRRK....',
+  'Krr..KTTTTK.....',
+  '.....KTTtTK.....',
+  '....KTTTTTTK....',
+  '....KTSKTtTK....',
+  '....KK.KBBBK....',
+  '.......KBBBK....',
+  '......KBK.KBK...',
+  '.....KBK...KBK..',
+  '....KOK.....KOK.',
+  '....KOoK....KOoK',
+  '....KKKK....KKKK',
+];
+
+const LACRAMIOARA_RUN_1: PixelGrid = [
+  '.....KKKKKK.....',
+  '....KhhHHFFK....',
+  '...KhHHLLLHHK...',
+  '..KHHHKSSSSEK...',
+  '.KHHhKKSSSSSK...',
+  '..KK..KSSSSK....',
+  '.KKKKRRRRRKK....',
+  'KRrRRRRRRRRK....',
+  '.K...KTTTTK.....',
+  '.....KTTtTK.....',
+  '.....KTTTTK.....',
+  '.....KTtTSK.....',
+  '......KBBBK.....',
+  '......KBBBK.....',
+  '......KBKBK.....',
+  '......KBKBK.....',
+  '......KOKOK.....',
+  '.....KOoKOoK....',
+  '.....KKKKKKK....',
+];
+
+const LACRAMIOARA_RUN_2: PixelGrid = [
+  '.....KKKKKK.....',
+  '....KhhHHFFK....',
+  '...KhHHLLLHHK...',
+  '..KHHHKSSSSEK...',
+  '.KHHhKKSSSSSK...',
+  '..KK..KSSSSK....',
+  '..KKKRRRRRKK....',
+  'KrrRRRRRRRRK....',
+  '.KK..KTTTTK.....',
+  '.....KTTtTK.....',
+  '....KTTTTTTK....',
+  '....KTtTKTSK....',
+  '.....KBBBK.KK...',
+  '.....KBBBK......',
+  '....KBK.KBK.....',
+  '....KBK..KBK....',
+  '...KOK....KOK...',
+  '...KOoK...KOoK..',
+  '...KKKK...KKKK..',
+];
+
+const LACRAMIOARA_JUMP: PixelGrid = [
+  '.....KKKKKK.....',
+  '....KhhHHFFK....',
+  '...KhHHLLLHHK...',
+  '.KKHHHKSSSSEK...',
+  'KHHhKKKSSSSSK...',
+  '.KK...KSSSSK....',
+  '..KKKRRRRRKK....',
+  '.KrrRRRRRRRK....',
+  'Kr...KTTTTKKK...',
+  '.....KTTtTTTK...',
+  '....KTTTTKTSK...',
+  '....KBBBK.KK....',
+  '...KBKKBBK......',
+  '..KOK..KBK......',
+  '..KOoK..KOK.....',
+  '..KKKK..KOoK....',
+  '........KKKK....',
+];
+
+const LACRAMIOARA_DUCK: PixelGrid = [
+  '.....KKKKKK.....',
+  '....KhhHHFFK....',
+  '..KKhHHLLLHHK...',
+  '.KHHhHKSSSSEK...',
+  'KrrRRRRRRRRK....',
+  '.KKKTTTTTTTK....',
+  '...KTTtTTTSK....',
+  '..KBBBBBBBK.....',
+  '.KOKK..KOKK.....',
+  '.KOoK..KOoK.....',
+  '.KKKK..KKKK.....',
+];
+
+export const LACRAMIOARA_FRAMES = {
+  run: [LACRAMIOARA_RUN_0, LACRAMIOARA_RUN_1, LACRAMIOARA_RUN_2, LACRAMIOARA_RUN_1],
+  jump: LACRAMIOARA_JUMP,
+  duck: LACRAMIOARA_DUCK,
+};
+
+export interface CharacterSpriteSet {
+  id: 'stride' | 'lacramioara';
+  name: string;
+  palette: Record<string, string>;
+  frames: {
+    run: PixelGrid[];
+    jump: PixelGrid;
+    duck: PixelGrid;
+  };
+}
+
+export const CHARACTER_SPRITES: Record<'stride' | 'lacramioara', CharacterSpriteSet> = {
+  stride: {
+    id: 'stride',
+    name: 'STRIDE',
+    palette: RUNNER_PALETTE,
+    frames: RUNNER_FRAMES,
+  },
+  lacramioara: {
+    id: 'lacramioara',
+    name: 'LACRAMIOARA',
+    palette: LACRAMIOARA_PALETTE,
+    frames: LACRAMIOARA_FRAMES,
+  },
+};
+
 // Shell Hopper (18x16 animated beetle critter)
 export const HOPPER_PALETTE: Record<string, string> = {
   K: '#141122',

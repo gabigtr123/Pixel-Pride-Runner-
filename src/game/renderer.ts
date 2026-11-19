@@ -8,6 +8,7 @@ import {
   VIRTUAL_WIDTH,
 } from './constants';
 import {
+  CHARACTER_SPRITES,
   COIN_FRAMES,
   COIN_PALETTE,
   drawPixelGrid,
@@ -18,8 +19,6 @@ import {
   HOPPER_PALETTE,
   MAGNET_PALETTE,
   MAGNET_SPRITE,
-  RUNNER_FRAMES,
-  RUNNER_PALETTE,
   SHIELD_PALETTE,
   SHIELD_SPRITE,
   SPIKE_PALETTE,
@@ -402,13 +401,14 @@ function drawPlayer(ctx: CanvasRenderingContext2D, state: GameState): void {
     ctx.fillRect(Math.round(p.x + (p.width - shadowW) * 0.5), Math.round(shadowY - 1), shadowW, 3);
   }
 
-  // Select sprite frame synced to distance traveled
-  let grid = RUNNER_FRAMES.jump;
+  // Select sprite frame synced to distance traveled for the active character
+  const spriteSet = CHARACTER_SPRITES[state.characterId] ?? CHARACTER_SPRITES.stride;
+  let grid = spriteSet.frames.jump;
   if (p.isDucking) {
-    grid = RUNNER_FRAMES.duck;
+    grid = spriteSet.frames.duck;
   } else if (p.onGround) {
-    const idx = Math.floor(p.runCycleDist / 16) % RUNNER_FRAMES.run.length;
-    grid = RUNNER_FRAMES.run[idx];
+    const idx = Math.floor(p.runCycleDist / 16) % spriteSet.frames.run.length;
+    grid = spriteSet.frames.run[idx];
   }
 
   const spriteH = grid.length;
@@ -428,7 +428,7 @@ function drawPlayer(ctx: CanvasRenderingContext2D, state: GameState): void {
   drawPixelGrid(
     ctx,
     grid,
-    RUNNER_PALETTE,
+    spriteSet.palette,
     -spriteW * 0.5,
     -spriteH,
     1,
