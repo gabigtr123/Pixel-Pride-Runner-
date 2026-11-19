@@ -58,6 +58,7 @@ jobs:
         run: |
           npx cap add android
           npx cap sync android
+          node scripts/apply-android-icons.mjs
           cat android/variables.gradle
 
       - name: Build Signed Android 17 Release APK
