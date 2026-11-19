@@ -1,0 +1,8 @@
+{
+  "appId": "com.gabigtr123.pixelstride",
+  "appName": "Pixel Stride",
+  "webDir": "dist",
+  "android": {
+    "backgroundColor": "#111324"
+  }
+}

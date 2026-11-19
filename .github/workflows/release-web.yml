@@ -1,0 +1,62 @@
+name: Release Web
+
+on:
+  push:
+    tags:
+      - "v*-web"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v1.0.0-web)"
+        required: true
+        default: "v1.0.0-web"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release-web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Type-check & Test
+        run: |
+          npm run lint
+          npm test
+
+      - name: Build Web bundle
+        run: npm run build
+
+      - name: Package Web release archive
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          cd dist
+          zip -r "../pixel-stride-${RELEASE_TAG}.zip" .
+
+      - name: Publish Web GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "pixel-stride-${RELEASE_TAG}.zip" --clobber
+          else
+            gh release create "$RELEASE_TAG" "pixel-stride-${RELEASE_TAG}.zip" \
+              --title "Pixel Stride Web (${RELEASE_TAG})" \
+              --notes "Static Web production build of **Pixel Stride** (Vite + React + 480×270 Pixel-Art Canvas).
+
+### How to run
+1. Download and unzip \`pixel-stride-${RELEASE_TAG}.zip\`.
+2. Serve the extracted folder with any static file server (e.g., \`npx serve .\`, Netlify, Vercel, or GitHub Pages)."
+          fi
