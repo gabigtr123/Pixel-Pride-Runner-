@@ -1,0 +1,6 @@
+{
+  "name": "Pixel Stride",
+  "description": "An 8-bit retro endless runner with parallax pixel-art biomes, chiptune audio, double-jump and duck platforming, and classic arcade scoring.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

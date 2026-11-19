@@ -1,0 +1,135 @@
+@import "tailwindcss";
+
+@layer base {
+  html,
+  body,
+  #root {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background-color: #111324;
+    font-family: 'Silkscreen', monospace;
+    -webkit-font-smoothing: none;
+    touch-action: manipulation;
+  }
+}
+
+.font-pixel-display {
+  font-family: 'Press Start 2P', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.font-pixel-ui {
+  font-family: 'Silkscreen', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.pixel-canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.pixel-text-shadow {
+  text-shadow:
+    2px 2px 0px #0f1120,
+    0px 2px 0px #0f1120,
+    2px 0px 0px #0f1120;
+}
+
+.pixel-text-shadow-lg {
+  text-shadow:
+    3px 3px 0px #0f1120,
+    -2px -2px 0px #0f1120,
+    2px -2px 0px #0f1120,
+    -2px 2px 0px #0f1120;
+}
+
+/* Chunky 8-bit beveled panel frame without rounded-xl SaaS chrome or backdrop blur */
+.pixel-panel {
+  background-color: #181c36;
+  border: 3px solid #f4efe0;
+  box-shadow:
+    inset -3px -3px 0px #0d1022,
+    inset 3px 3px 0px #2b3361,
+    0 6px 0px #0a0c18;
+}
+
+.pixel-btn-primary {
+  background-color: #f0a828;
+  color: #141220;
+  border: 3px solid #fff5d6;
+  box-shadow:
+    inset -3px -3px 0px #b86c14,
+    inset 3px 3px 0px #ffd872,
+    0 4px 0px #0d0f1d;
+  transition: transform 80ms steps(2), background-color 80ms linear;
+}
+
+.pixel-btn-primary:hover {
+  background-color: #ffb938;
+}
+
+.pixel-btn-primary:active {
+  transform: translateY(3px);
+  box-shadow:
+    inset -2px -2px 0px #b86c14,
+    inset 2px 2px 0px #ffd872,
+    0 1px 0px #0d0f1d;
+}
+
+.pixel-btn-secondary {
+  background-color: #252c52;
+  color: #f8f6ee;
+  border: 3px solid #96a4d4;
+  box-shadow:
+    inset -3px -3px 0px #151933,
+    inset 3px 3px 0px #3c4780,
+    0 4px 0px #0d0f1d;
+  transition: transform 80ms steps(2), background-color 80ms linear;
+}
+
+.pixel-btn-secondary:hover {
+  background-color: #323c6e;
+  border-color: #f8f6ee;
+}
+
+.pixel-btn-secondary:active {
+  transform: translateY(3px);
+  box-shadow:
+    inset -2px -2px 0px #151933,
+    inset 2px 2px 0px #3c4780,
+    0 1px 0px #0d0f1d;
+}
+
+.pixel-icon-btn {
+  background-color: rgba(20, 24, 48, 0.92);
+  color: #f8f6ee;
+  border: 2px solid #d4dcf4;
+  box-shadow:
+    inset -2px -2px 0px #0c0e1e,
+    inset 2px 2px 0px #333e70,
+    0 3px 0px #0a0c18;
+  transition: transform 80ms steps(2), background-color 80ms linear;
+}
+
+.pixel-icon-btn:hover {
+  background-color: #2b3566;
+  border-color: #ffd872;
+}
+
+.pixel-icon-btn:active {
+  transform: translateY(2px);
+  box-shadow:
+    inset -1px -1px 0px #0c0e1e,
+    0 1px 0px #0a0c18;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pixel-btn-primary,
+  .pixel-btn-secondary,
+  .pixel-icon-btn {
+    transition: none;
+  }
+}
