@@ -5,7 +5,7 @@
 <h1 align="center">PIXEL STRIDE</h1>
 
 <p align="center">
-  <strong>An 8-bit retro endless runner with parallax pixel-art biomes, chiptune audio, tight platforming physics, and classic arcade scoring.</strong>
+  <strong>An 8-bit retro endless runner with playable characters, parallax pixel-art biomes, chiptune audio, tight platforming physics, and Android 17 support.</strong>
 </p>
 
 <p align="center">
@@ -14,19 +14,31 @@
   <img src="https://img.shields.io/badge/TypeScript-7-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/Vite-8-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite 8" />
   <img src="https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white" alt="Tailwind CSS 4" />
-  <img src="https://img.shields.io/badge/Canvas_2D-480×270_Pixel_Art-FF6B35?style=for-the-badge" alt="Canvas 2D Pixel Art" />
+  <img src="https://img.shields.io/badge/Android_17-API_37_%7C_Capacitor_9-3DDC84?style=for-the-badge&logo=android&logoColor=111324" alt="Android 17 API 37" />
 </p>
 
 ---
 
 ## ✨ Features
 
+- **Playable Characters (Stride & Lacramioara)** — Choose between **Stride** (classic scarfed retro adventurer) and **Lacramioara** (custom 8-bit pixel-art lily-of-the-valley runner with flowing ponytail, white blossom hairband, emerald tunic, and rose ribbon) directly on the title screen with live preview and saved preference.
 - **4 Parallax Pixel-Art Biomes** — Seamlessly transition every 400m through **Sunlit Highlands**, **Amber Canyon**, **Starlight Citadel**, and **Dawn Peaks**, each with custom skies, celestial bodies, clouds, mountains, ruins, and terrain palettes.
 - **Crisp Platformer Physics** — Native `480×270` 16:9 pixel-perfect Canvas rendering with variable-height jump cut, double jump, coyote time (`110ms`), jump buffering (`120ms`), ground slide/duck, and mid-air fast-fall.
 - **4 Hazard Archetypes & Stomp Mechanics** — Dodge **Spikes**, stomp **Hoppers** for a bounce + bonus points, duck under **Swoopers**, and time your leaps past **Flame** flares as speed and difficulty scale dynamically.
 - **Pickups & Combo System** — Collect **Coins** to build combo multipliers, plus **Shield** (absorbs a hit), **Heart** (restores HP), and **Magnet** (pulls nearby coins) power-ups.
-- **Procedural Chiptune Audio** — Built-in Web Audio API synthesizer (`ChiptuneAudio`) generating retro music loops and sound effects for jumps, stomps, coins, power-ups, and zone transitions — zero external audio assets required.
-- **Desktop & Mobile Ready** — Play with keyboard, mouse click/tap, or on-screen touch controls, with automatic local high-score persistence.
+- **Procedural Chiptune Audio** — Built-in Web Audio API synthesizer (`ChiptuneAudio`) generating retro music loops and sound effects with cached noise buffers, automatic node cleanup, and persisted mute state.
+- **Android 17 (API 37) Ready** — Packaged with **Capacitor 9** targeting Android 17 (`compileSdkVersion = 37`, `targetSdkVersion = 37`), edge-to-edge safe-area insets (`viewport-fit=cover` + `env(safe-area-inset-*)`), adaptive tablet/foldable touch controls (`pointer: coarse`), and automatic background audio pause.
+
+---
+
+## 📦 Downloads & Releases
+
+Pre-built **Web** and **Android 17** packages are published on the [GitHub Releases](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases) page:
+
+| Platform | Latest Release | Artifact | How to Run / Install |
+| :--- | :--- | :--- | :--- |
+| **Android 17 (API 37)** | [`v1.2.0-android`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v1.2.0-android) | `pixel-stride-v1.2.0-android.apk` | Download the APK on your Android device (Android 8.0+ / API 26+, optimized for Android 17) and tap to install. |
+| **Web (Static Bundle)** | [`v1.2.0-web`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v1.2.0-web) | `pixel-stride-v1.2.0-web.zip` | Unzip and serve with any static host (`npx serve .`, Netlify, Vercel, or GitHub Pages). |
 
 ---
 
@@ -34,10 +46,11 @@
 
 | Action | Keyboard | Mouse / Touch |
 | :--- | :--- | :--- |
-| **Start / Restart** | `Enter` or `Space` (on Title / Game Over), `R` | Tap **Start / Retry** button |
+| **Choose Character** | — | Tap **STRIDE** or **LACRAMIOARA** on Title Screen |
+| **Start / Restart** | `Enter` or `Space` (on Title / Game Over), `R` | Tap **START RUN / TRY AGAIN** |
 | **Jump / Double Jump** | `Space`, `↑`, or `W` *(hold for higher jump)* | Tap / hold canvas or **JUMP** button |
 | **Duck / Slide / Fast-Fall** | `↓` or `S` | Hold **DUCK** button |
-| **Pause / Resume** | `P` or `Esc` | Tap **Pause** HUD icon |
+| **Pause / Resume** | `P` or `Esc` (`Space` / `Enter` also resumes) | Tap **Pause** HUD icon |
 | **Mute / Unmute Audio** | `M` | Tap **Sound** HUD icon |
 
 > **Tip:** Append `?autostart=1` to the URL to jump straight into a run without the title overlay.
@@ -48,8 +61,9 @@
 
 ### Prerequisites
 
-- **Node.js** `20+` (LTS recommended)
+- **Node.js** `24+` (LTS, required by Capacitor 9 CLI)
 - **npm** `10+`
+- *(Optional, for local Android builds)* **JDK 21** & **Android 17 SDK (API 37)**
 
 ### Installation & Local Development
 
@@ -70,11 +84,17 @@ npm run dev
 | Command | Description |
 | :--- | :--- |
 | `npm run dev` | Start Vite development server on port `3000` |
-| `npm run build` | Build production bundle into `dist/` |
+| `npm run build` | Build production Web bundle into `dist/` |
 | `npm run preview` | Preview the production build locally |
 | `npm run lint` | Run TypeScript type-checking (`tsc --noEmit`) |
 | `npm test` | Run deterministic game-engine unit tests (`node:test` via `tsx`) |
+| `npm run android:sync` | Build Web bundle and sync Capacitor 9 Android assets |
 | `npm run clean` | Remove build artifacts (`dist/` and `server.js`) |
+
+### Automated Releases (GitHub Actions)
+
+- Push a tag matching `v*-web` (e.g., `v1.3.0-web`) to automatically run lint/tests, build `dist/`, and publish a Web `.zip` release via `.github/workflows/release-web.yml`.
+- Push a tag matching `v*-android` (e.g., `v1.3.0-android`) to automatically build an Android 17 (API 37) `.apk` with Capacitor 9 + Gradle and publish it via `.github/workflows/release-android.yml`.
 
 ---
 
@@ -82,25 +102,32 @@ npm run dev
 
 ```text
 Pixel-Pride-Runner-/
+├── .github/
+│   ├── ISSUE_TEMPLATE/         # Bug report & feature request forms
+│   ├── workflows/
+│   │   ├── release-android.yml # Automated Android 17 (API 37) APK release
+│   │   └── release-web.yml     # Automated static Web zip release
+│   └── PULL_REQUEST_TEMPLATE.md
 ├── assets/
 │   └── banner.jpg              # README pixel-art banner
 ├── src/
 │   ├── components/
-│   │   ├── GameHud.tsx         # Score, HP hearts, zone banner, touch controls
-│   │   ├── PixelIcons.tsx      # Crisp pixel-art SVG UI icons
+│   │   ├── GameHud.tsx         # Score, HP hearts, zone banner, safe-area touch controls
+│   │   ├── PixelIcons.tsx      # Crisp pixel-art SVG UI icons & character previews
 │   │   ├── StatusModal.tsx     # Pause & Game Over overlays
-│   │   └── TitleOverlay.tsx    # Title screen & best score badge
+│   │   └── TitleOverlay.tsx    # Title screen, character selector & best score
 │   ├── game/
 │   │   ├── audio.ts            # Procedural Web Audio chiptune soundtrack & SFX
-│   │   ├── constants.ts        # Physics tuning, resolution, and 4 biome palettes
+│   │   ├── constants.ts        # Physics tuning, storage keys & 4 biome palettes
 │   │   ├── engine.ts           # Fixed-step simulation, collision, spawning, scoring
-│   │   ├── engine.test.ts      # Seeded unit tests for physics, combat & difficulty
+│   │   ├── engine.test.ts      # Seeded unit tests for physics, combat & characters
 │   │   ├── renderer.ts         # Layered 480×270 pixel-art Canvas 2D renderer
-│   │   ├── sprites.ts          # Procedural pixel-art sprite definitions
-│   │   └── types.ts            # Core state, entity, HUD, and audio types
-│   ├── App.tsx                 # Main game loop, input hub, and React HUD bridge
-│   ├── index.css               # Retro pixel styling & Tailwind CSS v4 setup
+│   │   ├── sprites.ts          # 8-bit sprite matrices (Stride, Lacramioara, enemies)
+│   │   └── types.ts            # Core state, character, entity, HUD & audio types
+│   ├── App.tsx                 # Main game loop, input hub & React HUD bridge
+│   ├── index.css               # Retro pixel styling, safe-area & Tailwind CSS v4
 │   └── main.tsx                # Application entry point
+├── capacitor.config.json       # Capacitor 9 Android configuration
 ├── index.html
 ├── package.json
 ├── tsconfig.json
