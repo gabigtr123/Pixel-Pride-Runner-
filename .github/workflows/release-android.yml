@@ -67,9 +67,5 @@ jobs:
           else
             gh release create "$RELEASE_TAG" "pixel-stride-${RELEASE_TAG}.apk" \
               --title "Pixel Stride Android (${RELEASE_TAG})" \
-              --notes "Android APK build of **Pixel Stride** packaged with Capacitor 8.
-
-### How to install
-1. Download \`pixel-stride-${RELEASE_TAG}.apk\` on your Android device.
-2. Allow installing apps from unknown sources if prompted, then tap the APK to install."
+              --notes "$(printf 'Android APK build of **Pixel Stride** packaged with Capacitor 8.\n\n### How to install\n1. Download `pixel-stride-%s.apk` on your Android device.\n2. Allow installing apps from unknown sources if prompted, then tap the APK to install.' "$RELEASE_TAG")"
           fi

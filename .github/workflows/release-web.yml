@@ -54,9 +54,5 @@ jobs:
           else
             gh release create "$RELEASE_TAG" "pixel-stride-${RELEASE_TAG}.zip" \
               --title "Pixel Stride Web (${RELEASE_TAG})" \
-              --notes "Static Web production build of **Pixel Stride** (Vite + React + 480×270 Pixel-Art Canvas).
-
-### How to run
-1. Download and unzip \`pixel-stride-${RELEASE_TAG}.zip\`.
-2. Serve the extracted folder with any static file server (e.g., \`npx serve .\`, Netlify, Vercel, or GitHub Pages)."
+              --notes "$(printf 'Static Web production build of **Pixel Stride** (Vite + React + 480x270 Pixel-Art Canvas).\n\n### How to run\n1. Download and unzip `pixel-stride-%s.zip`.\n2. Serve the extracted folder with any static file server (e.g., `npx serve .`, Netlify, Vercel, or GitHub Pages).' "$RELEASE_TAG")"
           fi
