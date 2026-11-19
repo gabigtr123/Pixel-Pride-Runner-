@@ -1,4 +1,12 @@
-import { BIOMES, GROUND_Y, MAX_FLOATING_TEXTS, MAX_PARTICLES, VIRTUAL_HEIGHT, VIRTUAL_WIDTH } from './constants';
+import {
+  BIOMES,
+  DISTANCE_PER_ZONE,
+  GROUND_Y,
+  MAX_FLOATING_TEXTS,
+  MAX_PARTICLES,
+  VIRTUAL_HEIGHT,
+  VIRTUAL_WIDTH,
+} from './constants';
 import {
   COIN_FRAMES,
   COIN_PALETTE,
@@ -59,8 +67,8 @@ function getBlendedBiome(state: GameState): BiomePalette {
   const curr = BIOMES[currIdx];
   const next = BIOMES[nextIdx];
 
-  // Smooth transition during the last 60m of each 400m zone
-  const zoneProgress = (state.distance % 400) / 400;
+  // Smooth transition during the last 15% of each biome zone
+  const zoneProgress = (state.distance % DISTANCE_PER_ZONE) / DISTANCE_PER_ZONE;
   if (zoneProgress < 0.85 || state.phase === 'title') {
     return curr;
   }

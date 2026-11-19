@@ -11,7 +11,7 @@ interface TitleOverlayProps {
 export function TitleOverlay({ bestScore, muted, onStart, onToggleMute }: TitleOverlayProps) {
   return (
     <div
-      className="fixed inset-0 z-20 flex flex-col justify-between pointer-events-none px-4 py-5 sm:px-8 sm:py-6"
+      className="fixed inset-0 z-20 flex flex-col justify-between pointer-events-none safe-area-hud"
       data-testid="title-screen"
     >
       {/* Top right sound toggle only — keeps upper sky clean for the title lockup */}

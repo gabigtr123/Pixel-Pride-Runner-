@@ -165,6 +165,7 @@ export function createInitialState(bestScore = 0, phase: GamePhase = 'title'): G
     score: 0,
     bonusScore: 0,
     bestScore,
+    runStartBestScore: bestScore,
     coins: 0,
     stomps: 0,
     combo: 1,
@@ -600,7 +601,7 @@ export function stepSimulation(
     state.gameOverDelayTimer -= dt;
     if (state.gameOverDelayTimer <= 0) {
       const finalScore = Math.round(state.score);
-      const isNewBest = finalScore > state.bestScore;
+      const isNewBest = finalScore > state.runStartBestScore;
       const bestScore = Math.max(state.bestScore, finalScore);
       state.bestScore = bestScore;
       state.finalRun = {
@@ -784,7 +785,7 @@ export function stepSimulation(
     if (h.stomped) {
       // KO topple arc instead of instant pop-out
       h.koTimer -= dt;
-      h.x += (h.koVx - scrollDx * 0.35) * dt;
+      h.x += h.koVx * dt - scrollDx * 0.35;
       h.vy += GRAVITY * 0.85 * dt;
       h.y += h.vy * dt;
       if (h.koTimer <= 0 || h.y > GROUND_Y + 40) {

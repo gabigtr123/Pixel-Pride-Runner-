@@ -3,6 +3,7 @@ import type { AudioEvent } from './types';
 // Authentic 8-bit NES-inspired Web Audio API chiptune SFX & music loop engine
 export class ChiptuneAudio {
   private ctx: AudioContext | null = null;
+  private noiseBuffer: AudioBuffer | null = null;
   private muted = false;
   private musicTimer: number | null = null;
   private musicStep = 0;
@@ -26,6 +27,9 @@ export class ChiptuneAudio {
     this.muted = muted;
     if (muted) {
       this.stopMusic();
+      if (this.ctx && this.ctx.state === 'running') {
+        void this.ctx.suspend().catch(() => {});
+      }
     }
   }
 
@@ -47,6 +51,20 @@ export class ChiptuneAudio {
       void this.ctx.resume().catch(() => {});
     }
     return this.ctx;
+  }
+
+  private getNoiseBuffer(ctx: AudioContext): AudioBuffer {
+    if (this.noiseBuffer && this.noiseBuffer.sampleRate === ctx.sampleRate) {
+      return this.noiseBuffer;
+    }
+    const sampleCount = Math.max(1, Math.floor(ctx.sampleRate * 0.25));
+    const buffer = ctx.createBuffer(1, sampleCount, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < sampleCount; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+    this.noiseBuffer = buffer;
+    return buffer;
   }
 
   private playTone(
@@ -72,6 +90,10 @@ export class ChiptuneAudio {
     gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
     osc.connect(gain);
     gain.connect(ctx.destination);
+    osc.onended = () => {
+      osc.disconnect();
+      gain.disconnect();
+    };
     osc.start(now);
     osc.stop(now + duration + 0.02);
   }
@@ -79,21 +101,20 @@ export class ChiptuneAudio {
   private playNoise(duration: number, gainPeak: number): void {
     const ctx = this.ensureContext();
     if (!ctx) return;
-    const sampleCount = Math.max(1, Math.floor(ctx.sampleRate * duration));
-    const buffer = ctx.createBuffer(1, sampleCount, ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < sampleCount; i++) {
-      data[i] = Math.random() * 2 - 1;
-    }
     const src = ctx.createBufferSource();
-    src.buffer = buffer;
+    src.buffer = this.getNoiseBuffer(ctx);
     const gain = ctx.createGain();
     const now = ctx.currentTime;
     gain.gain.setValueAtTime(gainPeak, now);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
     src.connect(gain);
     gain.connect(ctx.destination);
+    src.onended = () => {
+      src.disconnect();
+      gain.disconnect();
+    };
     src.start(now);
+    src.stop(now + duration + 0.02);
   }
 
   public startMusic(): void {

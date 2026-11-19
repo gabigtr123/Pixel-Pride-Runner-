@@ -3,7 +3,12 @@ import { GameHud } from './components/GameHud';
 import { StatusModal } from './components/StatusModal';
 import { TitleOverlay } from './components/TitleOverlay';
 import { ChiptuneAudio } from './game/audio';
-import { BEST_SCORE_STORAGE_KEY, VIRTUAL_HEIGHT, VIRTUAL_WIDTH } from './game/constants';
+import {
+  BEST_SCORE_STORAGE_KEY,
+  MUTED_STORAGE_KEY,
+  VIRTUAL_HEIGHT,
+  VIRTUAL_WIDTH,
+} from './game/constants';
 import {
   createInitialState,
   extractHudSnapshot,
@@ -27,6 +32,22 @@ function loadBestScore(): number {
 function saveBestScore(score: number): void {
   try {
     window.localStorage.setItem(BEST_SCORE_STORAGE_KEY, String(Math.round(score)));
+  } catch {
+    // Ignore storage failures in sandboxed frames
+  }
+}
+
+function loadMuted(): boolean {
+  try {
+    return window.localStorage.getItem(MUTED_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function saveMuted(muted: boolean): void {
+  try {
+    window.localStorage.setItem(MUTED_STORAGE_KEY, muted ? '1' : '0');
   } catch {
     // Ignore storage failures in sandboxed frames
   }
@@ -81,7 +102,7 @@ export default function App() {
     keysHeld: new Set<string>(),
   });
 
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState<boolean>(() => (typeof window !== 'undefined' ? loadMuted() : false));
   const [hud, setHud] = useState<HudSnapshot>(() => {
     const initialPhase = typeof window !== 'undefined' && shouldAutostart() ? 'playing' : 'title';
     const initial = createInitialState(typeof window !== 'undefined' ? loadBestScore() : 0, initialPhase);
@@ -161,6 +182,7 @@ export default function App() {
     if (!audio) return;
     const nowMuted = audio.toggleMute();
     setMuted(nowMuted);
+    saveMuted(nowMuted);
     if (!nowMuted && stateRef.current?.phase === 'playing') {
       audio.startMusic();
     }
@@ -189,6 +211,7 @@ export default function App() {
     if (!ctx) return;
 
     const audio = new ChiptuneAudio();
+    audio.setMuted(loadMuted());
     audioRef.current = audio;
 
     const autoStart = shouldAutostart();
@@ -228,7 +251,13 @@ export default function App() {
         return;
       }
 
-      // Title & Game Over keyboard start handshake
+      // Title, Paused & Game Over keyboard handshake
+      if (st.phase === 'paused' && (e.code === 'Enter' || e.code === 'Space')) {
+        e.preventDefault();
+        handlersRef.current.handleTogglePause();
+        return;
+      }
+
       if (st.phase === 'title' && (e.code === 'Enter' || e.code === 'Space')) {
         e.preventDefault();
         handlersRef.current.handleStartOrRestart();

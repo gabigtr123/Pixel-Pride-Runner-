@@ -227,3 +227,29 @@ test('checkAABB detects overlaps accurately', () => {
     false,
   );
 });
+
+test('finalRun.isNewBest is true when player beats previous best score during run', () => {
+  const rng = makeSeededRng(55);
+  const state = startNewRun(createInitialState(100, 'title'));
+
+  // Run long enough to surpass bestScore of 100 (live bestScore updates during run)
+  for (let i = 0; i < 120; i++) {
+    stepSimulation(state, 1 / 60, IDLE_INPUT, rng);
+  }
+  assert.ok(state.score > 100, 'score should exceed starting best score');
+  assert.equal(state.bestScore, state.score, 'live bestScore tracks current score');
+
+  // Trigger KO and advance to gameover
+  for (let hit = 0; hit < 3; hit++) {
+    state.player.invulnTimer = 0;
+    state.hitstopTimer = 0;
+    applyDamageToPlayer(state, rng);
+  }
+  for (let i = 0; i < 60; i++) {
+    stepSimulation(state, 1 / 60, IDLE_INPUT, rng);
+  }
+
+  assert.equal(state.phase, 'gameover');
+  assert.ok(state.finalRun !== null);
+  assert.equal(state.finalRun.isNewBest, true, 'isNewBest must reflect beating runStartBestScore');
+});

@@ -182,6 +182,7 @@ export interface GameState {
   score: number;
   bonusScore: number;
   bestScore: number;
+  runStartBestScore: number;
   coins: number;
   stomps: number;
   combo: number;
