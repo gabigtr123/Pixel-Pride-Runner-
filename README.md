@@ -27,6 +27,8 @@
 - **4 Hazard Archetypes & Stomp Mechanics** — Dodge **Spikes**, stomp **Hoppers** for a bounce + bonus points, duck under **Swoopers**, and time your leaps past **Flame** flares as speed and difficulty scale dynamically.
 - **Pickups & Combo System** — Collect **Coins** to build combo multipliers, plus **Shield** (absorbs a hit), **Heart** (restores HP), and **Magnet** (pulls nearby coins) power-ups.
 - **Procedural Chiptune Audio** — Built-in Web Audio API synthesizer (`ChiptuneAudio`) generating retro music loops and sound effects with cached noise buffers, automatic node cleanup, and persisted mute state.
+- **Daily Missions & Login Streak Bonuses** — 3 fresh daily quests every calendar day plus a 7-day play streak unlocking starting score boosts, a free **Star Shield** (Day 3+), and a **Coin Magnet** (Day 5+) at the start of every run.
+- **Dedicated Portrait & Landscape Modes** — Automatically switches between true vertical Portrait (`300×520` full-screen with underground touch control deck) and wide Landscape (`480×270` with bottom-right thumb controls away from the runner).
 - **Android 17 (API 37) Ready** — Packaged with **Capacitor 9** targeting Android 17 (`compileSdkVersion = 37`, `targetSdkVersion = 37`), edge-to-edge safe-area insets (`viewport-fit=cover` + `env(safe-area-inset-*)`), adaptive tablet/foldable touch controls (`pointer: coarse`), and automatic background audio pause.
 
 ---
@@ -37,8 +39,8 @@ Pre-built **Web** and **Android 17** packages are published on the [GitHub Relea
 
 | Platform | Latest Release | Artifact | How to Run / Install |
 | :--- | :--- | :--- | :--- |
-| **Android 17 (API 37)** | [`v1.2.1-android`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v1.2.1-android) | `pixel-stride-v1.2.1-android.apk` | Download the APK on your Android device (Android 8.0+ / API 26+, optimized for Android 17) and tap to install. |
-| **Web (Static Bundle)** | [`v1.2.1-web`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v1.2.1-web) | `pixel-stride-v1.2.1-web.zip` | Unzip and serve with any static host (`npx serve .`, Netlify, Vercel, or GitHub Pages). |
+| **Android 17 (API 37)** | [`v1.3.0-android`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v1.3.0-android) | `pixel-stride-v1.3.0-android.apk` | Download the APK on your Android device (Android 8.0+ / API 26+, optimized for Android 17) and tap to install. |
+| **Web (Static Bundle)** | [`v1.3.0-web`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v1.3.0-web) | `pixel-stride-v1.3.0-web.zip` | Unzip and serve with any static host (`npx serve .`, Netlify, Vercel, or GitHub Pages). |
 
 ---
 
