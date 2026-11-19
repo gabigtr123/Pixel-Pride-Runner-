@@ -31,6 +31,30 @@
   image-rendering: crisp-edges;
 }
 
+/* Android 17 edge-to-edge safe-area insets (camera cutouts, status bar, gesture nav) */
+.safe-area-hud {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+  padding-right: max(0.75rem, env(safe-area-inset-right));
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  padding-left: max(0.75rem, env(safe-area-inset-left));
+}
+
+@media (min-width: 640px) {
+  .safe-area-hud {
+    padding-top: max(1.25rem, env(safe-area-inset-top));
+    padding-right: max(1.25rem, env(safe-area-inset-right));
+    padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+    padding-left: max(1.25rem, env(safe-area-inset-left));
+  }
+}
+
+/* Show on-screen touch controls on phones AND Android 17 large-screen touch devices (tablets/foldables) */
+@media (pointer: coarse) {
+  .touch-controls-bar {
+    display: flex !important;
+  }
+}
+
 .pixel-text-shadow {
   text-shadow:
     2px 2px 0px #0f1120,

@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag (e.g. v1.0.0-android)"
+        description: "Release tag (e.g. v1.1.0-android)"
         required: true
-        default: "v1.0.0-android"
+        default: "v1.1.0-android"
 
 permissions:
   contents: write
@@ -19,18 +19,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "22"
 
       - name: Setup Java 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: "temurin"
           java-version: "21"
+
+      - name: Ensure Android 17 (API 37) SDK is installed
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37" "build-tools;37.0.0"
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund
@@ -43,12 +48,13 @@ jobs:
       - name: Build Web bundle
         run: npm run build
 
-      - name: Add and sync Capacitor Android project
+      - name: Add and sync Capacitor 9 Android project (Android 17 / API 37)
         run: |
           npx cap add android
           npx cap sync android
+          cat android/variables.gradle
 
-      - name: Build Android APK
+      - name: Build Android 17 APK
         env:
           RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
@@ -66,6 +72,6 @@ jobs:
             gh release upload "$RELEASE_TAG" "pixel-stride-${RELEASE_TAG}.apk" --clobber
           else
             gh release create "$RELEASE_TAG" "pixel-stride-${RELEASE_TAG}.apk" \
-              --title "Pixel Stride Android (${RELEASE_TAG})" \
-              --notes "$(printf 'Android APK build of **Pixel Stride** packaged with Capacitor 8.\n\n### How to install\n1. Download `pixel-stride-%s.apk` on your Android device.\n2. Allow installing apps from unknown sources if prompted, then tap the APK to install.' "$RELEASE_TAG")"
+              --title "Pixel Stride Android 17 (${RELEASE_TAG})" \
+              --notes "$(printf 'Android 17 (API level 37) APK build of **Pixel Stride** packaged with Capacitor 9.\n\n### What is new for Android 17\n- Targets **Android 17 (API 37)** (`compileSdkVersion = 37`, `targetSdkVersion = 37`)\n- Edge-to-edge full-screen rendering with safe-area insets (`viewport-fit=cover` + `env(safe-area-inset-*)`)\n- Adaptive large-screen / tablet / foldable touch controls (`pointer: coarse`)\n- Background audio hardening: auto-pauses gameplay and stops chiptune audio when backgrounded\n\n### How to install\n1. Download `pixel-stride-%s.apk` on your Android device.\n2. Allow installing apps from unknown sources if prompted, then tap the APK to install.' "$RELEASE_TAG")"
           fi

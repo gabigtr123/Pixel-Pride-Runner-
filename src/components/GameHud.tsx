@@ -41,7 +41,7 @@ export function GameHud({
 
   return (
     <div
-      className="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between p-3 sm:p-5"
+      className="fixed inset-0 z-10 pointer-events-none flex flex-col justify-between safe-area-hud"
       data-testid="game-hud"
     >
       {/* Compact top perimeter HUD strip — keeps >= 85% viewport unobstructed */}
@@ -213,8 +213,8 @@ export function GameHud({
         </div>
       )}
 
-      {/* Mobile / narrow viewport touch controls (kept tucked at bottom corners) */}
-      <div className="flex md:hidden items-end justify-between pb-2 pointer-events-auto">
+      {/* Mobile / narrow viewport & touch-device controls (kept tucked at bottom corners) */}
+      <div className="touch-controls-bar flex md:hidden items-end justify-between pb-2 pointer-events-auto">
         <button
           type="button"
           tabIndex={-1}

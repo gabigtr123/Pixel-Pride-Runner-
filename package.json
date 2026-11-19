@@ -1,7 +1,7 @@
 {
   "name": "pixel-stride",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
@@ -13,7 +13,7 @@
     "android:sync": "npm run build && npx cap sync android"
   },
   "dependencies": {
-    "@capacitor/core": "^8.6.2",
+    "@capacitor/core": "9.0.0-rc.0",
     "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^6.1.1",
@@ -26,8 +26,8 @@
     "motion": "^12.23.24"
   },
   "devDependencies": {
-    "@capacitor/android": "^8.6.2",
-    "@capacitor/cli": "^8.6.2",
+    "@capacitor/android": "9.0.0-rc.0",
+    "@capacitor/cli": "9.0.0-rc.0",
     "@types/node": "^22.14.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",

@@ -283,6 +283,12 @@ export default function App() {
     const onVisibility = () => {
       if (document.hidden) {
         handlersRef.current.clearHeldInputs();
+        audio.stopMusic();
+        const st = stateRef.current;
+        if (st && st.phase === 'playing') {
+          st.phase = 'paused';
+          handlersRef.current.syncDomAndHud(st, true);
+        }
       }
     };
 
