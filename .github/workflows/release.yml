@@ -1,21 +1,21 @@
-name: Release Android
+name: Release (Android 17 + Web)
 
 on:
   push:
     tags:
-      - "v*-android"
+      - "v*"
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag (e.g. v1.3.1-android)"
+        description: "Release tag (e.g. v1.3.1)"
         required: true
-        default: "v1.3.1-android"
+        default: "v1.3.1"
 
 permissions:
   contents: write
 
 jobs:
-  build-and-release-android:
+  build-and-release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -44,8 +44,15 @@ jobs:
           npm run lint
           npm test
 
-      - name: Build Web bundle
+      - name: Build Web & PWA bundle
         run: npm run build
+
+      - name: Package Web release archive
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          cd dist
+          zip -r "../pixel-stride-${RELEASE_TAG}-web.zip" .
 
       - name: Add and sync Capacitor 9 Android project (Android 17 / API 37)
         run: |
@@ -71,24 +78,26 @@ jobs:
             -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
             -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD"
           rm -f "$KEYSTORE_FILE"
-          cp app/build/outputs/apk/release/app-release.apk "../pixel-stride-${RELEASE_TAG}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "../pixel-stride-${RELEASE_TAG}-android.apk"
 
       - name: Verify APK signature
         env:
           RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
           APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)
-          "$APKSIGNER" verify --print-certs "pixel-stride-${RELEASE_TAG}.apk"
+          "$APKSIGNER" verify --print-certs "pixel-stride-${RELEASE_TAG}-android.apk"
 
-      - name: Publish Android GitHub Release
+      - name: Publish Unified GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
+          APK="pixel-stride-${RELEASE_TAG}-android.apk"
+          ZIP="pixel-stride-${RELEASE_TAG}-web.zip"
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" "pixel-stride-${RELEASE_TAG}.apk" --clobber
+            gh release upload "$RELEASE_TAG" "$APK" "$ZIP" --clobber
           else
-            gh release create "$RELEASE_TAG" "pixel-stride-${RELEASE_TAG}.apk" \
-              --title "Pixel Stride Android 17 (${RELEASE_TAG})" \
-              --notes "$(printf 'Signed Release APK build of **Pixel Stride** targeting **Android 17 (API level 37)** with Capacitor 9.\n\n### Highlights\n- Signed with persistent Release Keystore (supports seamless in-place updates without losing High Score or Daily Streak)\n- Targets **Android 17 (API 37)** (`compileSdkVersion = 37`, `targetSdkVersion = 37`)\n- Dedicated Portrait & Landscape modes, Daily Missions & Streak Bonuses, playable characters Stride & Lacramioara\n\n### How to install\n1. Download `pixel-stride-%s.apk` on your Android device.\n2. Tap the APK to install or update in place.' "$RELEASE_TAG")"
+            gh release create "$RELEASE_TAG" "$APK" "$ZIP" \
+              --title "Pixel Stride ${RELEASE_TAG}" \
+              --notes "$(printf 'Unified **Android 17** & **Web/PWA** release of **Pixel Stride**.\n\n### Downloads\n- **Android 17 Signed APK:** `%s` (API 37 / Capacitor 9, persistent release keystore for seamless in-place updates)\n- **Web & PWA Bundle:** `%s` (static bundle ready for any host)\n- **Play / Install PWA (0 warnings):** https://gabigtr123.github.io/Pixel-Pride-Runner-/\n\n### Highlights\n- Playable characters: **Stride** & **Lacramioara**\n- **Daily Missions** & **7-Day Login Streak Bonuses** (starting score boost, Star Shield, Coin Magnet)\n- Dedicated **Portrait** (`300x520` full-screen) & **Landscape** (`480x270`) modes' "$APK" "$ZIP")"
           fi

@@ -40,8 +40,8 @@ Pre-built **Web** and **Android 17** packages are published on the [GitHub Relea
 | Platform | Latest Release | Artifact | How to Run / Install |
 | :--- | :--- | :--- | :--- |
 | **Android / Web PWA (Live)** | [Play / Install PWA](https://gabigtr123.github.io/Pixel-Pride-Runner-/) | GitHub Pages | Open in Chrome on Android and tap **Install app** — full-screen offline play, automatic updates, **0 Play Protect warnings**. |
-| **Android 17 Signed APK** | [`v1.3.1-android`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v1.3.1-android) | `pixel-stride-v1.3.1-android.apk` | Signed Release APK (API 37 / Capacitor 9) with persistent keystore for seamless in-place updates. |
-| **Web (Static Bundle)** | [`v1.3.1-web`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v1.3.1-web) | `pixel-stride-v1.3.1-web.zip` | Unzip and serve with any static host (`npx serve .`, Netlify, Vercel, or GitHub Pages). |
+| **Android 17 Signed APK** | [`v1.3.1`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v1.3.1) | `pixel-stride-v1.3.1-android.apk` | Signed Release APK (API 37 / Capacitor 9) with persistent keystore for seamless in-place updates. |
+| **Web (Static Bundle)** | [`v1.3.1`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v1.3.1) | `pixel-stride-v1.3.1-web.zip` | Unzip and serve with any static host (`npx serve .`, Netlify, Vercel, or GitHub Pages). |
 
 ---
 
@@ -96,8 +96,8 @@ npm run dev
 
 ### Automated Releases (GitHub Actions)
 
-- Push a tag matching `v*-web` (e.g., `v1.3.0-web`) to automatically run lint/tests, build `dist/`, and publish a Web `.zip` release via `.github/workflows/release-web.yml`.
-- Push a tag matching `v*-android` (e.g., `v1.3.0-android`) to automatically build an Android 17 (API 37) `.apk` with Capacitor 9 + Gradle and publish it via `.github/workflows/release-android.yml`.
+- Push a single version tag `v*` (e.g., `v1.4.0`) to automatically run lint/tests, build both the **Signed Android 17 APK** and the **Web/PWA `.zip`**, and publish one unified GitHub Release via `.github/workflows/release.yml`.
+- Every push to `main` automatically deploys the live installable PWA to GitHub Pages via `.github/workflows/deploy-pages.yml`.
 
 ---
 
@@ -108,8 +108,8 @@ Pixel-Pride-Runner-/
 ├── .github/
 │   ├── ISSUE_TEMPLATE/         # Bug report & feature request forms
 │   ├── workflows/
-│   │   ├── release-android.yml # Automated Android 17 (API 37) APK release
-│   │   └── release-web.yml     # Automated static Web zip release
+│   │   ├── deploy-pages.yml    # Auto-deploy live PWA to GitHub Pages on main
+│   │   └── release.yml         # Unified Android 17 Signed APK + Web zip release
 │   └── PULL_REQUEST_TEMPLATE.md
 ├── assets/
 │   └── banner.jpg              # README pixel-art banner
