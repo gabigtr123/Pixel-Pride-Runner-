@@ -1,0 +1,65 @@
+name: Bug Report
+description: Report a gameplay bug, visual glitch, audio issue, or build error in Pixel Stride.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting an issue! Please fill out the details below so we can reproduce and fix it quickly.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear and concise description of the bug.
+      placeholder: Describe what went wrong...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce the behavior?
+      placeholder: |
+        1. Start a new run
+        2. Double jump near a hopper enemy
+        3. Observe...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen instead?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected Area
+      options:
+        - Gameplay / Physics
+        - Rendering / Pixel Art
+        - Chiptune Audio
+        - UI / HUD / Touch Controls
+        - Build / Dependencies
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Browser & OS
+      description: e.g., Chrome 130 on Windows 11, Safari on iOS 18, Firefox on Linux
+      placeholder: Browser / OS / Device
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Screenshots, Recordings, or Console Logs
+      description: Add any helpful screenshots, screen recordings, or browser console errors.
