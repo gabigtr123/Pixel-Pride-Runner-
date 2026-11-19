@@ -40,8 +40,8 @@ Pre-built **Web** and **Android 17** packages are published on the [GitHub Relea
 | Platform | Latest Release | Artifact | How to Run / Install |
 | :--- | :--- | :--- | :--- |
 | **Android / Web PWA (Live)** | [Play / Install PWA](https://gabigtr123.github.io/Pixel-Pride-Runner-/) | GitHub Pages | Open in Chrome on Android and tap **Install app** — full-screen offline play, automatic updates, **0 Play Protect warnings**. |
-| **Android 17 Signed APK** | [`v1.3.1`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v1.3.1) | `pixel-stride-v1.3.1-android.apk` | Signed Release APK (API 37 / Capacitor 9) with persistent keystore for seamless in-place updates. |
-| **Web (Static Bundle)** | [`v1.3.1`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v1.3.1) | `pixel-stride-v1.3.1-web.zip` | Unzip and serve with any static host (`npx serve .`, Netlify, Vercel, or GitHub Pages). |
+| **Android 17 Signed APK** | [`v1.3.2`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v1.3.2) | `pixel-stride-v1.3.2-android.apk` | Signed Release APK (API 37 / Capacitor 9) with persistent keystore for seamless in-place updates. |
+| **Web (Static Bundle)** | [`v1.3.2`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v1.3.2) | `pixel-stride-v1.3.2-web.zip` | Unzip and serve with any static host (`npx serve .`, Netlify, Vercel, or GitHub Pages). |
 
 ---
 
@@ -50,6 +50,7 @@ Pre-built **Web** and **Android 17** packages are published on the [GitHub Relea
 | Action | Keyboard | Mouse / Touch |
 | :--- | :--- | :--- |
 | **Choose Character** | — | Tap **STRIDE** or **LACRAMIOARA** on Title Screen |
+| **Daily Quests & Bonus** | — | Tap **DAY X** button on Title Screen or Game Over |
 | **Start / Restart** | `Enter` or `Space` (on Title / Game Over), `R` | Tap **START RUN / TRY AGAIN** |
 | **Jump / Double Jump** | `Space`, `↑`, or `W` *(hold for higher jump)* | Tap / hold canvas or **JUMP** button |
 | **Duck / Slide / Fast-Fall** | `↓` or `S` | Hold **DUCK** button |
@@ -87,12 +88,12 @@ npm run dev
 | Command | Description |
 | :--- | :--- |
 | `npm run dev` | Start Vite development server on port `3000` |
-| `npm run build` | Build production Web bundle into `dist/` |
+| `npm run build` | Build production Web & PWA bundle into `dist/` |
 | `npm run preview` | Preview the production build locally |
 | `npm run lint` | Run TypeScript type-checking (`tsc --noEmit`) |
 | `npm test` | Run deterministic game-engine unit tests (`node:test` via `tsx`) |
 | `npm run android:sync` | Build Web bundle and sync Capacitor 9 Android assets |
-| `npm run clean` | Remove build artifacts (`dist/` and `server.js`) |
+| `npm run clean` | Remove build output (`dist/`) |
 
 ### Automated Releases (GitHub Actions)
 
@@ -113,23 +114,31 @@ Pixel-Pride-Runner-/
 │   └── PULL_REQUEST_TEMPLATE.md
 ├── assets/
 │   └── banner.jpg              # README pixel-art banner
+├── public/
+│   ├── icon-192.png            # PWA 192×192 pixel-art icon
+│   ├── icon-512.png            # PWA 512×512 pixel-art icon
+│   ├── icon.svg                # Crisp SVG pixel-art favicon
+│   ├── manifest.webmanifest    # Installable PWA manifest
+│   └── sw.js                   # Offline-capable Service Worker
 ├── src/
 │   ├── components/
-│   │   ├── GameHud.tsx         # Score, HP hearts, zone banner, safe-area touch controls
+│   │   ├── DailyModal.tsx      # Daily Quests & 7-day streak bonus modal
+│   │   ├── GameHud.tsx         # Score, HP hearts, zone banner, portrait/landscape touch controls
 │   │   ├── PixelIcons.tsx      # Crisp pixel-art SVG UI icons & character previews
-│   │   ├── StatusModal.tsx     # Pause & Game Over overlays
-│   │   └── TitleOverlay.tsx    # Title screen, character selector & best score
+│   │   ├── StatusModal.tsx     # Pause & Game Over overlays with mission completion
+│   │   └── TitleOverlay.tsx    # Title screen, Daily button, character selector & best score
 │   ├── game/
 │   │   ├── audio.ts            # Procedural Web Audio chiptune soundtrack & SFX
 │   │   ├── constants.ts        # Physics tuning, storage keys & 4 biome palettes
+│   │   ├── daily.ts            # Deterministic Daily Missions & login streak engine
 │   │   ├── engine.ts           # Fixed-step simulation, collision, spawning, scoring
-│   │   ├── engine.test.ts      # Seeded unit tests for physics, combat & characters
-│   │   ├── renderer.ts         # Layered 480×270 pixel-art Canvas 2D renderer
+│   │   ├── engine.test.ts      # 13 seeded unit tests (physics, combat, daily, viewports)
+│   │   ├── renderer.ts         # Dual Portrait (300×520) & Landscape (480×270) Canvas renderer
 │   │   ├── sprites.ts          # 8-bit sprite matrices (Stride, Lacramioara, enemies)
-│   │   └── types.ts            # Core state, character, entity, HUD & audio types
-│   ├── App.tsx                 # Main game loop, input hub & React HUD bridge
+│   │   └── types.ts            # Core state, character, viewport, HUD & audio types
+│   ├── App.tsx                 # Main game loop, orientation hub & React HUD bridge
 │   ├── index.css               # Retro pixel styling, safe-area & Tailwind CSS v4
-│   └── main.tsx                # Application entry point
+│   └── main.tsx                # Entry point & PWA Service Worker registration
 ├── capacitor.config.json       # Capacitor 9 Android configuration
 ├── index.html
 ├── package.json
