@@ -32,10 +32,9 @@ jobs:
           distribution: "temurin"
           java-version: "21"
 
-      - name: Ensure Android 17 (API 37) SDK is installed
+      - name: Accept Android SDK licenses
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37" "build-tools;37.0.0"
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund
