@@ -1,5 +1,5 @@
 import React from 'react';
-import type { HudSnapshot } from '../game/types';
+import type { HudSnapshot, OrientationMode } from '../game/types';
 import {
   CoinIcon,
   HeartSocketIcon,
@@ -13,6 +13,7 @@ import {
 interface GameHudProps {
   hud: HudSnapshot;
   muted: boolean;
+  orientation: OrientationMode;
   onToggleMute: () => void;
   onTogglePause: () => void;
   onRestart: () => void;
@@ -25,6 +26,7 @@ interface GameHudProps {
 export function GameHud({
   hud,
   muted,
+  orientation,
   onToggleMute,
   onTogglePause,
   onRestart,
@@ -33,6 +35,7 @@ export function GameHud({
   onTouchDuckStart,
   onTouchDuckEnd,
 }: GameHudProps) {
+  const isPortrait = orientation === 'portrait';
   const heartSlots = Array.from({ length: hud.maxHp }, (_, idx) => {
     if (idx < hud.hp) return 'full' as const;
     if (idx === hud.hp && hud.damageFlash) return 'cracked' as const;
@@ -213,8 +216,15 @@ export function GameHud({
         </div>
       )}
 
-      {/* Mobile / narrow viewport & touch-device controls (kept tucked at bottom corners) */}
-      <div className="touch-controls-bar flex md:hidden items-end justify-between pb-2 pointer-events-auto">
+      {/* Dedicated touch controls: Portrait = full-width underground deck; Landscape = bottom-right cluster away from runner */}
+      <div
+        data-testid="touch-controls"
+        className={`touch-controls-bar pointer-events-auto ${
+          isPortrait
+            ? 'flex items-end justify-between pb-4 gap-4'
+            : 'flex md:hidden items-end justify-end pb-1 gap-2.5'
+        }`}
+      >
         <button
           type="button"
           tabIndex={-1}
@@ -226,7 +236,11 @@ export function GameHud({
           onPointerCancel={onTouchDuckEnd}
           onPointerLeave={onTouchDuckEnd}
           aria-label="Duck or Fast-Fall"
-          className="pixel-btn-secondary font-pixel-display text-xs px-5 py-4 min-w-[108px] min-h-[52px]"
+          className={`pixel-btn-secondary font-pixel-display text-xs cursor-pointer ${
+            isPortrait
+              ? 'flex-1 max-w-[160px] py-4 min-h-[60px]'
+              : 'px-4 py-3 min-w-[88px] min-h-[46px] opacity-85'
+          }`}
         >
           DUCK
         </button>
@@ -242,7 +256,11 @@ export function GameHud({
           onPointerCancel={onTouchJumpEnd}
           onPointerLeave={onTouchJumpEnd}
           aria-label="Jump"
-          className="pixel-btn-primary font-pixel-display text-xs px-6 py-4 min-w-[116px] min-h-[52px]"
+          className={`pixel-btn-primary font-pixel-display text-xs cursor-pointer ${
+            isPortrait
+              ? 'flex-1 max-w-[160px] py-4 min-h-[60px]'
+              : 'px-5 py-3 min-w-[96px] min-h-[46px] opacity-85'
+          }`}
         >
           JUMP
         </button>

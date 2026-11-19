@@ -27,12 +27,31 @@ import {
   SWOOPER_PALETTE,
   SWOOPER_UP,
 } from './sprites';
-import type { BiomePalette, GameState } from './types';
+import type { BiomePalette, GameState, OrientationMode, RenderViewport } from './types';
+
+export function getRenderViewport(mode: OrientationMode): RenderViewport {
+  if (mode === 'portrait') {
+    return {
+      mode: 'portrait',
+      width: 300,
+      height: 520,
+      cameraX: 36,
+      worldOffsetY: 120,
+    };
+  }
+  return {
+    mode: 'landscape',
+    width: VIRTUAL_WIDTH,
+    height: VIRTUAL_HEIGHT,
+    cameraX: 0,
+    worldOffsetY: 0,
+  };
+}
 
 // Deterministic starfield coordinates for night/dawn biomes
-const STARS = Array.from({ length: 34 }, (_, idx) => ({
+const STARS = Array.from({ length: 42 }, (_, idx) => ({
   x: (idx * 73 + 19) % VIRTUAL_WIDTH,
-  y: (idx * 41 + 11) % 126,
+  y: ((idx * 41 + 11) % 210) - 90,
   twinkleOffset: idx * 0.9,
   big: idx % 5 === 0,
 }));
@@ -94,22 +113,32 @@ function getBlendedBiome(state: GameState): BiomePalette {
   };
 }
 
-function drawSkyAndCelestial(ctx: CanvasRenderingContext2D, state: GameState, biome: BiomePalette): void {
-  // Stepped retro 8-bit sky bands (no blurry modern gradients)
+function drawSkyAndCelestial(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  biome: BiomePalette,
+  view: RenderViewport,
+): void {
+  const left = view.cameraX - 8;
+  const width = view.width + 16;
+  const top = -view.worldOffsetY - 8;
+
+  // Stepped retro 8-bit sky bands (extends seamlessly upward in portrait mode)
   ctx.fillStyle = biome.skyTop;
-  ctx.fillRect(0, 0, VIRTUAL_WIDTH, 74);
+  ctx.fillRect(left, top, width, 74 - top);
   ctx.fillStyle = biome.skyMid;
-  ctx.fillRect(0, 74, VIRTUAL_WIDTH, 76);
+  ctx.fillRect(left, 74, width, 76);
   ctx.fillStyle = biome.skyHorizon;
-  ctx.fillRect(0, 150, VIRTUAL_WIDTH, GROUND_Y - 150);
+  ctx.fillRect(left, 150, width, GROUND_Y - 150);
 
   // Subtle stepped dither seams between sky bands
+  const ditherStart = Math.floor(left / 4) * 4;
   ctx.fillStyle = biome.skyMid;
-  for (let x = 0; x < VIRTUAL_WIDTH; x += 4) {
+  for (let x = ditherStart; x < left + width; x += 4) {
     ctx.fillRect(x, 72, 2, 2);
   }
   ctx.fillStyle = biome.skyHorizon;
-  for (let x = 2; x < VIRTUAL_WIDTH; x += 4) {
+  for (let x = ditherStart + 2; x < left + width; x += 4) {
     ctx.fillRect(x, 148, 2, 2);
   }
 
@@ -118,6 +147,7 @@ function drawSkyAndCelestial(ctx: CanvasRenderingContext2D, state: GameState, bi
     ctx.save();
     for (let i = 0; i < STARS.length; i++) {
       const s = STARS[i];
+      if (s.y < top || s.y > 130) continue;
       const twinkle = 0.45 + 0.55 * Math.sin(state.elapsed * 3.2 + s.twinkleOffset);
       ctx.globalAlpha = biome.starAlpha * twinkle;
       ctx.fillStyle = '#FFF9E0';
@@ -127,9 +157,9 @@ function drawSkyAndCelestial(ctx: CanvasRenderingContext2D, state: GameState, bi
     ctx.restore();
   }
 
-  // Celestial body (pixel sun / sunset disc / crescent moon)
-  const cx = 398;
-  const cy = biome.celestialType === 'sunset' ? 128 : 54;
+  // Celestial body (pixel sun / sunset disc / crescent moon) anchored to active viewport
+  const cx = view.cameraX + view.width - (view.mode === 'portrait' ? 54 : 82);
+  const cy = biome.celestialType === 'sunset' ? 128 : view.mode === 'portrait' ? 16 : 54;
   ctx.fillStyle = biome.celestialColor;
   ctx.fillRect(cx - 10, cy - 14, 20, 28);
   ctx.fillRect(cx - 14, cy - 10, 28, 20);
@@ -140,8 +170,14 @@ function drawSkyAndCelestial(ctx: CanvasRenderingContext2D, state: GameState, bi
   }
 }
 
-function drawParallaxWorld(ctx: CanvasRenderingContext2D, state: GameState, biome: BiomePalette): void {
+function drawParallaxWorld(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  biome: BiomePalette,
+  view: RenderViewport,
+): void {
   const scroll = state.worldScroll;
+  const viewRight = view.cameraX + view.width;
 
   // 1. Pixel clouds (slow parallax)
   const cloudScroll = scroll * 0.1;
@@ -161,7 +197,7 @@ function drawParallaxWorld(ctx: CanvasRenderingContext2D, state: GameState, biom
   const mtnScroll = scroll * 0.2;
   const mtnTile = 120;
   const mtnOffset = -((mtnScroll % mtnTile + mtnTile) % mtnTile);
-  for (let base = mtnOffset - mtnTile; base < VIRTUAL_WIDTH + mtnTile; base += mtnTile) {
+  for (let base = mtnOffset - mtnTile; base < viewRight + mtnTile; base += mtnTile) {
     const bx = Math.round(base);
     // Stepped pyramid peak 1
     for (let step = 0; step < 14; step++) {
@@ -181,7 +217,7 @@ function drawParallaxWorld(ctx: CanvasRenderingContext2D, state: GameState, biom
   const hillScroll = scroll * 0.42;
   const hillTile = 160;
   const hillOffset = -((hillScroll % hillTile + hillTile) % hillTile);
-  for (let base = hillOffset - hillTile; base < VIRTUAL_WIDTH + hillTile; base += hillTile) {
+  for (let base = hillOffset - hillTile; base < viewRight + hillTile; base += hillTile) {
     const bx = Math.round(base);
     // Rolling stepped hill
     ctx.fillStyle = biome.nearHill;
@@ -217,41 +253,48 @@ function drawParallaxWorld(ctx: CanvasRenderingContext2D, state: GameState, biom
   }
 }
 
-function drawGround(ctx: CanvasRenderingContext2D, state: GameState, biome: BiomePalette): void {
+function drawGround(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  biome: BiomePalette,
+  view: RenderViewport,
+): void {
   const tileSize = 16;
   const scrollOffset = -Math.floor(((state.worldScroll % tileSize) + tileSize) % tileSize);
+  const left = view.cameraX - 8;
+  const width = view.width + 16;
+  const groundBottom = view.height - view.worldOffsetY + 12;
 
-  // Sub-earth fill
+  // Sub-earth fill extending cleanly to bottom of portrait/landscape canvas
   ctx.fillStyle = biome.dirtMain;
-  ctx.fillRect(0, GROUND_Y, VIRTUAL_WIDTH, VIRTUAL_HEIGHT - GROUND_Y);
+  ctx.fillRect(left, GROUND_Y, width, groundBottom - GROUND_Y);
 
   // Top grass lip with dark 8-bit outline
   ctx.fillStyle = '#121526';
-  ctx.fillRect(0, GROUND_Y - 1, VIRTUAL_WIDTH, 2);
+  ctx.fillRect(left, GROUND_Y - 1, width, 2);
   ctx.fillStyle = biome.grassTop;
-  ctx.fillRect(0, GROUND_Y + 1, VIRTUAL_WIDTH, 5);
+  ctx.fillRect(left, GROUND_Y + 1, width, 5);
   ctx.fillStyle = biome.grassTrim;
-  ctx.fillRect(0, GROUND_Y + 6, VIRTUAL_WIDTH, 3);
+  ctx.fillRect(left, GROUND_Y + 6, width, 3);
 
-  // Classic NES checkerboard / brick ground masonry
-  for (let x = scrollOffset - tileSize; x < VIRTUAL_WIDTH + tileSize; x += tileSize) {
+  // Classic NES checkerboard / brick ground masonry repeating to bottom
+  const maxX = view.cameraX + view.width + tileSize;
+  for (let x = scrollOffset - tileSize; x < maxX; x += tileSize) {
     // Grass blades overhang notch
     ctx.fillStyle = biome.grassTrim;
     ctx.fillRect(x + 4, GROUND_Y + 9, 4, 2);
     ctx.fillRect(x + 12, GROUND_Y + 9, 2, 3);
 
-    // Brick rows
-    ctx.fillStyle = biome.dirtDark;
-    ctx.fillRect(x, GROUND_Y + 14, tileSize - 1, 1);
-    ctx.fillRect(x + 8, GROUND_Y + 14, 1, 12);
-    ctx.fillRect(x, GROUND_Y + 26, tileSize - 1, 1);
-    ctx.fillRect(x, GROUND_Y + 26, 1, 14);
-    ctx.fillRect(x, GROUND_Y + 39, tileSize - 1, 1);
+    // Repeating underground brick rows
+    for (let rowY = GROUND_Y + 14, rowIdx = 0; rowY < groundBottom; rowY += 13, rowIdx++) {
+      const stagger = rowIdx % 2 === 0 ? 8 : 0;
+      ctx.fillStyle = biome.dirtDark;
+      ctx.fillRect(x, rowY, tileSize - 1, 1);
+      ctx.fillRect(x + stagger, rowY, 1, 13);
 
-    // Brick highlight pips
-    ctx.fillStyle = biome.dirtAccent;
-    ctx.fillRect(x + 2, GROUND_Y + 16, 4, 2);
-    ctx.fillRect(x + 10, GROUND_Y + 28, 4, 2);
+      ctx.fillStyle = biome.dirtAccent;
+      ctx.fillRect(x + ((stagger + 2) % tileSize), rowY + 2, 4, 2);
+    }
   }
 }
 
@@ -301,8 +344,9 @@ function drawPickups(ctx: CanvasRenderingContext2D, state: GameState): void {
   }
 }
 
-function drawHazards(ctx: CanvasRenderingContext2D, state: GameState): void {
+function drawHazards(ctx: CanvasRenderingContext2D, state: GameState, view: RenderViewport): void {
   const wingToggle = Math.floor(state.elapsed * 12) % 2 === 0;
+  const warningX = view.cameraX + view.width - 18;
   for (let i = 0; i < state.hazards.length; i++) {
     const h = state.hazards[i];
     const flash = h.hitFlash > 0;
@@ -331,10 +375,10 @@ function drawHazards(ctx: CanvasRenderingContext2D, state: GameState): void {
         const blink = Math.floor(state.elapsed * 20) % 2 === 0;
         const wy = Math.round(h.baseY + 2);
         ctx.fillStyle = blink ? '#FFE048' : '#FF4858';
-        ctx.fillRect(VIRTUAL_WIDTH - 18, wy, 12, 12);
+        ctx.fillRect(warningX, wy, 12, 12);
         ctx.fillStyle = '#141224';
-        ctx.fillRect(VIRTUAL_WIDTH - 13, wy + 2, 2, 5);
-        ctx.fillRect(VIRTUAL_WIDTH - 13, wy + 8, 2, 2);
+        ctx.fillRect(warningX + 5, wy + 2, 2, 5);
+        ctx.fillRect(warningX + 5, wy + 8, 2, 2);
       } else {
         ctx.save();
         if (h.stomped) {
@@ -464,7 +508,11 @@ function drawPlayer(ctx: CanvasRenderingContext2D, state: GameState): void {
   }
 }
 
-function drawParticlesAndPopups(ctx: CanvasRenderingContext2D, state: GameState): void {
+function drawParticlesAndPopups(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  view: RenderViewport,
+): void {
   for (let i = 0; i < MAX_PARTICLES; i++) {
     const pt = state.particles[i];
     if (!pt.active) continue;
@@ -474,10 +522,12 @@ function drawParticlesAndPopups(ctx: CanvasRenderingContext2D, state: GameState)
 
   ctx.font = 'bold 7px "Press Start 2P", monospace';
   ctx.textAlign = 'center';
+  const minTextX = view.cameraX + 36;
+  const maxTextX = view.cameraX + view.width - 36;
   for (let i = 0; i < MAX_FLOATING_TEXTS; i++) {
     const ft = state.floatingTexts[i];
     if (!ft.active) continue;
-    const x = Math.round(ft.x);
+    const x = Math.round(Math.min(maxTextX, Math.max(minTextX, ft.x)));
     const y = Math.round(ft.y);
     ctx.fillStyle = '#121324';
     ctx.fillText(ft.text, x + 1, y + 1);
@@ -486,36 +536,44 @@ function drawParticlesAndPopups(ctx: CanvasRenderingContext2D, state: GameState)
   }
 }
 
-export function renderGameWorld(ctx: CanvasRenderingContext2D, state: GameState): void {
+export function renderGameWorld(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  mode: OrientationMode = 'landscape',
+): void {
   ctx.imageSmoothingEnabled = false;
+  const view = getRenderViewport(mode);
   const biome = getBlendedBiome(state);
 
   ctx.save();
+  // Apply portrait/landscape camera framing
+  ctx.translate(-view.cameraX, view.worldOffsetY);
+
   // Decaying trauma*trauma pixel camera shake
   if (state.shakeTrauma > 0.01) {
     const mag = state.shakeTrauma * state.shakeTrauma * 6;
-    const ox = Math.round((Math.sin(state.elapsed * 67) * mag));
-    const oy = Math.round((Math.cos(state.elapsed * 83) * mag));
+    const ox = Math.round(Math.sin(state.elapsed * 67) * mag);
+    const oy = Math.round(Math.cos(state.elapsed * 83) * mag);
     ctx.translate(ox, oy);
   }
 
-  drawSkyAndCelestial(ctx, state, biome);
-  drawParallaxWorld(ctx, state, biome);
-  drawGround(ctx, state, biome);
+  drawSkyAndCelestial(ctx, state, biome, view);
+  drawParallaxWorld(ctx, state, biome, view);
+  drawGround(ctx, state, biome, view);
   drawPlatforms(ctx, state, biome);
   drawPickups(ctx, state);
-  drawHazards(ctx, state);
+  drawHazards(ctx, state, view);
   drawPlayer(ctx, state);
-  drawParticlesAndPopups(ctx, state);
+  drawParticlesAndPopups(ctx, state, view);
   ctx.restore();
 
   // Subtle peripheral crimson warning edge when at 1 heart during active play
   if (state.phase === 'playing' && state.player.hp === 1 && !state.player.koActive) {
     const pulse = 0.14 + 0.1 * Math.sin(state.elapsed * 7);
     ctx.fillStyle = `rgba(232, 48, 72, ${pulse.toFixed(3)})`;
-    ctx.fillRect(0, 0, VIRTUAL_WIDTH, 4);
-    ctx.fillRect(0, VIRTUAL_HEIGHT - 4, VIRTUAL_WIDTH, 4);
-    ctx.fillRect(0, 0, 4, VIRTUAL_HEIGHT);
-    ctx.fillRect(VIRTUAL_WIDTH - 4, 0, 4, VIRTUAL_HEIGHT);
+    ctx.fillRect(0, 0, view.width, 4);
+    ctx.fillRect(0, view.height - 4, view.width, 4);
+    ctx.fillRect(0, 0, 4, view.height);
+    ctx.fillRect(view.width - 4, 0, 4, view.height);
   }
 }

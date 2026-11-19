@@ -10,7 +10,8 @@ import {
   startNewRun,
   stepSimulation,
 } from './engine';
-import { GROUND_Y, PLAYER_DUCK_HEIGHT, PLAYER_STAND_HEIGHT } from './constants';
+import { GROUND_Y, PLAYER_DUCK_HEIGHT, PLAYER_STAND_HEIGHT, PLAYER_X } from './constants';
+import { getRenderViewport } from './renderer';
 import type { InputFrame } from './types';
 
 const IDLE_INPUT: InputFrame = {
@@ -264,4 +265,21 @@ test('selected character (lacramioara) persists across startNewRun and returnToT
 
   const backToTitle = returnToTitle(playing);
   assert.equal(backToTitle.characterId, 'lacramioara');
+});
+
+test('portrait and landscape viewports provide dedicated framing without clipping the runner', () => {
+  const portrait = getRenderViewport('portrait');
+  const landscape = getRenderViewport('landscape');
+
+  assert.ok(portrait.height > portrait.width, 'portrait viewport must be vertical');
+  assert.ok(landscape.width > landscape.height, 'landscape viewport must be horizontal');
+
+  // Player sits cleanly inside portrait view with generous lookahead ahead
+  const playerScreenX = PLAYER_X - portrait.cameraX;
+  assert.ok(playerScreenX >= 24 && playerScreenX <= 80, 'player should be framed near left edge');
+  assert.ok(portrait.width - playerScreenX >= 240, 'portrait view must keep >= 240px runway lookahead');
+
+  // Ground sits above the bottom underground control deck in portrait mode
+  const groundScreenY = GROUND_Y + portrait.worldOffsetY;
+  assert.ok(portrait.height - groundScreenY >= 140, 'portrait mode must leave underground space for touch deck');
 });

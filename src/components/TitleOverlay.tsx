@@ -1,6 +1,6 @@
 import React from 'react';
 import { CHARACTER_SPRITES } from '../game/sprites';
-import type { CharacterId } from '../game/types';
+import type { CharacterId, OrientationMode } from '../game/types';
 import { CharacterPreviewIcon, PixelStrideTitleLogo, SoundIcon } from './PixelIcons';
 
 const CHARACTER_IDS: CharacterId[] = ['stride', 'lacramioara'];
@@ -9,6 +9,7 @@ interface TitleOverlayProps {
   bestScore: number;
   muted: boolean;
   characterId: CharacterId;
+  orientation: OrientationMode;
   onSelectCharacter: (id: CharacterId) => void;
   onStart: () => void;
   onToggleMute: () => void;
@@ -18,10 +19,13 @@ export function TitleOverlay({
   bestScore,
   muted,
   characterId,
+  orientation,
   onSelectCharacter,
   onStart,
   onToggleMute,
 }: TitleOverlayProps) {
+  const isPortrait = orientation === 'portrait';
+
   return (
     <div
       className="fixed inset-0 z-20 flex flex-col justify-between pointer-events-none safe-area-hud"
@@ -44,7 +48,11 @@ export function TitleOverlay({
       </div>
 
       {/* Upper-center calm sky negative-space lockup, character selector & primary CTA */}
-      <div className="flex flex-col items-center -mt-12 sm:-mt-20 gap-4">
+      <div
+        className={`flex flex-col items-center ${
+          isPortrait ? '-mt-24 gap-4' : '-mt-8 sm:-mt-16 gap-3 sm:gap-4'
+        }`}
+      >
         <PixelStrideTitleLogo />
 
         {/* Retro 8-bit character selector */}

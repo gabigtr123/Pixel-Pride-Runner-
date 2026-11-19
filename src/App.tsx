@@ -7,8 +7,6 @@ import {
   BEST_SCORE_STORAGE_KEY,
   CHARACTER_STORAGE_KEY,
   MUTED_STORAGE_KEY,
-  VIRTUAL_HEIGHT,
-  VIRTUAL_WIDTH,
 } from './game/constants';
 import {
   createInitialState,
@@ -17,8 +15,13 @@ import {
   startNewRun,
   stepSimulation,
 } from './game/engine';
-import { renderGameWorld } from './game/renderer';
-import type { CharacterId, GameState, HudSnapshot, InputFrame } from './game/types';
+import { getRenderViewport, renderGameWorld } from './game/renderer';
+import type { CharacterId, GameState, HudSnapshot, InputFrame, OrientationMode } from './game/types';
+
+function detectOrientation(): OrientationMode {
+  if (typeof window === 'undefined') return 'landscape';
+  return window.innerHeight > window.innerWidth ? 'portrait' : 'landscape';
+}
 
 function loadBestScore(): number {
   try {
@@ -122,6 +125,9 @@ export default function App() {
   });
 
   const [muted, setMuted] = useState<boolean>(() => (typeof window !== 'undefined' ? loadMuted() : false));
+  const [orientation, setOrientation] = useState<OrientationMode>(() => detectOrientation());
+  const orientationRef = useRef<OrientationMode>(orientation);
+  orientationRef.current = orientation;
   const [hud, setHud] = useState<HudSnapshot>(() => {
     const initialPhase = typeof window !== 'undefined' && shouldAutostart() ? 'playing' : 'title';
     const initial = createInitialState(
@@ -356,9 +362,33 @@ export default function App() {
       }
     };
 
+    let lastRenderedMode: OrientationMode = orientationRef.current;
+
+    const syncCanvasSize = (mode: OrientationMode) => {
+      const vp = getRenderViewport(mode);
+      if (canvas.width !== vp.width || canvas.height !== vp.height) {
+        canvas.width = vp.width;
+        canvas.height = vp.height;
+      }
+      document.body.dataset.orientation = mode;
+    };
+
+    syncCanvasSize(orientationRef.current);
+
+    const onResize = () => {
+      const nextMode = detectOrientation();
+      if (nextMode !== orientationRef.current) {
+        orientationRef.current = nextMode;
+        setOrientation(nextMode);
+        syncCanvasSize(nextMode);
+      }
+    };
+
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('blur', onFocusLoss);
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
     document.addEventListener('visibilitychange', onVisibility);
 
     let rafId = 0;
@@ -372,6 +402,7 @@ export default function App() {
 
       const st = stateRef.current;
       if (st) {
+        const mode = orientationRef.current;
         const isFrozen = st.phase === 'paused' || st.phase === 'gameover';
         if (!isFrozen) {
           const inp = inputRef.current;
@@ -394,12 +425,16 @@ export default function App() {
             saveBestScore(persistedBest);
           }
 
-          renderGameWorld(ctx, st);
+          syncCanvasSize(mode);
+          renderGameWorld(ctx, st, mode);
           lastRenderedPhase = st.phase;
+          lastRenderedMode = mode;
           handlersRef.current.syncDomAndHud(st);
-        } else if (lastRenderedPhase !== st.phase) {
-          renderGameWorld(ctx, st);
+        } else if (lastRenderedPhase !== st.phase || lastRenderedMode !== mode) {
+          syncCanvasSize(mode);
+          renderGameWorld(ctx, st, mode);
           lastRenderedPhase = st.phase;
+          lastRenderedMode = mode;
           handlersRef.current.syncDomAndHud(st);
         }
       }
@@ -414,6 +449,8 @@ export default function App() {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onFocusLoss);
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
       document.removeEventListener('visibilitychange', onVisibility);
       audio.dispose();
     };
@@ -462,19 +499,24 @@ export default function App() {
     handleTouchJumpEnd();
   }, [handleTouchJumpEnd]);
 
+  const viewport = getRenderViewport(orientation);
+
   return (
-    <main className="relative w-screen h-screen overflow-hidden bg-[#111324]">
-      {/* Isolated sibling canvas mount — full-bleed on desktop/landscape, full-runway framed on portrait mobile */}
+    <main
+      className="relative w-screen h-screen overflow-hidden bg-[#111324]"
+      data-orientation={orientation}
+    >
+      {/* Full-bleed pixel canvas in both true Portrait (300x520) and Landscape (480x270) modes */}
       <div className="fixed inset-0 flex items-center justify-center bg-[#111324]">
         <canvas
           ref={canvasRef}
-          width={VIRTUAL_WIDTH}
-          height={VIRTUAL_HEIGHT}
+          width={viewport.width}
+          height={viewport.height}
           data-testid="game-canvas"
           onPointerDown={handleCanvasPointerDown}
           onPointerUp={handleCanvasPointerUp}
           onPointerCancel={handleCanvasPointerUp}
-          className="pixel-canvas w-full h-auto max-h-full aspect-video sm:h-full sm:w-full sm:object-cover sm:object-left"
+          className="pixel-canvas w-full h-full object-cover object-left"
         />
       </div>
 
@@ -483,6 +525,7 @@ export default function App() {
           bestScore={hud.bestScore}
           muted={muted}
           characterId={hud.characterId}
+          orientation={orientation}
           onSelectCharacter={handleSelectCharacter}
           onStart={handleStartOrRestart}
           onToggleMute={handleToggleMute}
@@ -493,6 +536,7 @@ export default function App() {
         <GameHud
           hud={hud}
           muted={muted}
+          orientation={orientation}
           onToggleMute={handleToggleMute}
           onTogglePause={handleTogglePause}
           onRestart={handleStartOrRestart}

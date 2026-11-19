@@ -2,6 +2,16 @@ export type GamePhase = 'title' | 'playing' | 'paused' | 'gameover';
 
 export type CharacterId = 'stride' | 'lacramioara';
 
+export type OrientationMode = 'portrait' | 'landscape';
+
+export interface RenderViewport {
+  mode: OrientationMode;
+  width: number;
+  height: number;
+  cameraX: number;
+  worldOffsetY: number;
+}
+
 export type HazardKind = 'spike' | 'hopper' | 'swooper' | 'flame';
 
 export type PickupKind = 'coin' | 'shield' | 'heart' | 'magnet';
