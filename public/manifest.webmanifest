@@ -1,0 +1,29 @@
+{
+  "name": "Pixel Stride — 8-Bit Endless Runner",
+  "short_name": "Pixel Stride",
+  "description": "An 8-bit retro endless runner with playable characters, daily missions, parallax biomes, and chiptune audio.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "background_color": "#111324",
+  "theme_color": "#111324",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

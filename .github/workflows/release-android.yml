@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag (e.g. v1.1.0-android)"
+        description: "Release tag (e.g. v1.3.1-android)"
         required: true
-        default: "v1.1.0-android"
+        default: "v1.3.1-android"
 
 permissions:
   contents: write
@@ -53,14 +53,32 @@ jobs:
           npx cap sync android
           cat android/variables.gradle
 
-      - name: Build Android 17 APK
+      - name: Build Signed Android 17 Release APK
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          KEYSTORE_FILE="$PWD/android/app/release.keystore"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_FILE"
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file="$KEYSTORE_FILE" \
+            -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD"
+          rm -f "$KEYSTORE_FILE"
+          cp app/build/outputs/apk/release/app-release.apk "../pixel-stride-${RELEASE_TAG}.apk"
+
+      - name: Verify APK signature
         env:
           RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleDebug
-          cp app/build/outputs/apk/debug/app-debug.apk "../pixel-stride-${RELEASE_TAG}.apk"
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)
+          "$APKSIGNER" verify --print-certs "pixel-stride-${RELEASE_TAG}.apk"
 
       - name: Publish Android GitHub Release
         env:
@@ -72,5 +90,5 @@ jobs:
           else
             gh release create "$RELEASE_TAG" "pixel-stride-${RELEASE_TAG}.apk" \
               --title "Pixel Stride Android 17 (${RELEASE_TAG})" \
-              --notes "$(printf 'Android 17 (API level 37) APK build of **Pixel Stride** packaged with Capacitor 9.\n\n### What is new for Android 17\n- Targets **Android 17 (API 37)** (`compileSdkVersion = 37`, `targetSdkVersion = 37`)\n- Edge-to-edge full-screen rendering with safe-area insets (`viewport-fit=cover` + `env(safe-area-inset-*)`)\n- Adaptive large-screen / tablet / foldable touch controls (`pointer: coarse`)\n- Background audio hardening: auto-pauses gameplay and stops chiptune audio when backgrounded\n\n### How to install\n1. Download `pixel-stride-%s.apk` on your Android device.\n2. Allow installing apps from unknown sources if prompted, then tap the APK to install.' "$RELEASE_TAG")"
+              --notes "$(printf 'Signed Release APK build of **Pixel Stride** targeting **Android 17 (API level 37)** with Capacitor 9.\n\n### Highlights\n- Signed with persistent Release Keystore (supports seamless in-place updates without losing High Score or Daily Streak)\n- Targets **Android 17 (API 37)** (`compileSdkVersion = 37`, `targetSdkVersion = 37`)\n- Dedicated Portrait & Landscape modes, Daily Missions & Streak Bonuses, playable characters Stride & Lacramioara\n\n### How to install\n1. Download `pixel-stride-%s.apk` on your Android device.\n2. Tap the APK to install or update in place.' "$RELEASE_TAG")"
           fi

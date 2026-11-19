@@ -39,8 +39,9 @@ Pre-built **Web** and **Android 17** packages are published on the [GitHub Relea
 
 | Platform | Latest Release | Artifact | How to Run / Install |
 | :--- | :--- | :--- | :--- |
-| **Android 17 (API 37)** | [`v1.3.0-android`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v1.3.0-android) | `pixel-stride-v1.3.0-android.apk` | Download the APK on your Android device (Android 8.0+ / API 26+, optimized for Android 17) and tap to install. |
-| **Web (Static Bundle)** | [`v1.3.0-web`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v1.3.0-web) | `pixel-stride-v1.3.0-web.zip` | Unzip and serve with any static host (`npx serve .`, Netlify, Vercel, or GitHub Pages). |
+| **Android / Web PWA (Live)** | [Play / Install PWA](https://gabigtr123.github.io/Pixel-Pride-Runner-/) | GitHub Pages | Open in Chrome on Android and tap **Install app** — full-screen offline play, automatic updates, **0 Play Protect warnings**. |
+| **Android 17 Signed APK** | [`v1.3.1-android`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v1.3.1-android) | `pixel-stride-v1.3.1-android.apk` | Signed Release APK (API 37 / Capacitor 9) with persistent keystore for seamless in-place updates. |
+| **Web (Static Bundle)** | [`v1.3.1-web`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v1.3.1-web) | `pixel-stride-v1.3.1-web.zip` | Unzip and serve with any static host (`npx serve .`, Netlify, Vercel, or GitHub Pages). |
 
 ---
 
