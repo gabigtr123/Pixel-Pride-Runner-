@@ -199,9 +199,31 @@ export function createInitialState(
   };
 }
 
-export function startNewRun(state: GameState): GameState {
+export function startNewRun(
+  state: GameState,
+  dailyBonus?: { startingScoreBonus: number; startWithShield: boolean; startMagnetSeconds: number },
+): GameState {
   const best = Math.max(state.bestScore, state.score);
   const next = createInitialState(best, 'playing', state.characterId);
+  if (dailyBonus) {
+    if (dailyBonus.startingScoreBonus > 0) {
+      next.bonusScore += dailyBonus.startingScoreBonus;
+      next.score = next.bonusScore;
+      spawnFloatingText(
+        next,
+        next.player.x + 12,
+        next.player.y - next.player.height - 10,
+        `DAILY +${dailyBonus.startingScoreBonus}`,
+        '#78F0A8',
+      );
+    }
+    if (dailyBonus.startWithShield) {
+      next.player.shieldActive = true;
+    }
+    if (dailyBonus.startMagnetSeconds > 0) {
+      next.player.magnetTimer = dailyBonus.startMagnetSeconds;
+    }
+  }
   next.audioQueue.push({ type: 'start' });
   return next;
 }

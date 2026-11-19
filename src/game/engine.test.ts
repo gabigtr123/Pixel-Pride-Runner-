@@ -11,6 +11,14 @@ import {
   stepSimulation,
 } from './engine';
 import { GROUND_Y, PLAYER_DUCK_HEIGHT, PLAYER_STAND_HEIGHT, PLAYER_X } from './constants';
+import {
+  applyRunToDailyMissions,
+  claimDailyBonus,
+  computeActiveRunBonus,
+  generateDailyMissions,
+  getStreakPerks,
+  syncDailyStateForDate,
+} from './daily';
 import { getRenderViewport } from './renderer';
 import type { InputFrame } from './types';
 
@@ -282,4 +290,49 @@ test('portrait and landscape viewports provide dedicated framing without clippin
   // Ground sits above the bottom underground control deck in portrait mode
   const groundScreenY = GROUND_Y + portrait.worldOffsetY;
   assert.ok(portrait.height - groundScreenY >= 140, 'portrait mode must leave underground space for touch deck');
+});
+
+test('daily missions are deterministic per date and track run completion', () => {
+  const m1 = generateDailyMissions('2026-11-19');
+  const m2 = generateDailyMissions('2026-11-19');
+  assert.equal(m1.length, 3);
+  assert.deepEqual(m1, m2, 'same calendar date must generate identical missions');
+
+  const day1 = claimDailyBonus(syncDailyStateForDate(null, '2026-11-19'));
+  const { next: afterRun, newlyCompleted } = applyRunToDailyMissions(day1, {
+    score: 9999,
+    distance: 2000,
+    coins: 100,
+    stomps: 20,
+    zoneIndex: 3,
+  });
+  assert.equal(newlyCompleted.length, 3, 'big run should complete all 3 daily missions');
+  assert.equal(afterRun.missions.every((m) => m.completed), true);
+  assert.ok(computeActiveRunBonus(afterRun).startingScoreBonus > 1000, 'all-clear bonus applies');
+});
+
+test('daily play streak increments on consecutive days, resets on gaps, and grants run perks', () => {
+  const day1 = claimDailyBonus(syncDailyStateForDate(null, '2026-11-19'));
+  assert.equal(day1.streakDays, 1);
+
+  const day2 = claimDailyBonus(syncDailyStateForDate(day1, '2026-11-20'));
+  assert.equal(day2.streakDays, 2);
+
+  const day3 = claimDailyBonus(syncDailyStateForDate(day2, '2026-11-21'));
+  assert.equal(day3.streakDays, 3);
+  const perksDay3 = getStreakPerks(day3.streakDays);
+  assert.equal(perksDay3.startWithShield, true, 'Day 3+ streak grants starting Star Shield');
+
+  const perksDay5 = getStreakPerks(5);
+  assert.ok(perksDay5.startMagnetSeconds >= 4, 'Day 5+ streak grants starting Coin Magnet');
+
+  // Missing a day resets streak back to Day 1
+  const afterGap = syncDailyStateForDate(day3, '2026-11-24');
+  assert.equal(afterGap.streakDays, 1);
+
+  // startNewRun applies daily bonus perks directly to the run state
+  const boosted = startNewRun(createInitialState(0, 'title'), perksDay5);
+  assert.equal(boosted.bonusScore, perksDay5.startingScoreBonus);
+  assert.equal(boosted.player.shieldActive, true);
+  assert.equal(boosted.player.magnetTimer, perksDay5.startMagnetSeconds);
 });

@@ -10,7 +10,12 @@ interface TitleOverlayProps {
   muted: boolean;
   characterId: CharacterId;
   orientation: OrientationMode;
+  streakDays: number;
+  hasUnclaimedDaily: boolean;
+  completedMissions: number;
+  totalMissions: number;
   onSelectCharacter: (id: CharacterId) => void;
+  onOpenDaily: () => void;
   onStart: () => void;
   onToggleMute: () => void;
 }
@@ -20,7 +25,12 @@ export function TitleOverlay({
   muted,
   characterId,
   orientation,
+  streakDays,
+  hasUnclaimedDaily,
+  completedMissions,
+  totalMissions,
   onSelectCharacter,
+  onOpenDaily,
   onStart,
   onToggleMute,
 }: TitleOverlayProps) {
@@ -31,8 +41,33 @@ export function TitleOverlay({
       className="fixed inset-0 z-20 flex flex-col justify-between pointer-events-none safe-area-hud"
       data-testid="title-screen"
     >
-      {/* Top right sound toggle only — keeps upper sky clean for the title lockup */}
-      <div className="flex items-start justify-end">
+      {/* Top bar: Daily Quests button on left, Sound toggle on right */}
+      <div className="flex items-start justify-between gap-2">
+        <button
+          type="button"
+          data-testid="open-daily-btn"
+          onClick={(e) => {
+            e.currentTarget.blur();
+            onOpenDaily();
+          }}
+          tabIndex={-1}
+          aria-label="Open Daily Quests and Streak Bonus"
+          className="relative pointer-events-auto pixel-icon-btn h-11 px-3 flex items-center gap-2 cursor-pointer"
+        >
+          <span className="font-pixel-display text-[10px] text-[#FFE05C] tracking-wider whitespace-nowrap">
+            DAY {streakDays}
+          </span>
+          <span className="font-pixel-ui text-[11px] text-[#E4EAF8] whitespace-nowrap">
+            {completedMissions}/{totalMissions}
+          </span>
+          {hasUnclaimedDaily && (
+            <span
+              className="w-2.5 h-2.5 bg-[#78F0A8] border border-[#111324] animate-pulse"
+              aria-hidden="true"
+            />
+          )}
+        </button>
+
         <button
           type="button"
           onClick={(e) => {

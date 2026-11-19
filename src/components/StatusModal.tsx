@@ -1,15 +1,29 @@
 import React from 'react';
+import type { DailyMission } from '../game/daily';
 import type { HudSnapshot } from '../game/types';
 import { CoinIcon } from './PixelIcons';
 
 interface StatusModalProps {
   hud: HudSnapshot;
+  newlyCompletedMissions: DailyMission[];
+  completedMissions: number;
+  totalMissions: number;
+  onOpenDaily: () => void;
   onResume: () => void;
   onRestart: () => void;
   onTitle: () => void;
 }
 
-export function StatusModal({ hud, onResume, onRestart, onTitle }: StatusModalProps) {
+export function StatusModal({
+  hud,
+  newlyCompletedMissions,
+  completedMissions,
+  totalMissions,
+  onOpenDaily,
+  onResume,
+  onRestart,
+  onTitle,
+}: StatusModalProps) {
   if (hud.phase !== 'paused' && hud.phase !== 'gameover') {
     return null;
   }
@@ -34,7 +48,7 @@ export function StatusModal({ hud, onResume, onRestart, onTitle }: StatusModalPr
       aria-labelledby="status-modal-title"
       data-testid={isGameOver ? 'gameover-modal' : 'pause-modal'}
     >
-      <div className="pixel-panel w-full max-w-md p-6 sm:p-7 flex flex-col items-center text-center gap-5">
+      <div className="pixel-panel w-full max-w-md p-6 sm:p-7 flex flex-col items-center text-center gap-4 sm:gap-5">
         <div className="flex flex-col items-center gap-2">
           <h2
             id="status-modal-title"
@@ -80,13 +94,39 @@ export function StatusModal({ hud, onResume, onRestart, onTitle }: StatusModalPr
         </div>
 
         {isGameOver && (
-          <div className="flex items-center justify-center gap-5 font-pixel-ui text-xs text-[#E4EAF8]">
-            <span className="inline-flex items-center gap-1.5">
-              <CoinIcon className="w-4 h-4" />
-              {summary.coins} COINS
-            </span>
-            <span aria-hidden="true">·</span>
-            <span>{summary.stomps} STOMPS</span>
+          <div className="w-full flex flex-col items-center gap-2.5">
+            <div className="flex items-center justify-center gap-5 font-pixel-ui text-xs text-[#E4EAF8]">
+              <span className="inline-flex items-center gap-1.5">
+                <CoinIcon className="w-4 h-4" />
+                {summary.coins} COINS
+              </span>
+              <span aria-hidden="true">·</span>
+              <span>{summary.stomps} STOMPS</span>
+            </div>
+
+            {newlyCompletedMissions.length > 0 && (
+              <div className="w-full bg-[#142A26] border-2 border-[#48C878] px-3 py-2 flex flex-col gap-1">
+                <span className="font-pixel-display text-[10px] text-[#78F0A8]">
+                  MISSION COMPLETE!
+                </span>
+                {newlyCompletedMissions.map((m) => (
+                  <span key={m.id} className="font-pixel-ui text-[11px] text-[#E8FFF2]">
+                    ✓ {m.title} (+{m.rewardPoints} PTS)
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.currentTarget.blur();
+                onOpenDaily();
+              }}
+              className="font-pixel-ui text-[11px] text-[#FFE05C] underline underline-offset-4 cursor-pointer hover:text-[#FFF4A8]"
+            >
+              DAILY MISSIONS: {completedMissions}/{totalMissions} — VIEW
+            </button>
           </div>
         )}
 

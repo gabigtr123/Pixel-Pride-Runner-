@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { DailyModal } from './components/DailyModal';
 import { GameHud } from './components/GameHud';
 import { StatusModal } from './components/StatusModal';
 import { TitleOverlay } from './components/TitleOverlay';
@@ -8,6 +9,17 @@ import {
   CHARACTER_STORAGE_KEY,
   MUTED_STORAGE_KEY,
 } from './game/constants';
+import {
+  applyRunToDailyMissions,
+  claimDailyBonus,
+  computeActiveRunBonus,
+  getLocalDateKey,
+  loadDailyProgress,
+  saveDailyProgress,
+  syncDailyStateForDate,
+  type DailyMission,
+  type DailyProgressState,
+} from './game/daily';
 import {
   createInitialState,
   extractHudSnapshot,
@@ -128,6 +140,14 @@ export default function App() {
   const [orientation, setOrientation] = useState<OrientationMode>(() => detectOrientation());
   const orientationRef = useRef<OrientationMode>(orientation);
   orientationRef.current = orientation;
+  const [daily, setDaily] = useState<DailyProgressState>(() =>
+    typeof window !== 'undefined' ? loadDailyProgress() : syncDailyStateForDate(null, getLocalDateKey()),
+  );
+  const dailyRef = useRef<DailyProgressState>(daily);
+  dailyRef.current = daily;
+  const [dailyOpen, setDailyOpen] = useState(false);
+  const [newlyCompletedMissions, setNewlyCompletedMissions] = useState<DailyMission[]>([]);
+  const lastRecordedRunRef = useRef<GameState['finalRun']>(null);
   const [hud, setHud] = useState<HudSnapshot>(() => {
     const initialPhase = typeof window !== 'undefined' && shouldAutostart() ? 'playing' : 'title';
     const initial = createInitialState(
@@ -143,6 +163,28 @@ export default function App() {
   const syncDomAndHud = useCallback((nextState: GameState, force = false) => {
     if (document.body.dataset.state !== nextState.phase) {
       document.body.dataset.state = nextState.phase;
+    }
+    if (
+      nextState.phase === 'gameover' &&
+      nextState.finalRun &&
+      nextState.finalRun !== lastRecordedRunRef.current
+    ) {
+      lastRecordedRunRef.current = nextState.finalRun;
+      const synced = syncDailyStateForDate(dailyRef.current, getLocalDateKey());
+      const { next: updatedDaily, newlyCompleted } = applyRunToDailyMissions(synced, {
+        score: nextState.finalRun.score,
+        distance: nextState.finalRun.distance,
+        coins: nextState.finalRun.coins,
+        stomps: nextState.finalRun.stomps,
+        zoneIndex: nextState.finalRun.zoneIndex,
+      });
+      dailyRef.current = updatedDaily;
+      setDaily(updatedDaily);
+      saveDailyProgress(updatedDaily);
+      setNewlyCompletedMissions(newlyCompleted);
+      if (newlyCompleted.length > 0) {
+        audioRef.current?.playEvents([{ type: 'powerup', kind: 'shield' }]);
+      }
     }
     const nextHud = extractHudSnapshot(nextState);
     if (force || hudChanged(hudRef.current, nextHud)) {
@@ -165,16 +207,34 @@ export default function App() {
     const curr = stateRef.current;
     if (!curr) return;
     clearHeldInputs();
+    setDailyOpen(false);
+    setNewlyCompletedMissions([]);
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
-    const next = startNewRun(curr);
+    const syncedDaily = syncDailyStateForDate(dailyRef.current, getLocalDateKey());
+    if (syncedDaily !== dailyRef.current) {
+      dailyRef.current = syncedDaily;
+      setDaily(syncedDaily);
+      saveDailyProgress(syncedDaily);
+    }
+    const bonus = computeActiveRunBonus(syncedDaily);
+    const next = startNewRun(curr, bonus);
     stateRef.current = next;
     saveBestScore(next.bestScore);
     audioRef.current?.playEvents(next.audioQueue);
     audioRef.current?.startMusic();
     syncDomAndHud(next, true);
   }, [clearHeldInputs, syncDomAndHud]);
+
+  const handleClaimDaily = useCallback(() => {
+    const synced = syncDailyStateForDate(dailyRef.current, getLocalDateKey());
+    const claimed = claimDailyBonus(synced);
+    dailyRef.current = claimed;
+    setDaily(claimed);
+    saveDailyProgress(claimed);
+    audioRef.current?.playEvents([{ type: 'powerup', kind: 'shield' }]);
+  }, []);
 
   const handleTogglePause = useCallback(() => {
     const curr = stateRef.current;
@@ -500,6 +560,7 @@ export default function App() {
   }, [handleTouchJumpEnd]);
 
   const viewport = getRenderViewport(orientation);
+  const completedMissions = daily.missions.filter((m) => m.completed).length;
 
   return (
     <main
@@ -526,7 +587,12 @@ export default function App() {
           muted={muted}
           characterId={hud.characterId}
           orientation={orientation}
+          streakDays={daily.streakDays}
+          hasUnclaimedDaily={!daily.claimedToday}
+          completedMissions={completedMissions}
+          totalMissions={daily.missions.length}
           onSelectCharacter={handleSelectCharacter}
+          onOpenDaily={() => setDailyOpen(true)}
           onStart={handleStartOrRestart}
           onToggleMute={handleToggleMute}
         />
@@ -549,9 +615,20 @@ export default function App() {
 
       <StatusModal
         hud={hud}
+        newlyCompletedMissions={newlyCompletedMissions}
+        completedMissions={completedMissions}
+        totalMissions={daily.missions.length}
+        onOpenDaily={() => setDailyOpen(true)}
         onResume={handleTogglePause}
         onRestart={handleStartOrRestart}
         onTitle={handleReturnToTitle}
+      />
+
+      <DailyModal
+        open={dailyOpen}
+        daily={daily}
+        onClaim={handleClaimDaily}
+        onClose={() => setDailyOpen(false)}
       />
     </main>
   );
