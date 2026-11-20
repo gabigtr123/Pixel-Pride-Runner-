@@ -4,7 +4,7 @@ import { CHARACTER_SPRITES } from '../game/sprites';
 import type { CharacterId, CustomCharacterConfig, OrientationMode } from '../game/types';
 import { CharacterPreviewIcon, CoinIcon, PixelStrideTitleLogo, SoundIcon } from './PixelIcons';
 
-const CHARACTER_IDS: CharacterId[] = ['stride', 'lacramioara', 'knight', 'custom'];
+const CHARACTER_IDS: CharacterId[] = ['stride', 'lily', 'knight', 'custom'];
 
 interface TitleOverlayProps {
   bestScore: number;
@@ -128,7 +128,7 @@ export function TitleOverlay({
       >
         <PixelStrideTitleLogo />
 
-        {/* Retro 8-bit character selector (Stride, Lacramioara, Pixel Knight, Custom Hero) */}
+        {/* Retro 8-bit character selector (Stride, Lily, Pixel Knight, Custom Hero) */}
         <div className="flex flex-col items-center gap-1.5 pointer-events-auto">
           <div
             className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2"

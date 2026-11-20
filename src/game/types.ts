@@ -1,6 +1,6 @@
 export type GamePhase = 'title' | 'playing' | 'paused' | 'gameover';
 
-export type CharacterId = 'stride' | 'lacramioara' | 'knight' | 'custom';
+export type CharacterId = 'stride' | 'lily' | 'knight' | 'custom';
 
 export type CharacterGender = 'male' | 'female';
 

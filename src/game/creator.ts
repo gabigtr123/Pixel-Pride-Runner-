@@ -1,4 +1,4 @@
-import { LACRAMIOARA_FRAMES, RUNNER_FRAMES, type CharacterSpriteSet } from './sprites';
+import { LILY_FRAMES, RUNNER_FRAMES, type CharacterSpriteSet } from './sprites';
 import type { CharacterGender, CustomCharacterConfig } from './types';
 
 export interface CareerStats {
@@ -34,8 +34,8 @@ export interface CreatorStorageState {
 export const CREATOR_STORAGE_KEY = 'pixel_stride_creator_v1';
 
 export const PRESET_NAMES: Record<CharacterGender, string[]> = {
-  male: ['ALEX', 'ANDREI', 'MATEI', 'DARIUS', 'RADU', 'VLAD'],
-  female: ['ELENA', 'SOFIA', 'MARIA', 'IOANA', 'ARIA', 'MIRA'],
+  male: ['ALEX', 'LEO', 'MAX', 'KAI', 'FINN', 'COLE'],
+  female: ['MAYA', 'NOVA', 'ARIA', 'ZOE', 'CLARA', 'MIRA'],
 };
 
 export const SKIN_OPTIONS: ColorOption[] = [
@@ -199,7 +199,7 @@ export function buildCustomSpriteSet(config: CustomCharacterConfig): CharacterSp
     name: (config.name.trim() || 'HERO').slice(0, 12).toUpperCase(),
     perk: '+15% COIN & STOMP',
     palette,
-    frames: config.gender === 'female' ? LACRAMIOARA_FRAMES : RUNNER_FRAMES,
+    frames: config.gender === 'female' ? LILY_FRAMES : RUNNER_FRAMES,
   };
 }
 

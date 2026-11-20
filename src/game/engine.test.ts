@@ -281,15 +281,15 @@ test('finalRun.isNewBest is true when player beats previous best score during ru
   assert.equal(state.finalRun.isNewBest, true, 'isNewBest must reflect beating runStartBestScore');
 });
 
-test('selected character (lacramioara) persists across startNewRun and returnToTitle', () => {
-  const initial = createInitialState(0, 'title', 'lacramioara');
-  assert.equal(initial.characterId, 'lacramioara');
+test('selected character (lily) persists across startNewRun and returnToTitle', () => {
+  const initial = createInitialState(0, 'title', 'lily');
+  assert.equal(initial.characterId, 'lily');
 
   const playing = startNewRun(initial);
-  assert.equal(playing.characterId, 'lacramioara');
+  assert.equal(playing.characterId, 'lily');
 
   const backToTitle = returnToTitle(playing);
-  assert.equal(backToTitle.characterId, 'lacramioara');
+  assert.equal(backToTitle.characterId, 'lily');
 });
 
 test('portrait and landscape viewports provide dedicated framing without clipping the runner', () => {
@@ -389,7 +389,7 @@ test('v2 Pixel Shop handles coin bank, Knight unlock, upgrades, trails, and Top-
     shop = recordLeaderboardRun(shop, {
       score: s,
       distance: 100,
-      characterId: 'lacramioara',
+      characterId: 'lily',
       dateKey: '2026-11-20',
     });
   }

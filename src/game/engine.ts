@@ -337,7 +337,7 @@ export function executeJump(state: GameState, rng: () => number = Math.random): 
     p.scaleX = 0.82;
     p.scaleY = 1.22;
     const djColors =
-      state.characterId === 'lacramioara'
+      state.characterId === 'lily'
         ? ['#FFFDF5', '#FF98C8', '#78E8A8']
         : ['#FFF4A8', '#FFFFFF', '#78E0FF'];
     spawnParticles(state, p.x + p.width * 0.5, p.y - 2, 8, djColors, 35, 85, 90, rng, 15);
@@ -1010,9 +1010,9 @@ export function stepSimulation(
     item.x -= scrollDx;
     item.bobOffset += dt * 4.5;
 
-    // Coin magnet attraction (plus Lacramioara gentle passive coin aura)
+    // Coin magnet attraction (plus Lily gentle passive coin aura)
     const pullRadius =
-      p.magnetTimer > 0 ? 115 : state.characterId === 'lacramioara' ? 48 : 0;
+      p.magnetTimer > 0 ? 115 : state.characterId === 'lily' ? 48 : 0;
     if (item.kind === 'coin' && pullRadius > 0) {
       const cx = p.x + p.width * 0.5;
       const cy = p.y - p.height * 0.5;

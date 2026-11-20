@@ -50,7 +50,7 @@ export const UPGRADE_COSTS = {
 export function createDefaultShopState(): ShopState {
   return {
     coinsBank: 0,
-    unlockedCharacters: ['stride', 'lacramioara'],
+    unlockedCharacters: ['stride', 'lily'],
     unlockedTrails: ['classic'],
     activeTrail: 'classic',
     upgrades: {
@@ -126,6 +126,12 @@ export function getTrailColors(trailId: TrailId): string[] {
   return TRAIL_CATALOG.find((t) => t.id === trailId)?.colors ?? TRAIL_CATALOG[0].colors;
 }
 
+function normalizeCharacterId(id: string): CharacterId {
+  if (id === 'lacramioara' || id === 'lily') return 'lily';
+  if (id === 'knight' || id === 'custom') return id;
+  return 'stride';
+}
+
 export function loadShopState(): ShopState {
   try {
     const raw = window.localStorage.getItem(SHOP_STORAGE_KEY);
@@ -135,7 +141,13 @@ export function loadShopState(): ShopState {
     return {
       coinsBank: typeof parsed.coinsBank === 'number' && Number.isFinite(parsed.coinsBank) ? Math.max(0, Math.round(parsed.coinsBank)) : 0,
       unlockedCharacters: Array.isArray(parsed.unlockedCharacters)
-        ? Array.from(new Set<CharacterId>(['stride', 'lacramioara', ...parsed.unlockedCharacters]))
+        ? Array.from(
+            new Set<CharacterId>([
+              'stride',
+              'lily',
+              ...parsed.unlockedCharacters.map((id) => normalizeCharacterId(String(id))),
+            ]),
+          )
         : def.unlockedCharacters,
       unlockedTrails: Array.isArray(parsed.unlockedTrails)
         ? Array.from(new Set<TrailId>(['classic', ...parsed.unlockedTrails]))
@@ -146,7 +158,12 @@ export function loadShopState(): ShopState {
         coinValueLevel: Math.min(3, Math.max(0, parsed.upgrades?.coinValueLevel ?? 0)),
         powerupFreqLevel: Math.min(3, Math.max(0, parsed.upgrades?.powerupFreqLevel ?? 0)),
       },
-      leaderboard: Array.isArray(parsed.leaderboard) ? parsed.leaderboard.slice(0, 5) : [],
+      leaderboard: Array.isArray(parsed.leaderboard)
+        ? parsed.leaderboard.slice(0, 5).map((entry) => ({
+            ...entry,
+            characterId: normalizeCharacterId(String(entry.characterId)),
+          }))
+        : [],
     };
   } catch {
     return createDefaultShopState();

@@ -149,8 +149,8 @@ export const RUNNER_FRAMES = {
   duck: RUNNER_DUCK,
 };
 
-// Lacramioara — Lily-of-the-valley retro adventurer (16x19 run, 16x17 jump, 16x11 duck)
-export const LACRAMIOARA_PALETTE: Record<string, string> = {
+// Lily — Lily-of-the-valley retro adventurer (16x19 run, 16x17 jump, 16x11 duck)
+export const LILY_PALETTE: Record<string, string> = {
   K: '#121324', // dark outline
   H: '#7B3428', // chestnut hair & ponytail
   h: '#C86844', // hair highlight
@@ -167,7 +167,7 @@ export const LACRAMIOARA_PALETTE: Record<string, string> = {
   o: '#B8781C', // boot shade
 };
 
-const LACRAMIOARA_RUN_0: PixelGrid = [
+const LILY_RUN_0: PixelGrid = [
   '.....KKKKKK.....',
   '....KhhHHFFK....',
   '...KhHHLLLHHK...',
@@ -189,7 +189,7 @@ const LACRAMIOARA_RUN_0: PixelGrid = [
   '....KKKK....KKKK',
 ];
 
-const LACRAMIOARA_RUN_1: PixelGrid = [
+const LILY_RUN_1: PixelGrid = [
   '.....KKKKKK.....',
   '....KhhHHFFK....',
   '...KhHHLLLHHK...',
@@ -211,7 +211,7 @@ const LACRAMIOARA_RUN_1: PixelGrid = [
   '.....KKKKKKK....',
 ];
 
-const LACRAMIOARA_RUN_2: PixelGrid = [
+const LILY_RUN_2: PixelGrid = [
   '.....KKKKKK.....',
   '....KhhHHFFK....',
   '...KhHHLLLHHK...',
@@ -233,7 +233,7 @@ const LACRAMIOARA_RUN_2: PixelGrid = [
   '...KKKK...KKKK..',
 ];
 
-const LACRAMIOARA_JUMP: PixelGrid = [
+const LILY_JUMP: PixelGrid = [
   '.....KKKKKK.....',
   '....KhhHHFFK....',
   '...KhHHLLLHHK...',
@@ -253,7 +253,7 @@ const LACRAMIOARA_JUMP: PixelGrid = [
   '........KKKK....',
 ];
 
-const LACRAMIOARA_DUCK: PixelGrid = [
+const LILY_DUCK: PixelGrid = [
   '.....KKKKKK.....',
   '....KhhHHFFK....',
   '..KKhHHLLLHHK...',
@@ -267,10 +267,10 @@ const LACRAMIOARA_DUCK: PixelGrid = [
   '.KKKK..KKKK.....',
 ];
 
-export const LACRAMIOARA_FRAMES = {
-  run: [LACRAMIOARA_RUN_0, LACRAMIOARA_RUN_1, LACRAMIOARA_RUN_2, LACRAMIOARA_RUN_1],
-  jump: LACRAMIOARA_JUMP,
-  duck: LACRAMIOARA_DUCK,
+export const LILY_FRAMES = {
+  run: [LILY_RUN_0, LILY_RUN_1, LILY_RUN_2, LILY_RUN_1],
+  jump: LILY_JUMP,
+  duck: LILY_DUCK,
 };
 
 // Pixel Knight — Armored 4-HP retro champion (16x19 run, 16x17 jump, 16x11 duck)
@@ -290,7 +290,7 @@ export const KNIGHT_PALETTE: Record<string, string> = {
 };
 
 export interface CharacterSpriteSet {
-  id: 'stride' | 'lacramioara' | 'knight' | 'custom';
+  id: 'stride' | 'lily' | 'knight' | 'custom';
   name: string;
   perk: string;
   palette: Record<string, string>;
@@ -301,7 +301,7 @@ export interface CharacterSpriteSet {
   };
 }
 
-export const CHARACTER_SPRITES: Record<'stride' | 'lacramioara' | 'knight', CharacterSpriteSet> = {
+export const CHARACTER_SPRITES: Record<'stride' | 'lily' | 'knight', CharacterSpriteSet> = {
   stride: {
     id: 'stride',
     name: 'STRIDE',
@@ -309,12 +309,12 @@ export const CHARACTER_SPRITES: Record<'stride' | 'lacramioara' | 'knight', Char
     palette: RUNNER_PALETTE,
     frames: RUNNER_FRAMES,
   },
-  lacramioara: {
-    id: 'lacramioara',
-    name: 'LACRAMIOARA',
+  lily: {
+    id: 'lily',
+    name: 'LILY',
     perk: 'COIN AURA + PETALS',
-    palette: LACRAMIOARA_PALETTE,
-    frames: LACRAMIOARA_FRAMES,
+    palette: LILY_PALETTE,
+    frames: LILY_FRAMES,
   },
   knight: {
     id: 'knight',

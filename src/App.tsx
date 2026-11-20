@@ -103,7 +103,8 @@ function saveMuted(muted: boolean): void {
 function loadCharacter(): CharacterId {
   try {
     const raw = window.localStorage.getItem(CHARACTER_STORAGE_KEY);
-    if (raw === 'lacramioara' || raw === 'knight' || raw === 'custom') return raw;
+    if (raw === 'lily' || raw === 'lacramioara') return 'lily';
+    if (raw === 'knight' || raw === 'custom') return raw;
     return 'stride';
   } catch {
     return 'stride';
