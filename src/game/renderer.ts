@@ -7,6 +7,7 @@ import {
   VIRTUAL_HEIGHT,
   VIRTUAL_WIDTH,
 } from './constants';
+import { buildCustomSpriteSet } from './creator';
 import {
   CHARACTER_SPRITES,
   COIN_FRAMES,
@@ -483,7 +484,12 @@ function drawPlayer(ctx: CanvasRenderingContext2D, state: GameState): void {
   }
 
   // Select sprite frame synced to distance traveled for the active character
-  const spriteSet = CHARACTER_SPRITES[state.characterId] ?? CHARACTER_SPRITES.stride;
+  const spriteSet =
+    state.characterId === 'custom' && state.customCharacter
+      ? buildCustomSpriteSet(state.customCharacter)
+      : state.characterId === 'custom'
+        ? CHARACTER_SPRITES.stride
+        : (CHARACTER_SPRITES[state.characterId] ?? CHARACTER_SPRITES.stride);
   let grid = spriteSet.frames.jump;
   if (p.isDucking) {
     grid = spriteSet.frames.duck;

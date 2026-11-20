@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { CreatorModal } from './components/CreatorModal';
 import { DailyModal } from './components/DailyModal';
 import { GameHud } from './components/GameHud';
 import { ShopModal } from './components/ShopModal';
@@ -10,6 +11,15 @@ import {
   CHARACTER_STORAGE_KEY,
   MUTED_STORAGE_KEY,
 } from './game/constants';
+import {
+  createDefaultCreatorState,
+  getNewlyUnlockedCosmetics,
+  loadCreatorState,
+  recordCareerRun,
+  saveCreatorState,
+  type ColorOption,
+  type CreatorStorageState,
+} from './game/creator';
 import {
   applyRunToDailyMissions,
   claimDailyBonus,
@@ -41,7 +51,15 @@ import {
   saveShopState,
   type ShopState,
 } from './game/shop';
-import type { CharacterId, GameState, HudSnapshot, InputFrame, OrientationMode, TrailId } from './game/types';
+import type {
+  CharacterId,
+  CustomCharacterConfig,
+  GameState,
+  HudSnapshot,
+  InputFrame,
+  OrientationMode,
+  TrailId,
+} from './game/types';
 
 function detectOrientation(): OrientationMode {
   if (typeof window === 'undefined') return 'landscape';
@@ -85,7 +103,7 @@ function saveMuted(muted: boolean): void {
 function loadCharacter(): CharacterId {
   try {
     const raw = window.localStorage.getItem(CHARACTER_STORAGE_KEY);
-    if (raw === 'lacramioara' || raw === 'knight') return raw;
+    if (raw === 'lacramioara' || raw === 'knight' || raw === 'custom') return raw;
     return 'stride';
   } catch {
     return 'stride';
@@ -167,9 +185,16 @@ export default function App() {
   );
   const shopRef = useRef<ShopState>(shop);
   shopRef.current = shop;
+  const [creator, setCreator] = useState<CreatorStorageState>(() =>
+    typeof window !== 'undefined' ? loadCreatorState() : createDefaultCreatorState(),
+  );
+  const creatorRef = useRef<CreatorStorageState>(creator);
+  creatorRef.current = creator;
   const [dailyOpen, setDailyOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
+  const [creatorOpen, setCreatorOpen] = useState(false);
   const [newlyCompletedMissions, setNewlyCompletedMissions] = useState<DailyMission[]>([]);
+  const [newlyUnlockedCosmetics, setNewlyUnlockedCosmetics] = useState<ColorOption[]>([]);
   const lastRecordedRunRef = useRef<GameState['finalRun']>(null);
   const [hud, setHud] = useState<HudSnapshot>(() => {
     const initialPhase = typeof window !== 'undefined' && shouldAutostart() ? 'playing' : 'title';
@@ -207,6 +232,29 @@ export default function App() {
       saveDailyProgress(updatedDaily);
       setNewlyCompletedMissions(newlyCompleted);
 
+      // Update career stats & check for newly unlocked hero creator cosmetics
+      const prevStats = creatorRef.current.stats;
+      const nextStats = recordCareerRun(
+        prevStats,
+        {
+          score: nextState.finalRun.score,
+          distance: nextState.finalRun.distance,
+          coins: nextState.finalRun.coins,
+          stomps: nextState.finalRun.stomps,
+          zoneIndex: nextState.finalRun.zoneIndex,
+        },
+        newlyCompleted.length,
+      );
+      const unlockedNow = getNewlyUnlockedCosmetics(prevStats, nextStats);
+      const nextCreator: CreatorStorageState = {
+        ...creatorRef.current,
+        stats: nextStats,
+      };
+      creatorRef.current = nextCreator;
+      setCreator(nextCreator);
+      saveCreatorState(nextCreator);
+      setNewlyUnlockedCosmetics(unlockedNow);
+
       // Bank run coins + update Top-5 local leaderboard
       let nextShop = addCoinsToBank(shopRef.current, nextState.finalRun.coins);
       nextShop = recordLeaderboardRun(nextShop, {
@@ -219,7 +267,7 @@ export default function App() {
       setShop(nextShop);
       saveShopState(nextShop);
 
-      if (newlyCompleted.length > 0) {
+      if (newlyCompleted.length > 0 || unlockedNow.length > 0) {
         audioRef.current?.playEvents([{ type: 'powerup', kind: 'shield' }]);
         triggerHaptic('mission');
       }
@@ -247,7 +295,9 @@ export default function App() {
     clearHeldInputs();
     setDailyOpen(false);
     setShopOpen(false);
+    setCreatorOpen(false);
     setNewlyCompletedMissions([]);
+    setNewlyUnlockedCosmetics([]);
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
@@ -259,6 +309,7 @@ export default function App() {
     }
     const dailyBonus = computeActiveRunBonus(syncedDaily);
     const currentShop = shopRef.current;
+    curr.customCharacter = creatorRef.current.config;
     const next = startNewRun(curr, {
       ...dailyBonus,
       magnetDurationBonus: currentShop.upgrades.magnetLevel * 1.5,
@@ -273,6 +324,31 @@ export default function App() {
     audioRef.current?.startMusic();
     syncDomAndHud(next, true);
   }, [clearHeldInputs, syncDomAndHud]);
+
+  const handleCreatorChange = useCallback((nextConfig: CustomCharacterConfig) => {
+    const nextCreator: CreatorStorageState = {
+      ...creatorRef.current,
+      config: nextConfig,
+    };
+    creatorRef.current = nextCreator;
+    setCreator(nextCreator);
+    saveCreatorState(nextCreator);
+    if (stateRef.current) {
+      stateRef.current.customCharacter = nextConfig;
+    }
+  }, []);
+
+  const handleSaveCustomHero = useCallback(() => {
+    saveCharacter('custom');
+    const curr = stateRef.current;
+    if (curr) {
+      curr.characterId = 'custom';
+      curr.customCharacter = creatorRef.current.config;
+      syncDomAndHud(curr, true);
+    }
+    setCreatorOpen(false);
+    audioRef.current?.playEvents([{ type: 'coin', combo: 3 }]);
+  }, [syncDomAndHud]);
 
   const handleClaimDaily = useCallback(() => {
     const synced = syncDailyStateForDate(dailyRef.current, getLocalDateKey());
@@ -398,6 +474,7 @@ export default function App() {
     const initialBest = loadBestScore();
     const initialCharacter = loadCharacter();
     const initialState = createInitialState(initialBest, autoStart ? 'playing' : 'title', initialCharacter);
+    initialState.customCharacter = creatorRef.current.config;
     stateRef.current = initialState;
     document.body.dataset.state = initialState.phase;
     handlersRef.current.syncDomAndHud(initialState, true);
@@ -673,6 +750,7 @@ export default function App() {
           bestScore={hud.bestScore}
           muted={muted}
           characterId={hud.characterId}
+          customCharacter={creator.config}
           unlockedCharacters={shop.unlockedCharacters}
           coinsBank={shop.coinsBank}
           orientation={orientation}
@@ -683,6 +761,7 @@ export default function App() {
           onSelectCharacter={handleSelectCharacter}
           onOpenDaily={() => setDailyOpen(true)}
           onOpenShop={() => setShopOpen(true)}
+          onOpenCreator={() => setCreatorOpen(true)}
           onStart={handleStartOrRestart}
           onToggleMute={handleToggleMute}
         />
@@ -706,6 +785,7 @@ export default function App() {
       <StatusModal
         hud={hud}
         newlyCompletedMissions={newlyCompletedMissions}
+        newlyUnlockedCosmetics={newlyUnlockedCosmetics}
         completedMissions={completedMissions}
         totalMissions={daily.missions.length}
         onOpenDaily={() => setDailyOpen(true)}
@@ -724,10 +804,20 @@ export default function App() {
       <ShopModal
         open={shopOpen}
         shop={shop}
+        customCharacter={creator.config}
         onBuyKnight={handleBuyKnight}
         onBuyUpgrade={handleBuyUpgrade}
         onSelectTrail={handleSelectTrail}
         onClose={() => setShopOpen(false)}
+      />
+
+      <CreatorModal
+        open={creatorOpen}
+        config={creator.config}
+        stats={creator.stats}
+        onChange={handleCreatorChange}
+        onSaveAndUse={handleSaveCustomHero}
+        onClose={() => setCreatorOpen(false)}
       />
     </main>
   );

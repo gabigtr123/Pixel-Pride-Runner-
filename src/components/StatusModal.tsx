@@ -1,4 +1,5 @@
 import React from 'react';
+import type { ColorOption } from '../game/creator';
 import type { DailyMission } from '../game/daily';
 import type { HudSnapshot } from '../game/types';
 import { CoinIcon } from './PixelIcons';
@@ -6,6 +7,7 @@ import { CoinIcon } from './PixelIcons';
 interface StatusModalProps {
   hud: HudSnapshot;
   newlyCompletedMissions: DailyMission[];
+  newlyUnlockedCosmetics: ColorOption[];
   completedMissions: number;
   totalMissions: number;
   onOpenDaily: () => void;
@@ -17,6 +19,7 @@ interface StatusModalProps {
 export function StatusModal({
   hud,
   newlyCompletedMissions,
+  newlyUnlockedCosmetics,
   completedMissions,
   totalMissions,
   onOpenDaily,
@@ -112,6 +115,19 @@ export function StatusModal({
                 {newlyCompletedMissions.map((m) => (
                   <span key={m.id} className="font-pixel-ui text-[11px] text-[#E8FFF2]">
                     ✓ {m.title} (+{m.rewardPoints} PTS)
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {newlyUnlockedCosmetics.length > 0 && (
+              <div className="w-full bg-[#241D3E] border-2 border-[#FFE05C] px-3 py-2 flex flex-col gap-1">
+                <span className="font-pixel-display text-[10px] text-[#FFE05C]">
+                  HERO COSMETIC UNLOCKED!
+                </span>
+                {newlyUnlockedCosmetics.map((c) => (
+                  <span key={c.id} className="font-pixel-ui text-[11px] text-[#FFF4A8]">
+                    ★ {c.name} (Available in Hero Creator)
                   </span>
                 ))}
               </div>

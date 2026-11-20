@@ -1,6 +1,17 @@
 export type GamePhase = 'title' | 'playing' | 'paused' | 'gameover';
 
-export type CharacterId = 'stride' | 'lacramioara' | 'knight';
+export type CharacterId = 'stride' | 'lacramioara' | 'knight' | 'custom';
+
+export type CharacterGender = 'male' | 'female';
+
+export interface CustomCharacterConfig {
+  name: string;
+  gender: CharacterGender;
+  skinId: string;
+  hairId: string;
+  scarfId: string;
+  outfitId: string;
+}
 
 export type TrailId = 'classic' | 'rainbow' | 'blossom' | 'ember';
 
@@ -196,6 +207,7 @@ export interface HudSnapshot {
 export interface GameState {
   phase: GamePhase;
   characterId: CharacterId;
+  customCharacter?: CustomCharacterConfig;
   trailId: TrailId;
   magnetDurationBonus: number;
   coinBonusPoints: number;

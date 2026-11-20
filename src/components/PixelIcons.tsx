@@ -1,15 +1,21 @@
 import React from 'react';
+import { buildCustomSpriteSet, createDefaultCustomConfig } from '../game/creator';
 import { CHARACTER_SPRITES } from '../game/sprites';
-import type { CharacterId } from '../game/types';
+import type { CharacterId, CustomCharacterConfig } from '../game/types';
 
 export function CharacterPreviewIcon({
   characterId,
+  customCharacter,
   className = 'w-8 h-9',
 }: {
   characterId: CharacterId;
+  customCharacter?: CustomCharacterConfig;
   className?: string;
 }) {
-  const sprite = CHARACTER_SPRITES[characterId];
+  const sprite =
+    characterId === 'custom'
+      ? buildCustomSpriteSet(customCharacter ?? createDefaultCustomConfig())
+      : CHARACTER_SPRITES[characterId];
   const grid = sprite.frames.run[1];
   const rows = grid.length;
   const cols = grid[0].length;

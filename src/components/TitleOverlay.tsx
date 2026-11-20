@@ -1,14 +1,16 @@
 import React from 'react';
+import { buildCustomSpriteSet } from '../game/creator';
 import { CHARACTER_SPRITES } from '../game/sprites';
-import type { CharacterId, OrientationMode } from '../game/types';
+import type { CharacterId, CustomCharacterConfig, OrientationMode } from '../game/types';
 import { CharacterPreviewIcon, CoinIcon, PixelStrideTitleLogo, SoundIcon } from './PixelIcons';
 
-const CHARACTER_IDS: CharacterId[] = ['stride', 'lacramioara', 'knight'];
+const CHARACTER_IDS: CharacterId[] = ['stride', 'lacramioara', 'knight', 'custom'];
 
 interface TitleOverlayProps {
   bestScore: number;
   muted: boolean;
   characterId: CharacterId;
+  customCharacter: CustomCharacterConfig;
   unlockedCharacters: CharacterId[];
   coinsBank: number;
   orientation: OrientationMode;
@@ -19,6 +21,7 @@ interface TitleOverlayProps {
   onSelectCharacter: (id: CharacterId) => void;
   onOpenDaily: () => void;
   onOpenShop: () => void;
+  onOpenCreator: () => void;
   onStart: () => void;
   onToggleMute: () => void;
 }
@@ -27,6 +30,7 @@ export function TitleOverlay({
   bestScore,
   muted,
   characterId,
+  customCharacter,
   unlockedCharacters,
   coinsBank,
   orientation,
@@ -37,11 +41,16 @@ export function TitleOverlay({
   onSelectCharacter,
   onOpenDaily,
   onOpenShop,
+  onOpenCreator,
   onStart,
   onToggleMute,
 }: TitleOverlayProps) {
   const isPortrait = orientation === 'portrait';
-  const activeSprite = CHARACTER_SPRITES[characterId] ?? CHARACTER_SPRITES.stride;
+  const customSprite = buildCustomSpriteSet(customCharacter);
+  const activeSprite =
+    characterId === 'custom'
+      ? customSprite
+      : (CHARACTER_SPRITES[characterId] ?? CHARACTER_SPRITES.stride);
 
   return (
     <div
@@ -114,22 +123,22 @@ export function TitleOverlay({
       {/* Upper-center calm sky negative-space lockup, character selector & primary CTA */}
       <div
         className={`flex flex-col items-center ${
-          isPortrait ? '-mt-24 gap-3.5' : '-mt-8 sm:-mt-16 gap-2.5 sm:gap-3.5'
+          isPortrait ? '-mt-20 gap-3' : '-mt-8 sm:-mt-16 gap-2.5 sm:gap-3'
         }`}
       >
         <PixelStrideTitleLogo />
 
-        {/* Retro 8-bit character selector (Stride, Lacramioara, Pixel Knight) */}
+        {/* Retro 8-bit character selector (Stride, Lacramioara, Pixel Knight, Custom Hero) */}
         <div className="flex flex-col items-center gap-1.5 pointer-events-auto">
           <div
-            className="flex flex-wrap items-center justify-center gap-2"
+            className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2"
             role="radiogroup"
             aria-label="Choose character"
           >
             {CHARACTER_IDS.map((id) => {
-              const unlocked = unlockedCharacters.includes(id);
+              const unlocked = id === 'custom' || unlockedCharacters.includes(id);
               const selected = characterId === id;
-              const info = CHARACTER_SPRITES[id];
+              const info = id === 'custom' ? customSprite : CHARACTER_SPRITES[id];
               return (
                 <button
                   key={id}
@@ -139,7 +148,9 @@ export function TitleOverlay({
                   data-testid={`select-char-${id}`}
                   onClick={(e) => {
                     e.currentTarget.blur();
-                    if (unlocked) {
+                    if (id === 'custom' && selected) {
+                      onOpenCreator();
+                    } else if (unlocked) {
                       onSelectCharacter(id);
                     } else {
                       onOpenShop();
@@ -155,6 +166,7 @@ export function TitleOverlay({
                 >
                   <CharacterPreviewIcon
                     characterId={id}
+                    customCharacter={id === 'custom' ? customCharacter : undefined}
                     className={`w-6 h-7 shrink-0 ${unlocked ? '' : 'opacity-60'}`}
                   />
                   <span className="font-pixel-display text-[9px] sm:text-[10px] tracking-wider whitespace-nowrap">
@@ -164,9 +176,23 @@ export function TitleOverlay({
               );
             })}
           </div>
-          <span className="font-pixel-ui text-[10px] text-[#78F0A8] bg-[#111324]/75 px-2.5 py-0.5 tracking-wider">
-            PERK: {activeSprite.perk}
-          </span>
+
+          <div className="flex items-center gap-2">
+            <span className="font-pixel-ui text-[10px] text-[#78F0A8] bg-[#111324]/75 px-2.5 py-0.5 tracking-wider">
+              PERK: {activeSprite.perk}
+            </span>
+            <button
+              type="button"
+              data-testid="open-creator-btn"
+              onClick={(e) => {
+                e.currentTarget.blur();
+                onOpenCreator();
+              }}
+              className="font-pixel-display text-[9px] text-[#FFE05C] bg-[#1A2246] border border-[#FFE05C] px-2 py-0.5 cursor-pointer hover:bg-[#293568]"
+            >
+              EDIT HERO
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-col items-center gap-2 pointer-events-auto">

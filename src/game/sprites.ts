@@ -290,7 +290,7 @@ export const KNIGHT_PALETTE: Record<string, string> = {
 };
 
 export interface CharacterSpriteSet {
-  id: 'stride' | 'lacramioara' | 'knight';
+  id: 'stride' | 'lacramioara' | 'knight' | 'custom';
   name: string;
   perk: string;
   palette: Record<string, string>;

@@ -214,6 +214,7 @@ export function startNewRun(
 ): GameState {
   const best = Math.max(state.bestScore, state.score);
   const next = createInitialState(best, 'playing', state.characterId);
+  next.customCharacter = state.customCharacter;
   if (modifiers) {
     if (modifiers.trailId) {
       next.trailId = modifiers.trailId;
@@ -252,7 +253,9 @@ export function startNewRun(
 
 export function returnToTitle(state: GameState): GameState {
   const best = Math.max(state.bestScore, state.score);
-  return createInitialState(best, 'title', state.characterId);
+  const next = createInitialState(best, 'title', state.characterId);
+  next.customCharacter = state.customCharacter;
+  return next;
 }
 
 export function spawnParticles(
@@ -981,7 +984,12 @@ export function stepSimulation(
         state.stomps += 1;
         state.combo = Math.min(5, state.combo + 1);
         state.comboTimer = COMBO_DURATION;
-        const stompBase = state.characterId === 'stride' ? 188 : 150;
+        const stompBase =
+          state.characterId === 'stride'
+            ? 188
+            : state.characterId === 'custom'
+              ? 173
+              : 150;
         const scoreMult = p.doubleScoreTimer > 0 ? 2 : 1;
         const pts = Math.round(stompBase * state.combo * scoreMult);
         state.bonusScore += pts;
@@ -1036,7 +1044,8 @@ export function stepSimulation(
         state.coins += 1;
         state.combo = Math.min(5, state.comboTimer > 0 ? state.combo + (state.coins % 3 === 0 ? 1 : 0) : 1);
         state.comboTimer = COMBO_DURATION;
-        const pts = (50 + state.coinBonusPoints) * state.combo * scoreMult;
+        const customMult = state.characterId === 'custom' ? 1.15 : 1;
+        const pts = Math.round((50 + state.coinBonusPoints) * state.combo * scoreMult * customMult);
         state.bonusScore += pts;
         spawnParticles(state, item.x + 5, item.y + 5, 6, ['#FFE048', '#FFF8C4', '#F09820'], 24, 75, 110, rng, -25);
         spawnFloatingText(state, item.x, item.y - 4, `+${pts}`, '#FFE868');

@@ -12,6 +12,15 @@ import {
 } from './engine';
 import { GROUND_Y, PLAYER_DUCK_HEIGHT, PLAYER_STAND_HEIGHT, PLAYER_X } from './constants';
 import {
+  buildCustomSpriteSet,
+  createDefaultCareerStats,
+  createDefaultCustomConfig,
+  getNewlyUnlockedCosmetics,
+  HAIR_OPTIONS,
+  isOptionUnlocked,
+  recordCareerRun,
+} from './creator';
+import {
   applyRunToDailyMissions,
   claimDailyBonus,
   computeActiveRunBonus,
@@ -387,4 +396,24 @@ test('v2 Pixel Shop handles coin bank, Knight unlock, upgrades, trails, and Top-
   assert.equal(shop.leaderboard.length, 5);
   assert.equal(shop.leaderboard[0].score, 2500);
   assert.equal(shop.leaderboard[4].score, 300);
+});
+
+test('v2 Hero Creator builds Male/Female sprites and unlocks cosmetics via career missions', () => {
+  const cfg = { ...createDefaultCustomConfig(), name: 'SOFIA', gender: 'female' as const };
+  const sprite = buildCustomSpriteSet(cfg);
+  assert.equal(sprite.name, 'SOFIA');
+  assert.equal(sprite.id, 'custom');
+
+  const stats0 = createDefaultCareerStats();
+  const crownGold = HAIR_OPTIONS.find((h) => h.id === 'royal-gold')!;
+  assert.equal(isOptionUnlocked(crownGold, stats0), false, 'Crown Gold starts locked');
+
+  const stats1 = recordCareerRun(
+    stats0,
+    { score: 3000, distance: 1600, coins: 80, stomps: 12, zoneIndex: 3 },
+    3,
+  );
+  const unlocked = getNewlyUnlockedCosmetics(stats0, stats1);
+  assert.equal(unlocked.length, 6, 'completing all career goals unlocks all 6 mission cosmetics');
+  assert.equal(isOptionUnlocked(crownGold, stats1), true);
 });

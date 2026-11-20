@@ -5,12 +5,13 @@ import {
   UPGRADE_COSTS,
   type ShopState,
 } from '../game/shop';
-import type { TrailId } from '../game/types';
+import type { CustomCharacterConfig, TrailId } from '../game/types';
 import { CharacterPreviewIcon, CoinIcon } from './PixelIcons';
 
 interface ShopModalProps {
   open: boolean;
   shop: ShopState;
+  customCharacter: CustomCharacterConfig;
   onBuyKnight: () => void;
   onBuyUpgrade: (key: keyof ShopState['upgrades']) => void;
   onSelectTrail: (id: TrailId) => void;
@@ -30,6 +31,7 @@ const UPGRADE_META: {
 export function ShopModal({
   open,
   shop,
+  customCharacter,
   onBuyKnight,
   onBuyUpgrade,
   onSelectTrail,
@@ -242,13 +244,20 @@ export function ShopModal({
                     <span className="font-pixel-display text-xs text-[#FFE05C] w-5">
                       #{idx + 1}
                     </span>
-                    <CharacterPreviewIcon characterId={entry.characterId} className="w-6 h-7 shrink-0" />
+                    <CharacterPreviewIcon
+                      characterId={entry.characterId}
+                      customCharacter={entry.characterId === 'custom' ? customCharacter : undefined}
+                      className="w-6 h-7 shrink-0"
+                    />
                     <div className="flex flex-col">
                       <span className="font-pixel-display text-xs text-[#FFFFFF]">
                         {entry.score}
                       </span>
                       <span className="font-pixel-ui text-[10px] text-[#A2B0D8]">
-                        {entry.distance}M · {entry.characterId.toUpperCase()}
+                        {entry.distance}M ·{' '}
+                        {entry.characterId === 'custom'
+                          ? customCharacter.name
+                          : entry.characterId.toUpperCase()}
                       </span>
                     </div>
                   </div>
