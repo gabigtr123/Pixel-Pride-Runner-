@@ -399,9 +399,9 @@ test('v2 Pixel Shop handles coin bank, Knight unlock, upgrades, trails, and Top-
 });
 
 test('v2 Hero Creator builds Male/Female sprites and unlocks cosmetics via career missions', () => {
-  const cfg = { ...createDefaultCustomConfig(), name: 'SOFIA', gender: 'female' as const };
+  const cfg = { ...createDefaultCustomConfig(), name: 'LUNA', gender: 'female' as const };
   const sprite = buildCustomSpriteSet(cfg);
-  assert.equal(sprite.name, 'SOFIA');
+  assert.equal(sprite.name, 'LUNA');
   assert.equal(sprite.id, 'custom');
 
   const stats0 = createDefaultCareerStats();

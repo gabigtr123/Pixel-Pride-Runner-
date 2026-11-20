@@ -34,9 +34,22 @@ export interface CreatorStorageState {
 export const CREATOR_STORAGE_KEY = 'pixel_stride_creator_v1';
 
 export const PRESET_NAMES: Record<CharacterGender, string[]> = {
-  male: ['ALEX', 'LEO', 'MAX', 'KAI', 'FINN', 'COLE'],
-  female: ['MAYA', 'NOVA', 'ARIA', 'ZOE', 'CLARA', 'MIRA'],
+  male: ['ALEX', 'JACK', 'MAX', 'FINN', 'COLE', 'LEO'],
+  female: ['EMMA', 'RUBY', 'CHLOE', 'LUNA', 'ZOE', 'NOVA'],
 };
+
+const LEGACY_ROMANIAN_NAMES = new Set([
+  'LACRAMIOARA',
+  'ELENA',
+  'SOFIA',
+  'MARIA',
+  'IOANA',
+  'ANDREI',
+  'MATEI',
+  'DARIUS',
+  'RADU',
+  'VLAD',
+]);
 
 export const SKIN_OPTIONS: ColorOption[] = [
   { id: 'peach', name: 'PEACH', primary: '#FFCC98', secondary: '#FFD0A4' },
@@ -209,13 +222,18 @@ export function loadCreatorState(): CreatorStorageState {
     if (!raw) return createDefaultCreatorState();
     const parsed = JSON.parse(raw) as Partial<CreatorStorageState>;
     const def = createDefaultCreatorState();
+    const gender: CharacterGender = parsed.config?.gender === 'female' ? 'female' : 'male';
+    const rawName =
+      typeof parsed.config?.name === 'string' && parsed.config.name.trim().length > 0
+        ? parsed.config.name.trim().slice(0, 12).toUpperCase()
+        : PRESET_NAMES[gender][0];
+    const migratedName = LEGACY_ROMANIAN_NAMES.has(rawName)
+      ? PRESET_NAMES[gender][0]
+      : rawName;
     return {
       config: {
-        name:
-          typeof parsed.config?.name === 'string' && parsed.config.name.trim().length > 0
-            ? parsed.config.name.trim().slice(0, 12).toUpperCase()
-            : def.config.name,
-        gender: parsed.config?.gender === 'female' ? 'female' : 'male',
+        name: migratedName,
+        gender,
         skinId: SKIN_OPTIONS.some((o) => o.id === parsed.config?.skinId)
           ? (parsed.config!.skinId as string)
           : def.config.skinId,
