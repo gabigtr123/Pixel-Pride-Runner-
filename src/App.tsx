@@ -194,6 +194,8 @@ export default function App() {
   const [dailyOpen, setDailyOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
   const [creatorOpen, setCreatorOpen] = useState(false);
+  const modalOpenRef = useRef(false);
+  modalOpenRef.current = dailyOpen || shopOpen || creatorOpen;
   const [newlyCompletedMissions, setNewlyCompletedMissions] = useState<DailyMission[]>([]);
   const [newlyUnlockedCosmetics, setNewlyUnlockedCosmetics] = useState<ColorOption[]>([]);
   const lastRecordedRunRef = useRef<GameState['finalRun']>(null);
@@ -473,9 +475,25 @@ export default function App() {
 
     const autoStart = shouldAutostart();
     const initialBest = loadBestScore();
-    const initialCharacter = loadCharacter();
-    const initialState = createInitialState(initialBest, autoStart ? 'playing' : 'title', initialCharacter);
-    initialState.customCharacter = creatorRef.current.config;
+    const rawCharacter = loadCharacter();
+    const initialCharacter: CharacterId =
+      rawCharacter === 'knight' && !shopRef.current.unlockedCharacters.includes('knight')
+        ? 'stride'
+        : rawCharacter;
+    if (initialCharacter !== rawCharacter) {
+      saveCharacter(initialCharacter);
+    }
+    const baseState = createInitialState(initialBest, 'title', initialCharacter);
+    baseState.customCharacter = creatorRef.current.config;
+    const initialState = autoStart
+      ? startNewRun(baseState, {
+          ...computeActiveRunBonus(dailyRef.current),
+          magnetDurationBonus: shopRef.current.upgrades.magnetLevel * 1.5,
+          coinBonusPoints: shopRef.current.upgrades.coinValueLevel * 15,
+          powerupCooldownReduction: shopRef.current.upgrades.powerupFreqLevel * 1.8,
+          trailId: shopRef.current.activeTrail,
+        })
+      : baseState;
     stateRef.current = initialState;
     document.body.dataset.state = initialState.phase;
     handlersRef.current.syncDomAndHud(initialState, true);
@@ -487,6 +505,25 @@ export default function App() {
     const onKeyDown = (e: KeyboardEvent) => {
       const st = stateRef.current;
       if (!st) return;
+
+      // Never intercept typing inside Hero Creator or trigger game hotkeys behind open modals
+      if (modalOpenRef.current) {
+        if (e.code === 'Escape') {
+          e.preventDefault();
+          setDailyOpen(false);
+          setShopOpen(false);
+          setCreatorOpen(false);
+        }
+        return;
+      }
+
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')
+      ) {
+        return;
+      }
 
       if (e.code === 'KeyM') {
         e.preventDefault();

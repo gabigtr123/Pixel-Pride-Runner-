@@ -58,7 +58,7 @@ export function GameHud({
               ))}
             </div>
 
-            <div className="flex items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5">
               <span className="font-pixel-ui text-[11px] sm:text-xs text-[#FFF9E8] pixel-text-shadow tracking-wider whitespace-nowrap">
                 {hud.distance}M
                 <span className="hidden sm:inline"> · {hud.zoneName}</span>
