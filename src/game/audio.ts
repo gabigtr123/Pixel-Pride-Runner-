@@ -8,16 +8,45 @@ export class ChiptuneAudio {
   private musicTimer: number | null = null;
   private musicStep = 0;
   private musicPlaying = false;
+  private biomeIndex = 0;
 
-  // Upbeat 16-step C-major / A-minor retro arcade bass + lead pattern (Hz)
-  private readonly leadNotes = [
-    523.25, 0, 659.25, 783.99, 659.25, 0, 880.0, 783.99,
-    659.25, 587.33, 523.25, 0, 587.33, 659.25, 783.99, 0,
+  // Distinct 16-step retro chiptune lead/bass themes per biome
+  private readonly biomeThemes: { lead: number[]; bass: number[] }[] = [
+    // 0: Sunlit Highlands (Upbeat C-major adventure)
+    {
+      lead: [523.25, 0, 659.25, 783.99, 659.25, 0, 880.0, 783.99, 659.25, 587.33, 523.25, 0, 587.33, 659.25, 783.99, 0],
+      bass: [130.81, 130.81, 196.0, 130.81, 174.61, 174.61, 220.0, 174.61, 146.83, 146.83, 220.0, 146.83, 196.0, 196.0, 246.94, 196.0],
+    },
+    // 1: Amber Canyon (Driving D-minor desert groove)
+    {
+      lead: [587.33, 0, 659.25, 698.46, 880.0, 0, 698.46, 659.25, 587.33, 523.25, 587.33, 0, 698.46, 659.25, 523.25, 0],
+      bass: [146.83, 146.83, 220.0, 146.83, 174.61, 174.61, 220.0, 174.61, 130.81, 130.81, 196.0, 130.81, 164.81, 164.81, 220.0, 164.81],
+    },
+    // 2: Starlight Citadel (Mysterious A-minor synth arp)
+    {
+      lead: [440.0, 523.25, 659.25, 880.0, 783.99, 0, 659.25, 523.25, 493.88, 587.33, 783.99, 0, 659.25, 587.33, 523.25, 0],
+      bass: [110.0, 110.0, 164.81, 110.0, 130.81, 130.81, 196.0, 130.81, 123.47, 123.47, 185.0, 123.47, 164.81, 164.81, 220.0, 164.81],
+    },
+    // 3: Dawn Peaks (Bright G-major heroic climb)
+    {
+      lead: [392.0, 0, 493.88, 587.33, 783.99, 0, 659.25, 587.33, 523.25, 587.33, 659.25, 0, 783.99, 659.25, 587.33, 0],
+      bass: [196.0, 196.0, 146.83, 196.0, 164.81, 164.81, 246.94, 164.81, 130.81, 130.81, 196.0, 130.81, 146.83, 146.83, 220.0, 146.83],
+    },
+    // 4: Frost Tundra (Crystalline F-major sparkle)
+    {
+      lead: [698.46, 0, 880.0, 1046.5, 880.0, 0, 783.99, 698.46, 659.25, 0, 783.99, 880.0, 698.46, 0, 523.25, 0],
+      bass: [174.61, 174.61, 261.63, 174.61, 146.83, 146.83, 220.0, 146.83, 130.81, 130.81, 196.0, 130.81, 174.61, 174.61, 220.0, 174.61],
+    },
+    // 5: Volcanic Forge (Intense E-minor boss energy)
+    {
+      lead: [659.25, 659.25, 0, 783.99, 739.99, 659.25, 0, 587.33, 659.25, 0, 987.77, 880.0, 783.99, 739.99, 659.25, 0],
+      bass: [164.81, 164.81, 164.81, 246.94, 146.83, 146.83, 146.83, 220.0, 130.81, 130.81, 196.0, 130.81, 146.83, 164.81, 196.0, 246.94],
+    },
   ];
-  private readonly bassNotes = [
-    130.81, 130.81, 196.0, 130.81, 174.61, 174.61, 220.0, 174.61,
-    146.83, 146.83, 220.0, 146.83, 196.0, 196.0, 246.94, 196.0,
-  ];
+
+  public setBiome(zoneIndex: number): void {
+    this.biomeIndex = Math.abs(zoneIndex) % this.biomeThemes.length;
+  }
 
   public isMuted(): boolean {
     return this.muted;
@@ -122,8 +151,9 @@ export class ChiptuneAudio {
     this.musicPlaying = true;
     this.musicTimer = window.setInterval(() => {
       if (this.muted || !this.musicPlaying) return;
-      const lead = this.leadNotes[this.musicStep % this.leadNotes.length];
-      const bass = this.bassNotes[this.musicStep % this.bassNotes.length];
+      const theme = this.biomeThemes[this.biomeIndex] ?? this.biomeThemes[0];
+      const lead = theme.lead[this.musicStep % theme.lead.length];
+      const bass = theme.bass[this.musicStep % theme.bass.length];
       if (lead > 0) {
         this.playTone('square', lead, lead, 0.095, 0.022);
       }

@@ -1,6 +1,8 @@
 export type GamePhase = 'title' | 'playing' | 'paused' | 'gameover';
 
-export type CharacterId = 'stride' | 'lacramioara';
+export type CharacterId = 'stride' | 'lacramioara' | 'knight';
+
+export type TrailId = 'classic' | 'rainbow' | 'blossom' | 'ember';
 
 export type OrientationMode = 'portrait' | 'landscape';
 
@@ -14,7 +16,7 @@ export interface RenderViewport {
 
 export type HazardKind = 'spike' | 'hopper' | 'swooper' | 'flame';
 
-export type PickupKind = 'coin' | 'shield' | 'heart' | 'magnet';
+export type PickupKind = 'coin' | 'shield' | 'heart' | 'magnet' | 'doubleScore' | 'slowMo';
 
 export type AudioEvent =
   | { type: 'jump'; pitchScale: number }
@@ -22,7 +24,7 @@ export type AudioEvent =
   | { type: 'land' }
   | { type: 'slide' }
   | { type: 'coin'; combo: number }
-  | { type: 'powerup'; kind: 'shield' | 'heart' | 'magnet' }
+  | { type: 'powerup'; kind: 'shield' | 'heart' | 'magnet' | 'doubleScore' | 'slowMo' }
   | { type: 'stomp' }
   | { type: 'telegraph' }
   | { type: 'shieldBreak' }
@@ -61,6 +63,9 @@ export interface PlayerState {
   hurtAnimationTimer: number;
   shieldActive: boolean;
   magnetTimer: number;
+  doubleScoreTimer: number;
+  slowMoTimer: number;
+  trailTimer: number;
   scaleX: number;
   scaleY: number;
   runCycleDist: number;
@@ -153,6 +158,7 @@ export interface BiomePalette {
   dirtMain: string;
   dirtDark: string;
   dirtAccent: string;
+  weather?: 'snow' | 'embers';
 }
 
 export interface RunSnapshot {
@@ -179,6 +185,8 @@ export interface HudSnapshot {
   damageFlash: boolean;
   shieldActive: boolean;
   magnetSeconds: number;
+  doubleScoreSeconds: number;
+  slowMoSeconds: number;
   zoneName: string;
   zoneIndex: number;
   zoneBannerTimer: number;
@@ -188,6 +196,10 @@ export interface HudSnapshot {
 export interface GameState {
   phase: GamePhase;
   characterId: CharacterId;
+  trailId: TrailId;
+  magnetDurationBonus: number;
+  coinBonusPoints: number;
+  powerupCooldownReduction: number;
   elapsed: number;
   runTime: number;
   distance: number; // meters-like unit

@@ -77,6 +77,18 @@ export function GameHud({
                   {hud.magnetSeconds}S
                 </span>
               )}
+
+              {hud.doubleScoreSeconds > 0 && (
+                <span className="inline-flex items-center gap-1 font-pixel-display text-[10px] sm:text-xs text-[#FFE05C] pixel-text-shadow whitespace-nowrap">
+                  2X {hud.doubleScoreSeconds}S
+                </span>
+              )}
+
+              {hud.slowMoSeconds > 0 && (
+                <span className="inline-flex items-center gap-1 font-pixel-display text-[10px] sm:text-xs text-[#78F0FF] pixel-text-shadow whitespace-nowrap">
+                  SLOW {hud.slowMoSeconds}S
+                </span>
+              )}
             </div>
           </div>
 

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { DailyModal } from './components/DailyModal';
 import { GameHud } from './components/GameHud';
+import { ShopModal } from './components/ShopModal';
 import { StatusModal } from './components/StatusModal';
 import { TitleOverlay } from './components/TitleOverlay';
 import { ChiptuneAudio } from './game/audio';
@@ -27,8 +28,20 @@ import {
   startNewRun,
   stepSimulation,
 } from './game/engine';
+import { triggerHaptic } from './game/haptics';
 import { getRenderViewport, renderGameWorld } from './game/renderer';
-import type { CharacterId, GameState, HudSnapshot, InputFrame, OrientationMode } from './game/types';
+import {
+  addCoinsToBank,
+  buyKnightCharacter,
+  buyOrEquipTrail,
+  buyUpgrade,
+  createDefaultShopState,
+  loadShopState,
+  recordLeaderboardRun,
+  saveShopState,
+  type ShopState,
+} from './game/shop';
+import type { CharacterId, GameState, HudSnapshot, InputFrame, OrientationMode, TrailId } from './game/types';
 
 function detectOrientation(): OrientationMode {
   if (typeof window === 'undefined') return 'landscape';
@@ -72,7 +85,8 @@ function saveMuted(muted: boolean): void {
 function loadCharacter(): CharacterId {
   try {
     const raw = window.localStorage.getItem(CHARACTER_STORAGE_KEY);
-    return raw === 'lacramioara' ? 'lacramioara' : 'stride';
+    if (raw === 'lacramioara' || raw === 'knight') return raw;
+    return 'stride';
   } catch {
     return 'stride';
   }
@@ -105,9 +119,12 @@ function hudChanged(a: HudSnapshot, b: HudSnapshot): boolean {
     a.coins !== b.coins ||
     a.combo !== b.combo ||
     a.hp !== b.hp ||
+    a.maxHp !== b.maxHp ||
     a.damageFlash !== b.damageFlash ||
     a.shieldActive !== b.shieldActive ||
     a.magnetSeconds !== b.magnetSeconds ||
+    a.doubleScoreSeconds !== b.doubleScoreSeconds ||
+    a.slowMoSeconds !== b.slowMoSeconds ||
     a.zoneIndex !== b.zoneIndex ||
     (a.zoneBannerTimer > 0) !== (b.zoneBannerTimer > 0) ||
     a.finalRun !== b.finalRun
@@ -145,7 +162,13 @@ export default function App() {
   );
   const dailyRef = useRef<DailyProgressState>(daily);
   dailyRef.current = daily;
+  const [shop, setShop] = useState<ShopState>(() =>
+    typeof window !== 'undefined' ? loadShopState() : createDefaultShopState(),
+  );
+  const shopRef = useRef<ShopState>(shop);
+  shopRef.current = shop;
   const [dailyOpen, setDailyOpen] = useState(false);
+  const [shopOpen, setShopOpen] = useState(false);
   const [newlyCompletedMissions, setNewlyCompletedMissions] = useState<DailyMission[]>([]);
   const lastRecordedRunRef = useRef<GameState['finalRun']>(null);
   const [hud, setHud] = useState<HudSnapshot>(() => {
@@ -170,7 +193,8 @@ export default function App() {
       nextState.finalRun !== lastRecordedRunRef.current
     ) {
       lastRecordedRunRef.current = nextState.finalRun;
-      const synced = syncDailyStateForDate(dailyRef.current, getLocalDateKey());
+      const todayKey = getLocalDateKey();
+      const synced = syncDailyStateForDate(dailyRef.current, todayKey);
       const { next: updatedDaily, newlyCompleted } = applyRunToDailyMissions(synced, {
         score: nextState.finalRun.score,
         distance: nextState.finalRun.distance,
@@ -182,8 +206,22 @@ export default function App() {
       setDaily(updatedDaily);
       saveDailyProgress(updatedDaily);
       setNewlyCompletedMissions(newlyCompleted);
+
+      // Bank run coins + update Top-5 local leaderboard
+      let nextShop = addCoinsToBank(shopRef.current, nextState.finalRun.coins);
+      nextShop = recordLeaderboardRun(nextShop, {
+        score: nextState.finalRun.score,
+        distance: nextState.finalRun.distance,
+        characterId: nextState.characterId,
+        dateKey: todayKey,
+      });
+      shopRef.current = nextShop;
+      setShop(nextShop);
+      saveShopState(nextShop);
+
       if (newlyCompleted.length > 0) {
         audioRef.current?.playEvents([{ type: 'powerup', kind: 'shield' }]);
+        triggerHaptic('mission');
       }
     }
     const nextHud = extractHudSnapshot(nextState);
@@ -208,6 +246,7 @@ export default function App() {
     if (!curr) return;
     clearHeldInputs();
     setDailyOpen(false);
+    setShopOpen(false);
     setNewlyCompletedMissions([]);
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
@@ -218,10 +257,18 @@ export default function App() {
       setDaily(syncedDaily);
       saveDailyProgress(syncedDaily);
     }
-    const bonus = computeActiveRunBonus(syncedDaily);
-    const next = startNewRun(curr, bonus);
+    const dailyBonus = computeActiveRunBonus(syncedDaily);
+    const currentShop = shopRef.current;
+    const next = startNewRun(curr, {
+      ...dailyBonus,
+      magnetDurationBonus: currentShop.upgrades.magnetLevel * 1.5,
+      coinBonusPoints: currentShop.upgrades.coinValueLevel * 15,
+      powerupCooldownReduction: currentShop.upgrades.powerupFreqLevel * 1.8,
+      trailId: currentShop.activeTrail,
+    });
     stateRef.current = next;
     saveBestScore(next.bestScore);
+    audioRef.current?.setBiome(next.zoneIndex);
     audioRef.current?.playEvents(next.audioQueue);
     audioRef.current?.startMusic();
     syncDomAndHud(next, true);
@@ -234,6 +281,39 @@ export default function App() {
     setDaily(claimed);
     saveDailyProgress(claimed);
     audioRef.current?.playEvents([{ type: 'powerup', kind: 'shield' }]);
+    triggerHaptic('powerup');
+  }, []);
+
+  const handleBuyKnight = useCallback(() => {
+    const next = buyKnightCharacter(shopRef.current);
+    if (next !== shopRef.current) {
+      shopRef.current = next;
+      setShop(next);
+      saveShopState(next);
+      audioRef.current?.playEvents([{ type: 'powerup', kind: 'shield' }]);
+      triggerHaptic('powerup');
+    }
+  }, []);
+
+  const handleBuyUpgrade = useCallback((key: keyof ShopState['upgrades']) => {
+    const next = buyUpgrade(shopRef.current, key);
+    if (next !== shopRef.current) {
+      shopRef.current = next;
+      setShop(next);
+      saveShopState(next);
+      audioRef.current?.playEvents([{ type: 'powerup', kind: 'magnet' }]);
+      triggerHaptic('powerup');
+    }
+  }, []);
+
+  const handleSelectTrail = useCallback((id: TrailId) => {
+    const next = buyOrEquipTrail(shopRef.current, id);
+    if (next !== shopRef.current) {
+      shopRef.current = next;
+      setShop(next);
+      saveShopState(next);
+      audioRef.current?.playEvents([{ type: 'coin', combo: 2 }]);
+    }
   }, []);
 
   const handleTogglePause = useCallback(() => {
@@ -478,6 +558,13 @@ export default function App() {
           inp.duckQueued = false;
 
           stepSimulation(st, rawDt, inputFrame);
+          for (let i = 0; i < st.audioQueue.length; i++) {
+            const ev = st.audioQueue[i];
+            if (ev.type === 'stomp') triggerHaptic('stomp');
+            else if (ev.type === 'powerup') triggerHaptic('powerup');
+            else if (ev.type === 'hurt' || ev.type === 'shieldBreak') triggerHaptic('hurt');
+            else if (ev.type === 'zoneUp') audio.setBiome(st.zoneIndex);
+          }
           audio.playEvents(st.audioQueue);
 
           if (st.bestScore > persistedBest) {
@@ -586,6 +673,8 @@ export default function App() {
           bestScore={hud.bestScore}
           muted={muted}
           characterId={hud.characterId}
+          unlockedCharacters={shop.unlockedCharacters}
+          coinsBank={shop.coinsBank}
           orientation={orientation}
           streakDays={daily.streakDays}
           hasUnclaimedDaily={!daily.claimedToday}
@@ -593,6 +682,7 @@ export default function App() {
           totalMissions={daily.missions.length}
           onSelectCharacter={handleSelectCharacter}
           onOpenDaily={() => setDailyOpen(true)}
+          onOpenShop={() => setShopOpen(true)}
           onStart={handleStartOrRestart}
           onToggleMute={handleToggleMute}
         />
@@ -629,6 +719,15 @@ export default function App() {
         daily={daily}
         onClaim={handleClaimDaily}
         onClose={() => setDailyOpen(false)}
+      />
+
+      <ShopModal
+        open={shopOpen}
+        shop={shop}
+        onBuyKnight={handleBuyKnight}
+        onBuyUpgrade={handleBuyUpgrade}
+        onSelectTrail={handleSelectTrail}
+        onClose={() => setShopOpen(false)}
       />
     </main>
   );

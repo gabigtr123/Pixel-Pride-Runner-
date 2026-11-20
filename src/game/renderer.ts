@@ -11,6 +11,8 @@ import {
   CHARACTER_SPRITES,
   COIN_FRAMES,
   COIN_PALETTE,
+  DOUBLE_STAR_PALETTE,
+  DOUBLE_STAR_SPRITE,
   drawPixelGrid,
   HEART_PALETTE,
   HEART_SPRITE,
@@ -21,6 +23,8 @@ import {
   MAGNET_SPRITE,
   SHIELD_PALETTE,
   SHIELD_SPRITE,
+  SLOWMO_PALETTE,
+  SLOWMO_SPRITE,
   SPIKE_PALETTE,
   SPIKE_SPRITE,
   SWOOPER_DOWN,
@@ -340,6 +344,39 @@ function drawPickups(ctx: CanvasRenderingContext2D, state: GameState): void {
       drawPixelGrid(ctx, HEART_SPRITE, HEART_PALETTE, x + 1, y + 1, 1);
     } else if (item.kind === 'magnet') {
       drawPixelGrid(ctx, MAGNET_SPRITE, MAGNET_PALETTE, x + 1, y + 1, 1);
+    } else if (item.kind === 'doubleScore') {
+      drawPixelGrid(ctx, DOUBLE_STAR_SPRITE, DOUBLE_STAR_PALETTE, x + 1, y + 1, 1);
+    } else if (item.kind === 'slowMo') {
+      drawPixelGrid(ctx, SLOWMO_SPRITE, SLOWMO_PALETTE, x + 1, y + 1, 1);
+    }
+  }
+}
+
+function drawBiomeWeather(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  biome: BiomePalette,
+  view: RenderViewport,
+): void {
+  if (!biome.weather) return;
+  const count = 24;
+  const top = -view.worldOffsetY;
+  const spanY = GROUND_Y - top;
+  for (let i = 0; i < count; i++) {
+    if (biome.weather === 'snow') {
+      const x =
+        view.cameraX +
+        ((((i * 47 - state.elapsed * (24 + (i % 3) * 8)) % view.width) + view.width) % view.width);
+      const y = top + ((((i * 31 + state.elapsed * (32 + (i % 4) * 9)) % spanY) + spanY) % spanY);
+      ctx.fillStyle = i % 3 === 0 ? '#FFFFFF' : '#C8ECFF';
+      ctx.fillRect(Math.round(x), Math.round(y), i % 4 === 0 ? 2 : 1, i % 4 === 0 ? 2 : 1);
+    } else if (biome.weather === 'embers') {
+      const x =
+        view.cameraX +
+        ((((i * 53 - state.elapsed * (18 + (i % 3) * 10)) % view.width) + view.width) % view.width);
+      const y = top + ((((i * 37 - state.elapsed * (28 + (i % 4) * 12)) % spanY) + spanY) % spanY);
+      ctx.fillStyle = i % 2 === 0 ? '#FFE05C' : '#FF6828';
+      ctx.fillRect(Math.round(x), Math.round(y), 2, 2);
     }
   }
 }
@@ -565,7 +602,15 @@ export function renderGameWorld(
   drawHazards(ctx, state, view);
   drawPlayer(ctx, state);
   drawParticlesAndPopups(ctx, state, view);
+  drawBiomeWeather(ctx, state, biome, view);
   ctx.restore();
+
+  // Subtle cyan time-dilation border when Slow-Mo Hourglass is active
+  if (state.phase === 'playing' && state.player.slowMoTimer > 0 && !state.player.koActive) {
+    ctx.fillStyle = 'rgba(104, 224, 255, 0.22)';
+    ctx.fillRect(0, 0, view.width, 3);
+    ctx.fillRect(0, view.height - 3, view.width, 3);
+  }
 
   // Subtle peripheral crimson warning edge when at 1 heart during active play
   if (state.phase === 'playing' && state.player.hp === 1 && !state.player.koActive) {

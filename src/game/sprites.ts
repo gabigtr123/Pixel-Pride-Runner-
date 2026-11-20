@@ -273,9 +273,26 @@ export const LACRAMIOARA_FRAMES = {
   duck: LACRAMIOARA_DUCK,
 };
 
+// Pixel Knight — Armored 4-HP retro champion (16x19 run, 16x17 jump, 16x11 duck)
+export const KNIGHT_PALETTE: Record<string, string> = {
+  K: '#121324', // dark outline
+  H: '#8CA0C4', // steel helm
+  h: '#DCE8FF', // steel highlight
+  V: '#58E8FF', // glowing cyan visor
+  S: '#48587C', // inner visor shadow
+  R: '#4888FF', // royal cobalt plume/cape
+  r: '#2448A8', // cape shade
+  T: '#A8B8D8', // chestplate silver
+  t: '#647498', // armor shade
+  B: '#384468', // greaves
+  O: '#FFE05C', // gilded boots
+  o: '#B88418', // boot shade
+};
+
 export interface CharacterSpriteSet {
-  id: 'stride' | 'lacramioara';
+  id: 'stride' | 'lacramioara' | 'knight';
   name: string;
+  perk: string;
   palette: Record<string, string>;
   frames: {
     run: PixelGrid[];
@@ -284,18 +301,27 @@ export interface CharacterSpriteSet {
   };
 }
 
-export const CHARACTER_SPRITES: Record<'stride' | 'lacramioara', CharacterSpriteSet> = {
+export const CHARACTER_SPRITES: Record<'stride' | 'lacramioara' | 'knight', CharacterSpriteSet> = {
   stride: {
     id: 'stride',
     name: 'STRIDE',
+    perk: '+25% STOMP BONUS',
     palette: RUNNER_PALETTE,
     frames: RUNNER_FRAMES,
   },
   lacramioara: {
     id: 'lacramioara',
     name: 'LACRAMIOARA',
+    perk: 'COIN AURA + PETALS',
     palette: LACRAMIOARA_PALETTE,
     frames: LACRAMIOARA_FRAMES,
+  },
+  knight: {
+    id: 'knight',
+    name: 'KNIGHT',
+    perk: '4 MAX HEARTS',
+    palette: KNIGHT_PALETTE,
+    frames: RUNNER_FRAMES,
   },
 };
 
@@ -500,4 +526,40 @@ export const MAGNET_SPRITE: PixelGrid = [
   'KRRKKKKRRK',
   '.KRRRRRRK.',
   '..KKKKKK..',
+];
+
+export const DOUBLE_STAR_PALETTE: Record<string, string> = {
+  K: '#241808',
+  Y: '#FFE048',
+  L: '#FFFDF0',
+  O: '#F08820',
+};
+
+export const DOUBLE_STAR_SPRITE: PixelGrid = [
+  '....KK....',
+  '...KLYK...',
+  '.KKLYYYKK.',
+  'KLLYYYYYOK',
+  '.KYYYYOOK.',
+  '..KYYOOK..',
+  '.KYYKKYOK.',
+  '.KK....KK.',
+];
+
+export const SLOWMO_PALETTE: Record<string, string> = {
+  K: '#10182C',
+  G: '#FFE068',
+  C: '#78F0FF',
+  B: '#3888E8',
+};
+
+export const SLOWMO_SPRITE: PixelGrid = [
+  '.KKKKKKKK.',
+  '.KGGGGGGK.',
+  '..KCCCCK..',
+  '...KCCK...',
+  '...KBBK...',
+  '..KBBBBK..',
+  '.KGGGGGGK.',
+  '.KKKKKKKK.',
 ];

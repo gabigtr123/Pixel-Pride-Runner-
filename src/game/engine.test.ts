@@ -20,6 +20,14 @@ import {
   syncDailyStateForDate,
 } from './daily';
 import { getRenderViewport } from './renderer';
+import {
+  addCoinsToBank,
+  buyKnightCharacter,
+  buyOrEquipTrail,
+  buyUpgrade,
+  createDefaultShopState,
+  recordLeaderboardRun,
+} from './shop';
 import type { InputFrame } from './types';
 
 const IDLE_INPUT: InputFrame = {
@@ -335,4 +343,48 @@ test('daily play streak increments on consecutive days, resets on gaps, and gran
   assert.equal(boosted.bonusScore, perksDay5.startingScoreBonus);
   assert.equal(boosted.player.shieldActive, true);
   assert.equal(boosted.player.magnetTimer, perksDay5.startMagnetSeconds);
+});
+
+test('v2 Pixel Knight starts with 4 max hearts and Slow-Mo slows scroll speed', () => {
+  const rng = makeSeededRng(77);
+  const knightState = startNewRun(createInitialState(0, 'title', 'knight'));
+  assert.equal(knightState.player.maxHp, 4);
+  assert.equal(knightState.player.hp, 4);
+
+  stepSimulation(knightState, 1 / 60, IDLE_INPUT, rng);
+  const normalSpeed = knightState.speed;
+
+  knightState.player.slowMoTimer = 4.5;
+  stepSimulation(knightState, 1 / 60, IDLE_INPUT, rng);
+  assert.ok(knightState.speed < normalSpeed * 0.75, 'Slow-Mo must reduce world speed');
+});
+
+test('v2 Pixel Shop handles coin bank, Knight unlock, upgrades, trails, and Top-5 leaderboard', () => {
+  let shop = createDefaultShopState();
+  shop = addCoinsToBank(shop, 250);
+  assert.equal(shop.coinsBank, 250);
+
+  shop = buyKnightCharacter(shop);
+  assert.equal(shop.unlockedCharacters.includes('knight'), true);
+  assert.equal(shop.coinsBank, 150);
+
+  shop = buyUpgrade(shop, 'magnetLevel');
+  assert.equal(shop.upgrades.magnetLevel, 1);
+  assert.equal(shop.coinsBank, 110);
+
+  shop = buyOrEquipTrail(shop, 'rainbow');
+  assert.equal(shop.activeTrail, 'rainbow');
+  assert.equal(shop.coinsBank, 50);
+
+  for (const s of [300, 1200, 800, 2500, 100, 1900]) {
+    shop = recordLeaderboardRun(shop, {
+      score: s,
+      distance: 100,
+      characterId: 'lacramioara',
+      dateKey: '2026-11-20',
+    });
+  }
+  assert.equal(shop.leaderboard.length, 5);
+  assert.equal(shop.leaderboard[0].score, 2500);
+  assert.equal(shop.leaderboard[4].score, 300);
 });
