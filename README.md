@@ -63,6 +63,7 @@ Pre-built **Web** and **Android 17** packages are published on the [GitHub Relea
 | **Choose Hero** | — | Tap **STRIDE**, **LILY**, **KNIGHT**, or **CUSTOM** on Title Screen |
 | **Hero Creator** | `Esc` closes modal | Tap **EDIT HERO** on Title Screen |
 | **Pixel Shop / Top 5** | `Esc` closes modal | Tap **Coins / SHOP** button on Title Screen |
+| **Theme & Weather** | `Esc` closes modal | Tap **☀️ WX / ❄️ WINTER** button on Title Screen |
 | **Daily Quests & Streak** | `Esc` closes modal | Tap **DAY X** button on Title Screen or Game Over |
 | **Start / Restart** | `Enter` or `Space` (on Title / Game Over), `R` | Tap **START RUN / TRY AGAIN** |
 | **Jump / Double Jump** | `Space`, `↑`, or `W` *(hold for higher jump)* | Tap / hold canvas or **JUMP** button |
@@ -110,7 +111,7 @@ npm run dev
 
 ### Automated Releases (GitHub Actions)
 
-- Push a single version tag `v*` (e.g., `v2.0.0`) to automatically run lint/tests, build both the **Signed Android 17 APK** and the **Web/PWA `.zip`**, and publish one unified GitHub Release via `.github/workflows/release.yml`.
+- Push a single version tag `v*` (e.g., `v2.1.0`) to automatically run lint/tests, build both the **Signed Android 17 APK** and the **Web/PWA `.zip`**, and publish one unified GitHub Release via `.github/workflows/release.yml`.
 - Every push to `main` automatically deploys the live installable PWA to GitHub Pages via `.github/workflows/deploy-pages.yml`.
 
 ---
@@ -143,19 +144,21 @@ Pixel-Pride-Runner-/
 │   │   ├── PixelIcons.tsx      # Crisp pixel-art SVG UI icons & character previews
 │   │   ├── ShopModal.tsx       # Pixel Shop (Knight, upgrades, trails, Top-5 leaderboard)
 │   │   ├── StatusModal.tsx     # Pause & Game Over overlays with mission/cosmetic unlocks
-│   │   └── TitleOverlay.tsx    # Title screen, Daily/Shop/Creator buttons & hero selector
+│   │   ├── TitleOverlay.tsx    # Title screen, Daily/Shop/Weather/Creator & hero selector
+│   │   └── WeatherModal.tsx    # Winter Theme toggle & Live Weather Sync (Open-Meteo)
 │   ├── game/
 │   │   ├── audio.ts            # Procedural Web Audio chiptune soundtrack (6 biomes) & SFX
 │   │   ├── constants.ts        # Physics tuning, storage keys & 6 biome palettes
 │   │   ├── creator.ts          # Custom hero sprite composer, English presets & unlocks
 │   │   ├── daily.ts            # Deterministic Daily Missions & 7-day streak engine
 │   │   ├── engine.ts           # Fixed-step simulation, collision, power-ups, spawning
-│   │   ├── engine.test.ts      # 16 seeded unit tests (physics, combat, shop, creator, daily)
+│   │   ├── engine.test.ts      # 17 seeded unit tests (physics, shop, creator, daily, weather)
 │   │   ├── haptics.ts          # Tactile vibration helper for Android & mobile browsers
-│   │   ├── renderer.ts         # Dual Portrait (300×520) & Landscape (480×270) Canvas renderer
+│   │   ├── renderer.ts         # Dual Portrait/Landscape Canvas renderer + 5 weather effects
 │   │   ├── shop.ts             # Coin bank, upgrades, trails & Top-5 leaderboard state
 │   │   ├── sprites.ts          # 8-bit sprite matrices (Stride, Lily, Pixel Knight, enemies)
-│   │   └── types.ts            # Core state, character, viewport, HUD & audio types
+│   │   ├── types.ts            # Core state, character, viewport, HUD & audio types
+│   │   └── weather.ts          # Winter Wonderland palette & Open-Meteo live weather sync
 │   ├── App.tsx                 # Main game loop, modal/input hub & React HUD bridge
 │   ├── index.css               # Retro pixel styling, safe-area & Tailwind CSS v4
 │   └── main.tsx                # Entry point & PWA Service Worker registration
