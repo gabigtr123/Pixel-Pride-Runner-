@@ -122,8 +122,8 @@ export function TitleOverlay({
 
       {/* Upper-center calm sky negative-space lockup, character selector & primary CTA */}
       <div
-        className={`flex flex-col items-center ${
-          isPortrait ? '-mt-20 gap-3' : '-mt-8 sm:-mt-16 gap-2.5 sm:gap-3'
+        className={`title-center-stack flex flex-col items-center ${
+          isPortrait ? '-mt-20 gap-3' : '-mt-4 md:-mt-10 gap-2.5 sm:gap-3'
         }`}
       >
         <PixelStrideTitleLogo />
@@ -203,7 +203,7 @@ export function TitleOverlay({
               e.currentTarget.blur();
               onStart();
             }}
-            className="pixel-btn-primary font-pixel-display text-sm sm:text-base px-8 py-4 tracking-wider whitespace-nowrap cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#FFF4A8]"
+            className="title-start-btn pixel-btn-primary font-pixel-display text-sm sm:text-base px-8 py-4 tracking-wider whitespace-nowrap cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#FFF4A8]"
           >
             START RUN
           </button>
@@ -216,8 +216,8 @@ export function TitleOverlay({
         </div>
       </div>
 
-      {/* Flat, borderless single-line control hint in bottom safe margin */}
-      <div className="flex justify-center pb-1">
+      {/* Flat, borderless single-line control hint in bottom safe margin (desktop only) */}
+      <div className="desktop-control-hint flex justify-center pb-1">
         <p className="font-pixel-ui text-xs text-[#FFF9E8] bg-[#111324]/80 px-4 py-1.5 text-center tracking-wide">
           SPACE / UP Jump &amp; Double-Jump · DOWN Duck / Fast-Fall · P Pause · M Audio
         </p>

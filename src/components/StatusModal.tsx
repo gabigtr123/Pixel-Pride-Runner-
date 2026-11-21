@@ -45,13 +45,13 @@ export function StatusModal({
 
   return (
     <div
-      className="fixed inset-0 z-30 flex items-center justify-center p-4 bg-[#0B0D1A]/65"
+      className="fixed inset-0 z-30 flex items-center justify-center modal-safe-area bg-[#0B0D1A]/65"
       role="dialog"
       aria-modal="true"
       aria-labelledby="status-modal-title"
       data-testid={isGameOver ? 'gameover-modal' : 'pause-modal'}
     >
-      <div className="pixel-panel w-full max-w-md p-6 sm:p-7 flex flex-col items-center text-center gap-4 sm:gap-5">
+      <div className="pixel-panel w-full max-w-md max-h-full overflow-y-auto p-5 sm:p-7 flex flex-col items-center text-center gap-4 sm:gap-5">
         <div className="flex flex-col items-center gap-2">
           <h2
             id="status-modal-title"

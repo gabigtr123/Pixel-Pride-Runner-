@@ -174,7 +174,7 @@ export function PixelStrideTitleLogo() {
     <div className="flex flex-col items-center select-none">
       <svg
         viewBox="0 0 420 116"
-        className="w-[300px] sm:w-[440px] md:w-[520px] h-auto"
+        className="title-logo-svg w-[300px] sm:w-[440px] md:w-[520px] h-auto"
         role="img"
         aria-label="Pixel Stride"
         shapeRendering="crispEdges"

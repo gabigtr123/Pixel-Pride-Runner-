@@ -23,13 +23,13 @@ export function DailyModal({ open, daily, onClaim, onClose }: DailyModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-40 flex items-center justify-center p-3 sm:p-4 bg-[#0B0D1A]/75"
+      className="fixed inset-0 z-40 flex items-center justify-center modal-safe-area bg-[#0B0D1A]/75"
       role="dialog"
       aria-modal="true"
       aria-labelledby="daily-modal-title"
       data-testid="daily-modal"
     >
-      <div className="pixel-panel w-full max-w-md max-h-[92vh] overflow-y-auto p-4 sm:p-6 flex flex-col gap-4">
+      <div className="pixel-panel w-full max-w-md max-h-full overflow-y-auto p-4 sm:p-6 flex flex-col gap-4">
         {/* Header */}
         <div className="flex items-center justify-between gap-2 border-b-2 border-[#303A68] pb-3">
           <div className="flex flex-col">
