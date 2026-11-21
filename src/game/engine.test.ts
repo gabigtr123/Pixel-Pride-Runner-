@@ -38,6 +38,11 @@ import {
   recordLeaderboardRun,
 } from './shop';
 import type { InputFrame } from './types';
+import {
+  createDefaultWeatherSettings,
+  getEffectiveWeather,
+  mapWmoCodeToWeather,
+} from './weather';
 
 const IDLE_INPUT: InputFrame = {
   jumpHeld: false,
@@ -416,4 +421,24 @@ test('v2 Hero Creator builds Male/Female sprites and unlocks cosmetics via caree
   const unlocked = getNewlyUnlockedCosmetics(stats0, stats1);
   assert.equal(unlocked.length, 6, 'completing all career goals unlocks all 6 mission cosmetics');
   assert.equal(isOptionUnlocked(crownGold, stats1), true);
+});
+
+test('v2.1 Winter Theme and Live Weather Sync map WMO codes and resolve effective weather', () => {
+  assert.equal(mapWmoCodeToWeather(0), 'clear');
+  assert.equal(mapWmoCodeToWeather(45), 'fog');
+  assert.equal(mapWmoCodeToWeather(63), 'rain');
+  assert.equal(mapWmoCodeToWeather(73), 'snow');
+  assert.equal(mapWmoCodeToWeather(95), 'storm');
+
+  const base = createDefaultWeatherSettings();
+  assert.equal(getEffectiveWeather(base), null, 'classic biome auto uses biome default');
+
+  const winter = { ...base, theme: 'winter' as const };
+  assert.equal(getEffectiveWeather(winter), 'snow', 'winter theme defaults to snow');
+
+  const liveRain = { ...winter, source: 'live' as const, liveWeather: 'rain' as const };
+  assert.equal(getEffectiveWeather(liveRain), 'rain', 'live sync overrides winter default');
+
+  const manualStorm = { ...liveRain, source: 'manual' as const, manualWeather: 'storm' as const };
+  assert.equal(getEffectiveWeather(manualStorm), 'storm', 'manual weather takes precedence');
 });

@@ -5,7 +5,17 @@ import { GameHud } from './components/GameHud';
 import { ShopModal } from './components/ShopModal';
 import { StatusModal } from './components/StatusModal';
 import { TitleOverlay } from './components/TitleOverlay';
+import { WeatherModal } from './components/WeatherModal';
 import { ChiptuneAudio } from './game/audio';
+import {
+  createDefaultWeatherSettings,
+  fetchLiveWeather,
+  getEffectiveWeather,
+  getWeatherEmoji,
+  loadWeatherSettings,
+  saveWeatherSettings,
+  type WeatherSettings,
+} from './game/weather';
 import {
   BEST_SCORE_STORAGE_KEY,
   CHARACTER_STORAGE_KEY,
@@ -191,11 +201,17 @@ export default function App() {
   );
   const creatorRef = useRef<CreatorStorageState>(creator);
   creatorRef.current = creator;
+  const [weather, setWeather] = useState<WeatherSettings>(() =>
+    typeof window !== 'undefined' ? loadWeatherSettings() : createDefaultWeatherSettings(),
+  );
+  const weatherRef = useRef<WeatherSettings>(weather);
+  weatherRef.current = weather;
   const [dailyOpen, setDailyOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
   const [creatorOpen, setCreatorOpen] = useState(false);
+  const [weatherOpen, setWeatherOpen] = useState(false);
   const modalOpenRef = useRef(false);
-  modalOpenRef.current = dailyOpen || shopOpen || creatorOpen;
+  modalOpenRef.current = dailyOpen || shopOpen || creatorOpen || weatherOpen;
   const [newlyCompletedMissions, setNewlyCompletedMissions] = useState<DailyMission[]>([]);
   const [newlyUnlockedCosmetics, setNewlyUnlockedCosmetics] = useState<ColorOption[]>([]);
   const lastRecordedRunRef = useRef<GameState['finalRun']>(null);
@@ -299,6 +315,7 @@ export default function App() {
     setDailyOpen(false);
     setShopOpen(false);
     setCreatorOpen(false);
+    setWeatherOpen(false);
     setNewlyCompletedMissions([]);
     setNewlyUnlockedCosmetics([]);
     if (document.activeElement instanceof HTMLElement) {
@@ -513,6 +530,7 @@ export default function App() {
           setDailyOpen(false);
           setShopOpen(false);
           setCreatorOpen(false);
+          setWeatherOpen(false);
         }
         return;
       }
@@ -687,14 +705,22 @@ export default function App() {
             saveBestScore(persistedBest);
           }
 
+          const env = {
+            winterTheme: weatherRef.current.theme === 'winter',
+            weatherOverride: getEffectiveWeather(weatherRef.current),
+          };
           syncCanvasSize(mode);
-          renderGameWorld(ctx, st, mode);
+          renderGameWorld(ctx, st, mode, env);
           lastRenderedPhase = st.phase;
           lastRenderedMode = mode;
           handlersRef.current.syncDomAndHud(st);
         } else if (lastRenderedPhase !== st.phase || lastRenderedMode !== mode) {
+          const env = {
+            winterTheme: weatherRef.current.theme === 'winter',
+            weatherOverride: getEffectiveWeather(weatherRef.current),
+          };
           syncCanvasSize(mode);
-          renderGameWorld(ctx, st, mode);
+          renderGameWorld(ctx, st, mode, env);
           lastRenderedPhase = st.phase;
           lastRenderedMode = mode;
           handlersRef.current.syncDomAndHud(st);
@@ -761,8 +787,53 @@ export default function App() {
     handleTouchJumpEnd();
   }, [handleTouchJumpEnd]);
 
+  const handleWeatherChange = useCallback((next: WeatherSettings) => {
+    weatherRef.current = next;
+    setWeather(next);
+    saveWeatherSettings(next);
+  }, []);
+
+  // Silently refresh live weather on mount if user previously enabled Live Sync and data is >15 min old
+  useEffect(() => {
+    const w = weatherRef.current;
+    if (w.source !== 'live' || w.latitude === null || w.longitude === null) return;
+    const isStale = !w.lastSyncedAt || Date.now() - w.lastSyncedAt > 15 * 60 * 1000;
+    if (!isStale) return;
+    let cancelled = false;
+    fetchLiveWeather(w.latitude, w.longitude)
+      .then((live) => {
+        if (cancelled) return;
+        const next: WeatherSettings = {
+          ...weatherRef.current,
+          liveWeather: live.weather,
+          temperatureC: live.temperatureC,
+          lastSyncedAt: Date.now(),
+        };
+        weatherRef.current = next;
+        setWeather(next);
+        saveWeatherSettings(next);
+      })
+      .catch(() => {
+        // Keep last cached weather offline
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const viewport = getRenderViewport(orientation);
   const completedMissions = daily.missions.filter((m) => m.completed).length;
+  const effectiveWeather = getEffectiveWeather(weather);
+  const weatherLabel =
+    weather.source === 'live' && weather.liveWeather
+      ? `${getWeatherEmoji(weather.liveWeather)} ${
+          weather.temperatureC !== null ? `${weather.temperatureC}°C` : 'LIVE'
+        }`
+      : weather.source === 'manual'
+        ? `${getWeatherEmoji(weather.manualWeather)} ${weather.manualWeather.toUpperCase()}`
+        : weather.theme === 'winter'
+          ? '❄️ WINTER'
+          : `${getWeatherEmoji(effectiveWeather ?? 'clear')} WX`;
 
   return (
     <main
@@ -796,10 +867,12 @@ export default function App() {
           hasUnclaimedDaily={!daily.claimedToday}
           completedMissions={completedMissions}
           totalMissions={daily.missions.length}
+          weatherLabel={weatherLabel}
           onSelectCharacter={handleSelectCharacter}
           onOpenDaily={() => setDailyOpen(true)}
           onOpenShop={() => setShopOpen(true)}
           onOpenCreator={() => setCreatorOpen(true)}
+          onOpenWeather={() => setWeatherOpen(true)}
           onStart={handleStartOrRestart}
           onToggleMute={handleToggleMute}
         />
@@ -856,6 +929,13 @@ export default function App() {
         onChange={handleCreatorChange}
         onSaveAndUse={handleSaveCustomHero}
         onClose={() => setCreatorOpen(false)}
+      />
+
+      <WeatherModal
+        open={weatherOpen}
+        settings={weather}
+        onChange={handleWeatherChange}
+        onClose={() => setWeatherOpen(false)}
       />
     </main>
   );

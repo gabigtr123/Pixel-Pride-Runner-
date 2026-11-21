@@ -33,6 +33,12 @@ import {
   SWOOPER_UP,
 } from './sprites';
 import type { BiomePalette, GameState, OrientationMode, RenderViewport } from './types';
+import { WINTER_BIOME_PALETTE, type WeatherCondition } from './weather';
+
+export interface RenderEnvironment {
+  winterTheme?: boolean;
+  weatherOverride?: WeatherCondition | null;
+}
 
 export function getRenderViewport(mode: OrientationMode): RenderViewport {
   if (mode === 'portrait') {
@@ -180,6 +186,7 @@ function drawParallaxWorld(
   state: GameState,
   biome: BiomePalette,
   view: RenderViewport,
+  winterTheme = false,
 ): void {
   const scroll = state.worldScroll;
   const viewRight = view.cameraX + view.width;
@@ -207,13 +214,23 @@ function drawParallaxWorld(
     // Stepped pyramid peak 1
     for (let step = 0; step < 14; step++) {
       const w = 64 - step * 4;
-      ctx.fillStyle = step >= 11 ? biome.cloudShadow : biome.farMountain;
+      ctx.fillStyle =
+        step >= (winterTheme ? 9 : 11)
+          ? winterTheme
+            ? '#F4FAFF'
+            : biome.cloudShadow
+          : biome.farMountain;
       ctx.fillRect(bx + 8 + step * 2, GROUND_Y - 12 - step * 5, w, 6);
     }
     // Stepped peak 2
     for (let step = 0; step < 10; step++) {
       const w = 52 - step * 4;
-      ctx.fillStyle = step >= 8 ? biome.cloudShadow : biome.farMountain;
+      ctx.fillStyle =
+        step >= (winterTheme ? 6 : 8)
+          ? winterTheme
+            ? '#F4FAFF'
+            : biome.cloudShadow
+          : biome.farMountain;
       ctx.fillRect(bx + 62 + step * 2, GROUND_Y - 12 - step * 5, w, 6);
     }
   }
@@ -229,8 +246,8 @@ function drawParallaxWorld(
     ctx.fillRect(bx, GROUND_Y - 26, 98, 26);
     ctx.fillRect(bx + 12, GROUND_Y - 34, 74, 8);
     ctx.fillRect(bx + 26, GROUND_Y - 40, 46, 6);
-    // Hilltop grass accent highlight
-    ctx.fillStyle = biome.grassTrim;
+    // Hilltop snow / grass accent highlight
+    ctx.fillStyle = winterTheme ? '#F4FAFF' : biome.grassTrim;
     ctx.fillRect(bx + 26, GROUND_Y - 40, 46, 2);
     ctx.fillRect(bx + 12, GROUND_Y - 34, 14, 2);
 
@@ -238,12 +255,29 @@ function drawParallaxWorld(
     ctx.fillStyle = biome.dirtDark;
     ctx.fillRect(bx + 16, GROUND_Y - 10, 4, 10);
     ctx.fillRect(bx + 78, GROUND_Y - 8, 4, 8);
-    ctx.fillStyle = biome.grassTrim;
+    ctx.fillStyle = winterTheme ? '#2C6A68' : biome.grassTrim;
     ctx.fillRect(bx + 10, GROUND_Y - 16, 16, 6);
     ctx.fillRect(bx + 12, GROUND_Y - 22, 12, 6);
     ctx.fillRect(bx + 15, GROUND_Y - 27, 6, 5);
     ctx.fillRect(bx + 73, GROUND_Y - 14, 14, 6);
     ctx.fillRect(bx + 76, GROUND_Y - 19, 8, 5);
+    if (winterTheme) {
+      // Snow caps on pine tops + cute 8-bit pixel snowman
+      ctx.fillStyle = '#F4FAFF';
+      ctx.fillRect(bx + 15, GROUND_Y - 28, 6, 2);
+      ctx.fillRect(bx + 12, GROUND_Y - 22, 12, 2);
+      ctx.fillRect(bx + 76, GROUND_Y - 20, 8, 2);
+      // Pixel snowman (body + head + red scarf + carrot nose)
+      ctx.fillRect(bx + 44, GROUND_Y - 8, 8, 8);
+      ctx.fillRect(bx + 45, GROUND_Y - 14, 6, 6);
+      ctx.fillStyle = '#E83B48';
+      ctx.fillRect(bx + 44, GROUND_Y - 9, 8, 2);
+      ctx.fillStyle = '#FF8820';
+      ctx.fillRect(bx + 50, GROUND_Y - 12, 3, 1);
+      ctx.fillStyle = '#121324';
+      ctx.fillRect(bx + 47, GROUND_Y - 13, 1, 1);
+      ctx.fillRect(bx + 49, GROUND_Y - 13, 1, 1);
+    }
 
     // Ancient pixel aqueduct / ruin tower
     ctx.fillStyle = biome.ruinColor;
@@ -253,6 +287,12 @@ function drawParallaxWorld(
     ctx.fillRect(bx + 130, GROUND_Y - 48, 8, 6);
     ctx.fillStyle = biome.ruinHighlight;
     ctx.fillRect(bx + 108, GROUND_Y - 42, 4, 38);
+    if (winterTheme) {
+      ctx.fillStyle = '#F4FAFF';
+      ctx.fillRect(bx + 102, GROUND_Y - 49, 8, 2);
+      ctx.fillRect(bx + 116, GROUND_Y - 49, 8, 2);
+      ctx.fillRect(bx + 130, GROUND_Y - 49, 8, 2);
+    }
     ctx.fillStyle = biome.skyHorizon;
     ctx.fillRect(bx + 116, GROUND_Y - 26, 8, 12); // window arch
   }
@@ -358,20 +398,74 @@ function drawBiomeWeather(
   state: GameState,
   biome: BiomePalette,
   view: RenderViewport,
+  weatherOverride: WeatherCondition | null = null,
 ): void {
-  if (!biome.weather) return;
-  const count = 24;
+  const activeWeather: WeatherCondition | 'embers' | null =
+    weatherOverride !== null ? weatherOverride : (biome.weather ?? null);
+  if (!activeWeather || activeWeather === 'clear') return;
+
   const top = -view.worldOffsetY;
   const spanY = GROUND_Y - top;
-  for (let i = 0; i < count; i++) {
-    if (biome.weather === 'snow') {
+
+  if (activeWeather === 'rain' || activeWeather === 'storm') {
+    const isStorm = activeWeather === 'storm';
+    // Cool overcast/storm atmospheric wash
+    ctx.fillStyle = isStorm ? 'rgba(12, 18, 38, 0.28)' : 'rgba(20, 36, 68, 0.14)';
+    ctx.fillRect(view.cameraX - 8, top, view.width + 16, spanY + 12);
+
+    const dropCount = isStorm ? 46 : 30;
+    for (let i = 0; i < dropCount; i++) {
+      const speedY = isStorm ? 230 : 170;
+      const speedX = isStorm ? 95 : 55;
       const x =
         view.cameraX +
-        ((((i * 47 - state.elapsed * (24 + (i % 3) * 8)) % view.width) + view.width) % view.width);
-      const y = top + ((((i * 31 + state.elapsed * (32 + (i % 4) * 9)) % spanY) + spanY) % spanY);
+        ((((i * 37 - state.elapsed * (speedX + (i % 3) * 14)) % view.width) + view.width) %
+          view.width);
+      const y =
+        top + ((((i * 29 + state.elapsed * (speedY + (i % 4) * 22)) % spanY) + spanY) % spanY);
+      ctx.fillStyle = i % 3 === 0 ? '#D8F4FF' : '#78C8FF';
+      ctx.fillRect(Math.round(x), Math.round(y), 1, isStorm ? 7 : 5);
+      ctx.fillRect(Math.round(x) - 1, Math.round(y) + 2, 1, 3);
+    }
+
+    // Periodic crisp 8-bit lightning flash during storms
+    if (isStorm) {
+      const cycle = state.elapsed % 5.4;
+      if ((cycle > 4.95 && cycle < 5.05) || (cycle > 5.12 && cycle < 5.19)) {
+        ctx.fillStyle = 'rgba(232, 246, 255, 0.32)';
+        ctx.fillRect(view.cameraX - 8, top, view.width + 16, spanY + 12);
+      }
+    }
+    return;
+  }
+
+  if (activeWeather === 'fog') {
+    // Layered translucent 8-bit pixel mist bands drifting slowly
+    for (let band = 0; band < 4; band++) {
+      const y = GROUND_Y - 58 + band * 15;
+      const drift = Math.round(((state.elapsed * (10 + band * 4)) % 80));
+      ctx.fillStyle = band % 2 === 0 ? 'rgba(220, 236, 250, 0.22)' : 'rgba(196, 218, 240, 0.16)';
+      ctx.fillRect(view.cameraX - 8, y, view.width + 16, 12);
+      ctx.fillStyle = 'rgba(244, 250, 255, 0.18)';
+      for (let x = view.cameraX - drift; x < view.cameraX + view.width + 40; x += 80) {
+        ctx.fillRect(x, y + 3, 44, 4);
+      }
+    }
+    return;
+  }
+
+  const count = activeWeather === 'snow' ? 32 : 24;
+  for (let i = 0; i < count; i++) {
+    if (activeWeather === 'snow') {
+      const sway = Math.sin(state.elapsed * 2.2 + i * 1.3) * 6;
+      const x =
+        view.cameraX +
+        ((((i * 47 + sway - state.elapsed * (22 + (i % 3) * 8)) % view.width) + view.width) %
+          view.width);
+      const y = top + ((((i * 31 + state.elapsed * (30 + (i % 4) * 9)) % spanY) + spanY) % spanY);
       ctx.fillStyle = i % 3 === 0 ? '#FFFFFF' : '#C8ECFF';
       ctx.fillRect(Math.round(x), Math.round(y), i % 4 === 0 ? 2 : 1, i % 4 === 0 ? 2 : 1);
-    } else if (biome.weather === 'embers') {
+    } else if (activeWeather === 'embers') {
       const x =
         view.cameraX +
         ((((i * 53 - state.elapsed * (18 + (i % 3) * 10)) % view.width) + view.width) % view.width);
@@ -583,10 +677,12 @@ export function renderGameWorld(
   ctx: CanvasRenderingContext2D,
   state: GameState,
   mode: OrientationMode = 'landscape',
+  env?: RenderEnvironment,
 ): void {
   ctx.imageSmoothingEnabled = false;
   const view = getRenderViewport(mode);
-  const biome = getBlendedBiome(state);
+  const winterTheme = Boolean(env?.winterTheme);
+  const biome = winterTheme ? WINTER_BIOME_PALETTE : getBlendedBiome(state);
 
   ctx.save();
   // Apply portrait/landscape camera framing
@@ -601,14 +697,14 @@ export function renderGameWorld(
   }
 
   drawSkyAndCelestial(ctx, state, biome, view);
-  drawParallaxWorld(ctx, state, biome, view);
+  drawParallaxWorld(ctx, state, biome, view, winterTheme);
   drawGround(ctx, state, biome, view);
   drawPlatforms(ctx, state, biome);
   drawPickups(ctx, state);
   drawHazards(ctx, state, view);
   drawPlayer(ctx, state);
   drawParticlesAndPopups(ctx, state, view);
-  drawBiomeWeather(ctx, state, biome, view);
+  drawBiomeWeather(ctx, state, biome, view, env?.weatherOverride ?? null);
   ctx.restore();
 
   // Subtle cyan time-dilation border when Slow-Mo Hourglass is active

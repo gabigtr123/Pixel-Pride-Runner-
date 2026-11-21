@@ -18,10 +18,12 @@ interface TitleOverlayProps {
   hasUnclaimedDaily: boolean;
   completedMissions: number;
   totalMissions: number;
+  weatherLabel: string;
   onSelectCharacter: (id: CharacterId) => void;
   onOpenDaily: () => void;
   onOpenShop: () => void;
   onOpenCreator: () => void;
+  onOpenWeather: () => void;
   onStart: () => void;
   onToggleMute: () => void;
 }
@@ -38,10 +40,12 @@ export function TitleOverlay({
   hasUnclaimedDaily,
   completedMissions,
   totalMissions,
+  weatherLabel,
   onSelectCharacter,
   onOpenDaily,
   onOpenShop,
   onOpenCreator,
+  onOpenWeather,
   onStart,
   onToggleMute,
 }: TitleOverlayProps) {
@@ -57,9 +61,9 @@ export function TitleOverlay({
       className="fixed inset-0 z-20 flex flex-col justify-between pointer-events-none safe-area-hud"
       data-testid="title-screen"
     >
-      {/* Top bar: Daily Quests + Pixel Shop on left, Sound toggle on right */}
+      {/* Top bar: Daily Quests + Pixel Shop + Weather/Theme on left, Sound toggle on right */}
       <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2 pointer-events-auto">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pointer-events-auto">
           <button
             type="button"
             data-testid="open-daily-btn"
@@ -102,6 +106,22 @@ export function TitleOverlay({
             </span>
             <span className="hidden sm:inline font-pixel-ui text-[10px] text-[#78E8FF]">
               SHOP
+            </span>
+          </button>
+
+          <button
+            type="button"
+            data-testid="open-weather-btn"
+            onClick={(e) => {
+              e.currentTarget.blur();
+              onOpenWeather();
+            }}
+            tabIndex={-1}
+            aria-label="Open Winter Theme and Live Weather Sync"
+            className="pixel-icon-btn h-11 px-2.5 sm:px-3 flex items-center gap-1 cursor-pointer"
+          >
+            <span className="font-pixel-ui text-[11px] text-[#E8FCFF] whitespace-nowrap">
+              {weatherLabel}
             </span>
           </button>
         </div>
