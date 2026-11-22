@@ -62,91 +62,100 @@ export function TitleOverlay({
       data-testid="title-screen"
     >
       {/* Top bar: Daily Quests + Pixel Shop + Weather/Theme on left, Sound toggle on right */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pointer-events-auto">
-          <button
-            type="button"
-            data-testid="open-daily-btn"
-            onClick={(e) => {
-              e.currentTarget.blur();
-              onOpenDaily();
-            }}
-            tabIndex={-1}
-            aria-label="Open Daily Quests and Streak Bonus"
-            className="relative pixel-icon-btn h-11 px-2.5 sm:px-3 flex items-center gap-1.5 sm:gap-2 cursor-pointer"
-          >
-            <span className="font-pixel-display text-[10px] text-[#FFE05C] tracking-wider whitespace-nowrap">
-              DAY {streakDays}
-            </span>
-            <span className="font-pixel-ui text-[11px] text-[#E4EAF8] whitespace-nowrap">
-              {completedMissions}/{totalMissions}
-            </span>
-            {hasUnclaimedDaily && (
-              <span
-                className="w-2.5 h-2.5 bg-[#78F0A8] border border-[#111324] animate-pulse"
-                aria-hidden="true"
-              />
-            )}
-          </button>
+      <div className="flex flex-col gap-3 sm:gap-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pointer-events-auto">
+            <button
+              type="button"
+              data-testid="open-daily-btn"
+              onClick={(e) => {
+                e.currentTarget.blur();
+                onOpenDaily();
+              }}
+              tabIndex={-1}
+              aria-label="Open Daily Quests and Streak Bonus"
+              className="relative pixel-icon-btn h-11 px-2.5 sm:px-3 flex items-center gap-1.5 sm:gap-2 cursor-pointer"
+            >
+              <span className="font-pixel-display text-[10px] text-[#FFE05C] tracking-wider whitespace-nowrap">
+                DAY {streakDays}
+              </span>
+              <span className="font-pixel-ui text-[11px] text-[#E4EAF8] whitespace-nowrap">
+                {completedMissions}/{totalMissions}
+              </span>
+              {hasUnclaimedDaily && (
+                <span
+                  className="w-2.5 h-2.5 bg-[#78F0A8] border border-[#111324] animate-pulse"
+                  aria-hidden="true"
+                />
+              )}
+            </button>
+
+            <button
+              type="button"
+              data-testid="open-shop-btn"
+              onClick={(e) => {
+                e.currentTarget.blur();
+                onOpenShop();
+              }}
+              tabIndex={-1}
+              aria-label="Open Pixel Shop and Leaderboard"
+              className="pixel-icon-btn h-11 px-2.5 sm:px-3 flex items-center gap-1.5 cursor-pointer"
+            >
+              <CoinIcon className="w-4 h-4 shrink-0" />
+              <span className="font-pixel-display text-[10px] text-[#FFF4A8] whitespace-nowrap">
+                {coinsBank}
+              </span>
+              <span className="hidden sm:inline font-pixel-ui text-[10px] text-[#78E8FF]">
+                SHOP
+              </span>
+            </button>
+
+            <button
+              type="button"
+              data-testid="open-weather-btn"
+              onClick={(e) => {
+                e.currentTarget.blur();
+                onOpenWeather();
+              }}
+              tabIndex={-1}
+              aria-label="Open Winter Theme and Live Weather Sync"
+              className="pixel-icon-btn h-11 px-2.5 sm:px-3 flex items-center gap-1 cursor-pointer"
+            >
+              <span className="font-pixel-ui text-[11px] text-[#E8FCFF] whitespace-nowrap">
+                {weatherLabel}
+              </span>
+            </button>
+          </div>
 
           <button
             type="button"
-            data-testid="open-shop-btn"
             onClick={(e) => {
               e.currentTarget.blur();
-              onOpenShop();
+              onToggleMute();
             }}
             tabIndex={-1}
-            aria-label="Open Pixel Shop and Leaderboard"
-            className="pixel-icon-btn h-11 px-2.5 sm:px-3 flex items-center gap-1.5 cursor-pointer"
+            aria-label={muted ? 'Unmute audio (M)' : 'Mute audio (M)'}
+            className="pointer-events-auto pixel-icon-btn w-11 h-11 flex items-center justify-center cursor-pointer shrink-0"
           >
-            <CoinIcon className="w-4 h-4 shrink-0" />
-            <span className="font-pixel-display text-[10px] text-[#FFF4A8] whitespace-nowrap">
-              {coinsBank}
-            </span>
-            <span className="hidden sm:inline font-pixel-ui text-[10px] text-[#78E8FF]">
-              SHOP
-            </span>
-          </button>
-
-          <button
-            type="button"
-            data-testid="open-weather-btn"
-            onClick={(e) => {
-              e.currentTarget.blur();
-              onOpenWeather();
-            }}
-            tabIndex={-1}
-            aria-label="Open Winter Theme and Live Weather Sync"
-            className="pixel-icon-btn h-11 px-2.5 sm:px-3 flex items-center gap-1 cursor-pointer"
-          >
-            <span className="font-pixel-ui text-[11px] text-[#E8FCFF] whitespace-nowrap">
-              {weatherLabel}
-            </span>
+            <SoundIcon muted={muted} />
           </button>
         </div>
 
-        <button
-          type="button"
-          onClick={(e) => {
-            e.currentTarget.blur();
-            onToggleMute();
-          }}
-          tabIndex={-1}
-          aria-label={muted ? 'Unmute audio (M)' : 'Mute audio (M)'}
-          className="pointer-events-auto pixel-icon-btn w-11 h-11 flex items-center justify-center cursor-pointer"
-        >
-          <SoundIcon muted={muted} />
-        </button>
+        {/* In Portrait mode, anchor the Title Logo cleanly in the upper sky so the horizon & running hero stay 100% visible */}
+        {isPortrait && (
+          <div className="flex justify-center pt-1">
+            <PixelStrideTitleLogo />
+          </div>
+        )}
       </div>
 
-      {/* Upper-center calm sky negative-space lockup, character selector & primary CTA */}
+      {/* Landscape center lockup OR Portrait underground masonry deck */}
       <div
         className={`title-center-stack flex flex-col items-center ${
-          isPortrait ? '-mt-20 gap-3' : '-mt-4 md:-mt-10 gap-2.5 sm:gap-3'
+          isPortrait ? 'gap-2.5 pb-2' : '-mt-4 md:-mt-10 gap-2.5 sm:gap-3'
         }`}
       >
-        <PixelStrideTitleLogo />
+        {!isPortrait && <PixelStrideTitleLogo />}
 
         {/* Retro 8-bit character selector (Stride, Lily, Pixel Knight, Custom Hero) */}
         <div className="flex flex-col items-center gap-1.5 pointer-events-auto">
@@ -223,7 +232,9 @@ export function TitleOverlay({
               e.currentTarget.blur();
               onStart();
             }}
-            className="title-start-btn pixel-btn-primary font-pixel-display text-sm sm:text-base px-8 py-4 tracking-wider whitespace-nowrap cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#FFF4A8]"
+            className={`title-start-btn pixel-btn-primary font-pixel-display text-sm sm:text-base tracking-wider whitespace-nowrap cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#FFF4A8] ${
+              isPortrait ? 'px-7 py-3' : 'px-8 py-4'
+            }`}
           >
             START RUN
           </button>
@@ -237,11 +248,13 @@ export function TitleOverlay({
       </div>
 
       {/* Flat, borderless single-line control hint in bottom safe margin (desktop only) */}
-      <div className="desktop-control-hint flex justify-center pb-1">
-        <p className="font-pixel-ui text-xs text-[#FFF9E8] bg-[#111324]/80 px-4 py-1.5 text-center tracking-wide">
-          SPACE / UP Jump &amp; Double-Jump · DOWN Duck / Fast-Fall · P Pause · M Audio
-        </p>
-      </div>
+      {!isPortrait && (
+        <div className="desktop-control-hint flex justify-center pb-1">
+          <p className="font-pixel-ui text-xs text-[#FFF9E8] bg-[#111324]/80 px-4 py-1.5 text-center tracking-wide">
+            SPACE / UP Jump &amp; Double-Jump · DOWN Duck / Fast-Fall · P Pause · M Audio
+          </p>
+        </div>
+      )}
     </div>
   );
 }
