@@ -8,6 +8,7 @@ import { TitleOverlay } from './components/TitleOverlay';
 import { WeatherModal } from './components/WeatherModal';
 import { ChiptuneAudio } from './game/audio';
 import {
+  computeNightFactor,
   createDefaultWeatherSettings,
   fetchLiveWeather,
   getEffectiveWeather,
@@ -708,6 +709,7 @@ export default function App() {
           const env = {
             winterTheme: weatherRef.current.theme === 'winter',
             weatherOverride: getEffectiveWeather(weatherRef.current),
+            nightFactor: computeNightFactor(weatherRef.current, st.elapsed),
           };
           syncCanvasSize(mode);
           renderGameWorld(ctx, st, mode, env);
@@ -718,6 +720,7 @@ export default function App() {
           const env = {
             winterTheme: weatherRef.current.theme === 'winter',
             weatherOverride: getEffectiveWeather(weatherRef.current),
+            nightFactor: computeNightFactor(weatherRef.current, st.elapsed),
           };
           syncCanvasSize(mode);
           renderGameWorld(ctx, st, mode, env);
@@ -806,6 +809,7 @@ export default function App() {
         const next: WeatherSettings = {
           ...weatherRef.current,
           liveWeather: live.weather,
+          liveIsDay: live.isDay,
           temperatureC: live.temperatureC,
           lastSyncedAt: Date.now(),
         };

@@ -42,6 +42,7 @@ export function WeatherModal({ open, settings, onChange, onClose }: WeatherModal
         ...settings,
         source: 'live',
         liveWeather: live.weather,
+        liveIsDay: live.isDay,
         temperatureC: live.temperatureC,
         locationName: label.toUpperCase(),
         latitude: lat,
@@ -49,7 +50,9 @@ export function WeatherModal({ open, settings, onChange, onClose }: WeatherModal
         lastSyncedAt: Date.now(),
       });
       setResults([]);
-      setStatusMsg(`Synced: ${label} (${live.weather.toUpperCase()}, ${live.temperatureC}°C)`);
+      setStatusMsg(
+        `Synced: ${label} (${live.weather.toUpperCase()}, ${live.temperatureC}°C, ${live.isDay ? 'DAY' : 'NIGHT'})`,
+      );
     } catch {
       setStatusMsg('Could not reach Open-Meteo weather service. Check internet connection.');
     } finally {
@@ -162,7 +165,36 @@ export function WeatherModal({ open, settings, onChange, onClose }: WeatherModal
           </div>
         </div>
 
-        {/* Section 2: Weather Mode */}
+        {/* Section 2: Day / Night Cycle */}
+        <div className="flex flex-col gap-1.5">
+          <span className="font-pixel-display text-[9px] text-[#FFE05C] tracking-wider">
+            DAY / NIGHT CYCLE
+          </span>
+          <div className="grid grid-cols-3 gap-1.5">
+            {(
+              [
+                { id: 'auto', label: '🔄 AUTO' },
+                { id: 'day', label: '☀️ DAY' },
+                { id: 'night', label: '🌙 NIGHT' },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => onChange({ ...settings, timeOfDay: opt.id })}
+                className={`py-1.5 px-1 font-pixel-display text-[8px] sm:text-[9px] border-2 cursor-pointer ${
+                  settings.timeOfDay === opt.id
+                    ? 'bg-[#293568] border-[#FFE05C] text-[#FFF4A8]'
+                    : 'bg-[#12162D] border-[#3A467A] text-[#A2B0D8]'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Section 3: Weather Mode */}
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <span className="font-pixel-display text-[9px] text-[#FFE05C] tracking-wider">
@@ -199,8 +231,8 @@ export function WeatherModal({ open, settings, onChange, onClose }: WeatherModal
           {settings.source === 'biome' && (
             <p className="font-pixel-ui text-[11px] text-[#B8C4E4] bg-[#12162D] border border-[#303A68] p-2.5">
               {settings.theme === 'winter'
-                ? 'Winter Theme is ON — gentle snowfall plays across the whole world.'
-                : 'Weather follows each biome automatically (Frost Tundra snow, Volcanic Forge embers).'}
+                ? 'Winter Theme is ON — snowfall & frosty terrain with full Day/Night cycle.'
+                : 'Weather follows each biome automatically with dynamic Day/Night cycle.'}
             </p>
           )}
 
@@ -240,6 +272,9 @@ export function WeatherModal({ open, settings, onChange, onClose }: WeatherModal
                       <span className="font-pixel-ui text-[10px] text-[#78E8FF]">
                         {settings.liveWeather.toUpperCase()}
                         {settings.temperatureC !== null ? ` · ${settings.temperatureC}°C` : ''}
+                        {settings.liveIsDay !== null
+                          ? ` · ${settings.liveIsDay ? 'DAY' : 'NIGHT'}`
+                          : ''}
                       </span>
                     </div>
                   </div>

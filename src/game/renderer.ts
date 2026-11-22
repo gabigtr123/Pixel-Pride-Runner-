@@ -38,6 +38,7 @@ import { WINTER_BIOME_PALETTE, type WeatherCondition } from './weather';
 export interface RenderEnvironment {
   winterTheme?: boolean;
   weatherOverride?: WeatherCondition | null;
+  nightFactor?: number;
 }
 
 export function getRenderViewport(mode: OrientationMode): RenderViewport {
@@ -75,15 +76,21 @@ const CLOUDS = [
   { offset: 410, y: 64, w: 36, h: 10 },
 ];
 
-function hexToRgb(hex: string): [number, number, number] {
-  const clean = hex.replace('#', '');
+function parseRgb(color: string): [number, number, number] {
+  if (color.startsWith('rgb')) {
+    const parts = color.match(/\d+/g);
+    if (parts && parts.length >= 3) {
+      return [Number(parts[0]), Number(parts[1]), Number(parts[2])];
+    }
+  }
+  const clean = color.replace('#', '');
   const n = parseInt(clean, 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
 function lerpColor(a: string, b: string, t: number): string {
-  const [ar, ag, ab] = hexToRgb(a);
-  const [br, bg, bb] = hexToRgb(b);
+  const [ar, ag, ab] = parseRgb(a);
+  const [br, bg, bb] = parseRgb(b);
   const r = Math.round(ar + (br - ar) * t);
   const g = Math.round(ag + (bg - ag) * t);
   const bl = Math.round(ab + (bb - ab) * t);
@@ -121,6 +128,41 @@ function getBlendedBiome(state: GameState): BiomePalette {
     dirtMain: lerpColor(curr.dirtMain, next.dirtMain, t),
     dirtDark: lerpColor(curr.dirtDark, next.dirtDark, t),
     dirtAccent: lerpColor(curr.dirtAccent, next.dirtAccent, t),
+  };
+}
+
+function applyDayNightCycle(biome: BiomePalette, nightFactor: number): BiomePalette {
+  const nf = Math.max(0, Math.min(1, nightFactor));
+  if (nf <= 0.01) return biome;
+
+  // Golden sunset/dawn glow peaks around nf = 0.5
+  const duskGlow = Math.max(0, 1 - Math.abs(nf - 0.5) * 2.6);
+  const skyTopNight = '#0B1028';
+  const skyMidNight = '#16224A';
+  const skyHorNight = '#283A6E';
+
+  const baseSkyMid = lerpColor(biome.skyMid, skyMidNight, nf * 0.88);
+  const baseSkyHor = lerpColor(biome.skyHorizon, skyHorNight, nf * 0.85);
+
+  return {
+    ...biome,
+    celestialType: nf >= 0.62 ? 'moon' : nf >= 0.34 ? 'sunset' : 'sun',
+    celestialColor:
+      nf >= 0.62
+        ? '#F2F6FF'
+        : nf >= 0.34
+          ? lerpColor('#FFE478', '#FF9858', duskGlow)
+          : biome.celestialColor,
+    starAlpha: Math.max(biome.starAlpha, Math.max(0, (nf - 0.35) / 0.65) * 0.92),
+    skyTop: lerpColor(biome.skyTop, skyTopNight, nf * 0.9),
+    skyMid: duskGlow > 0.05 ? lerpColor(baseSkyMid, '#C86068', duskGlow * 0.42) : baseSkyMid,
+    skyHorizon: duskGlow > 0.05 ? lerpColor(baseSkyHor, '#F4A262', duskGlow * 0.55) : baseSkyHor,
+    cloudMain: lerpColor(biome.cloudMain, '#485888', nf * 0.68),
+    cloudShadow: lerpColor(biome.cloudShadow, '#263056', nf * 0.72),
+    farMountain: lerpColor(biome.farMountain, '#1A2446', nf * 0.58),
+    nearHill: lerpColor(biome.nearHill, '#1F2C4C', nf * 0.52),
+    ruinColor: lerpColor(biome.ruinColor, '#2A3458', nf * 0.52),
+    ruinHighlight: lerpColor(biome.ruinHighlight, '#586A9C', nf * 0.45),
   };
 }
 
@@ -303,30 +345,35 @@ function drawGround(
   state: GameState,
   biome: BiomePalette,
   view: RenderViewport,
+  activeWeather: WeatherCondition | 'embers' | null = null,
 ): void {
   const tileSize = 16;
   const scrollOffset = -Math.floor(((state.worldScroll % tileSize) + tileSize) % tileSize);
   const left = view.cameraX - 8;
   const width = view.width + 16;
   const groundBottom = view.height - view.worldOffsetY + 12;
+  const isWet = activeWeather === 'rain' || activeWeather === 'storm';
+  const isSnow = activeWeather === 'snow';
 
   // Sub-earth fill extending cleanly to bottom of portrait/landscape canvas
   ctx.fillStyle = biome.dirtMain;
   ctx.fillRect(left, GROUND_Y, width, groundBottom - GROUND_Y);
 
-  // Top grass lip with dark 8-bit outline
+  // Top grass/snow lip with dark 8-bit outline
   ctx.fillStyle = '#121526';
   ctx.fillRect(left, GROUND_Y - 1, width, 2);
-  ctx.fillStyle = biome.grassTop;
+  ctx.fillStyle = isSnow ? '#F4FAFF' : biome.grassTop;
   ctx.fillRect(left, GROUND_Y + 1, width, 5);
-  ctx.fillStyle = biome.grassTrim;
+  ctx.fillStyle = isSnow ? '#A8DCF8' : biome.grassTrim;
   ctx.fillRect(left, GROUND_Y + 6, width, 3);
 
   // Classic NES checkerboard / brick ground masonry repeating to bottom
   const maxX = view.cameraX + view.width + tileSize;
-  for (let x = scrollOffset - tileSize; x < maxX; x += tileSize) {
-    // Grass blades overhang notch
-    ctx.fillStyle = biome.grassTrim;
+  const baseTileIndex = Math.floor(state.worldScroll / tileSize);
+  for (let x = scrollOffset - tileSize, idx = 0; x < maxX; x += tileSize, idx++) {
+    const worldTile = baseTileIndex + idx;
+    // Grass / snow overhang notch
+    ctx.fillStyle = isSnow ? '#C4E8FF' : biome.grassTrim;
     ctx.fillRect(x + 4, GROUND_Y + 9, 4, 2);
     ctx.fillRect(x + 12, GROUND_Y + 9, 2, 3);
 
@@ -340,10 +387,54 @@ function drawGround(
       ctx.fillStyle = biome.dirtAccent;
       ctx.fillRect(x + ((stagger + 2) % tileSize), rowY + 2, 4, 2);
     }
+
+    // Rain / Storm: glistening puddles on top + water trickling down the terrain masonry
+    if (isWet) {
+      const hash = ((worldTile * 37) % 11 + 11) % 11;
+      if (hash % 2 === 0) {
+        // Shimmering puddle on the ground lip
+        const puddleW = 8 + (hash % 6);
+        ctx.fillStyle = 'rgba(88, 192, 248, 0.72)';
+        ctx.fillRect(x + 2, GROUND_Y + 1, puddleW, 3);
+        const ripple = Math.floor(state.elapsed * 7 + worldTile) % 3 === 0;
+        ctx.fillStyle = '#E8FCFF';
+        ctx.fillRect(x + 4 + (ripple ? 2 : 0), GROUND_Y + 2, 3, 1);
+      }
+
+      if (hash % 3 === 0) {
+        // Animated raindrop splash crown on the ground surface
+        const splashPhase = (state.elapsed * 4.5 + hash * 0.7) % 1;
+        if (splashPhase < 0.35) {
+          const sx = x + 6 + (hash % 5);
+          ctx.fillStyle = '#D8F6FF';
+          ctx.fillRect(sx - 2, GROUND_Y - 2, 1, 1);
+          ctx.fillRect(sx + 2, GROUND_Y - 2, 1, 1);
+          ctx.fillRect(sx, GROUND_Y - 3, 1, 1);
+        }
+
+        // Animated water trickling / seeping down the underground terrain face
+        const trickleSpeed = activeWeather === 'storm' ? 38 : 24;
+        const maxLen = Math.min(72, Math.max(24, groundBottom - GROUND_Y - 12));
+        const trickleLen = 10 + ((Math.floor(state.elapsed * trickleSpeed + hash * 17)) % maxLen);
+        const tx = x + 3 + (hash % 9);
+        ctx.fillStyle = 'rgba(72, 178, 242, 0.55)';
+        ctx.fillRect(tx, GROUND_Y + 5, 2, trickleLen);
+        ctx.fillStyle = 'rgba(210, 244, 255, 0.85)';
+        ctx.fillRect(tx, GROUND_Y + 5 + Math.max(0, trickleLen - 4), 2, 3);
+      }
+    }
   }
 }
 
-function drawPlatforms(ctx: CanvasRenderingContext2D, state: GameState, biome: BiomePalette): void {
+function drawPlatforms(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  biome: BiomePalette,
+  activeWeather: WeatherCondition | 'embers' | null = null,
+): void {
+  const isWet = activeWeather === 'rain' || activeWeather === 'storm';
+  const isSnow = activeWeather === 'snow';
+
   for (let i = 0; i < state.platforms.length; i++) {
     const plat = state.platforms[i];
     const x = Math.round(plat.x);
@@ -352,8 +443,8 @@ function drawPlatforms(ctx: CanvasRenderingContext2D, state: GameState, biome: B
     // Outline
     ctx.fillStyle = '#121526';
     ctx.fillRect(x - 1, y - 1, plat.width + 2, plat.height + 2);
-    // Grass/trim top
-    ctx.fillStyle = biome.grassTop;
+    // Grass/snow top
+    ctx.fillStyle = isSnow ? '#F4FAFF' : biome.grassTop;
     ctx.fillRect(x, y, plat.width, 3);
     // Masonry body
     ctx.fillStyle = biome.dirtMain;
@@ -365,6 +456,28 @@ function drawPlatforms(ctx: CanvasRenderingContext2D, state: GameState, biome: B
     ctx.fillStyle = biome.dirtAccent;
     for (let bx = x + 2; bx < x + plat.width - 4; bx += 16) {
       ctx.fillRect(bx, y + 4, 4, 2);
+    }
+
+    if (isWet) {
+      // Wet sheen on top + dripping water droplets falling off platform edges
+      ctx.fillStyle = 'rgba(110, 212, 255, 0.72)';
+      ctx.fillRect(x + 2, y, plat.width - 4, 2);
+      for (let dx = x + 8, dIdx = 0; dx < x + plat.width - 6; dx += 18, dIdx++) {
+        const dropY = Math.floor((state.elapsed * 32 + dIdx * 9 + plat.id * 5) % 18);
+        ctx.fillStyle = 'rgba(92, 194, 250, 0.75)';
+        ctx.fillRect(dx, y + plat.height + 1, 1, Math.min(4, dropY));
+        if (dropY > 4) {
+          ctx.fillStyle = '#D8F6FF';
+          ctx.fillRect(dx, y + plat.height + dropY, 1, 2);
+        }
+      }
+    } else if (isSnow) {
+      // Crisp 8-bit icicles hanging under snowy platforms
+      ctx.fillStyle = '#D8F4FF';
+      for (let ix = x + 6; ix < x + plat.width - 6; ix += 14) {
+        ctx.fillRect(ix, y + plat.height + 1, 2, 3);
+        ctx.fillRect(ix, y + plat.height + 4, 1, 2);
+      }
     }
   }
 }
@@ -682,7 +795,15 @@ export function renderGameWorld(
   ctx.imageSmoothingEnabled = false;
   const view = getRenderViewport(mode);
   const winterTheme = Boolean(env?.winterTheme);
-  const biome = winterTheme ? WINTER_BIOME_PALETTE : getBlendedBiome(state);
+  const baseBiome = winterTheme ? WINTER_BIOME_PALETTE : getBlendedBiome(state);
+  const biome =
+    typeof env?.nightFactor === 'number'
+      ? applyDayNightCycle(baseBiome, env.nightFactor)
+      : baseBiome;
+  const activeWeather: WeatherCondition | 'embers' | null =
+    env?.weatherOverride !== undefined && env.weatherOverride !== null
+      ? env.weatherOverride
+      : (baseBiome.weather ?? null);
 
   ctx.save();
   // Apply portrait/landscape camera framing
@@ -698,8 +819,8 @@ export function renderGameWorld(
 
   drawSkyAndCelestial(ctx, state, biome, view);
   drawParallaxWorld(ctx, state, biome, view, winterTheme);
-  drawGround(ctx, state, biome, view);
-  drawPlatforms(ctx, state, biome);
+  drawGround(ctx, state, biome, view, activeWeather);
+  drawPlatforms(ctx, state, biome, activeWeather);
   drawPickups(ctx, state);
   drawHazards(ctx, state, view);
   drawPlayer(ctx, state);

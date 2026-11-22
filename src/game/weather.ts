@@ -3,12 +3,15 @@ import type { BiomePalette } from './types';
 export type ThemeMode = 'classic' | 'winter';
 export type WeatherCondition = 'clear' | 'rain' | 'storm' | 'snow' | 'fog';
 export type WeatherSource = 'biome' | 'live' | 'manual';
+export type TimeOfDayMode = 'auto' | 'day' | 'night';
 
 export interface WeatherSettings {
   theme: ThemeMode;
+  timeOfDay: TimeOfDayMode;
   source: WeatherSource;
   manualWeather: WeatherCondition;
   liveWeather: WeatherCondition | null;
+  liveIsDay: boolean | null;
   locationName: string;
   temperatureC: number | null;
   latitude: number | null;
@@ -36,18 +39,18 @@ export const PRESET_CITIES: CitySearchResult[] = [
 
 export const WINTER_BIOME_PALETTE: BiomePalette = {
   name: 'WINTER WONDERLAND',
-  skyTop: '#162C58',
-  skyMid: '#3464A8',
-  skyHorizon: '#B8E4FF',
-  celestialColor: '#F4FAFF',
-  celestialType: 'moon',
-  starAlpha: 0.72,
-  cloudMain: '#F4FAFF',
-  cloudShadow: '#A8D0F0',
-  farMountain: '#3B6298',
-  nearHill: '#6E9CC8',
-  ruinColor: '#8EB4D8',
-  ruinHighlight: '#E8F6FF',
+  skyTop: '#2E72C4',
+  skyMid: '#68B4F0',
+  skyHorizon: '#D8F2FF',
+  celestialColor: '#FFF6B8',
+  celestialType: 'sun',
+  starAlpha: 0,
+  cloudMain: '#FFFFFF',
+  cloudShadow: '#BCE0F8',
+  farMountain: '#4E7CB2',
+  nearHill: '#7EAAD4',
+  ruinColor: '#9AC0E0',
+  ruinHighlight: '#F0F9FF',
   grassTop: '#F4FAFF',
   grassTrim: '#98D4F8',
   dirtMain: '#4A6888',
@@ -58,15 +61,31 @@ export const WINTER_BIOME_PALETTE: BiomePalette = {
 export function createDefaultWeatherSettings(): WeatherSettings {
   return {
     theme: 'classic',
+    timeOfDay: 'auto',
     source: 'biome',
     manualWeather: 'snow',
     liveWeather: null,
+    liveIsDay: null,
     locationName: '',
     temperatureC: null,
     latitude: null,
     longitude: null,
     lastSyncedAt: null,
   };
+}
+
+/**
+ * Computes normalized night factor in [0, 1] where 0 = bright day, 0.5 = sunset/dawn, 1 = night.
+ */
+export function computeNightFactor(settings: WeatherSettings, elapsedSeconds: number): number {
+  if (settings.timeOfDay === 'day') return 0;
+  if (settings.timeOfDay === 'night') return 1;
+  if (settings.source === 'live' && settings.liveIsDay !== null) {
+    return settings.liveIsDay ? 0 : 1;
+  }
+  // Smooth 90-second Day -> Sunset -> Night -> Dawn cycle starting in bright Day
+  const cycleSeconds = 90;
+  return 0.5 - 0.5 * Math.cos((elapsedSeconds / cycleSeconds) * Math.PI * 2);
 }
 
 /**
@@ -110,22 +129,24 @@ export function getEffectiveWeather(settings: WeatherSettings): WeatherCondition
 export async function fetchLiveWeather(
   latitude: number,
   longitude: number,
-): Promise<{ weather: WeatherCondition; temperatureC: number }> {
+): Promise<{ weather: WeatherCondition; temperatureC: number; isDay: boolean }> {
   const url =
     `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(latitude.toFixed(4))}` +
-    `&longitude=${encodeURIComponent(longitude.toFixed(4))}&current=weather_code,temperature_2m`;
+    `&longitude=${encodeURIComponent(longitude.toFixed(4))}&current=weather_code,temperature_2m,is_day`;
   const res = await fetch(url);
   if (!res.ok) {
     throw new Error(`Weather API error (${res.status})`);
   }
   const data = (await res.json()) as {
-    current?: { weather_code?: number; temperature_2m?: number };
+    current?: { weather_code?: number; temperature_2m?: number; is_day?: number };
   };
   const code = typeof data.current?.weather_code === 'number' ? data.current.weather_code : 0;
   const temp = typeof data.current?.temperature_2m === 'number' ? Math.round(data.current.temperature_2m) : 0;
+  const isDay = data.current?.is_day !== 0;
   return {
     weather: mapWmoCodeToWeather(code),
     temperatureC: temp,
+    isDay,
   };
 }
 
@@ -169,9 +190,12 @@ export function loadWeatherSettings(): WeatherSettings {
       v === 'clear' || v === 'rain' || v === 'storm' || v === 'snow' || v === 'fog';
     return {
       theme: parsed.theme === 'winter' ? 'winter' : 'classic',
+      timeOfDay:
+        parsed.timeOfDay === 'day' || parsed.timeOfDay === 'night' ? parsed.timeOfDay : 'auto',
       source: parsed.source === 'live' || parsed.source === 'manual' ? parsed.source : 'biome',
       manualWeather: validWeather(parsed.manualWeather) ? parsed.manualWeather : def.manualWeather,
       liveWeather: validWeather(parsed.liveWeather) ? parsed.liveWeather : null,
+      liveIsDay: typeof parsed.liveIsDay === 'boolean' ? parsed.liveIsDay : null,
       locationName: typeof parsed.locationName === 'string' ? parsed.locationName.slice(0, 32) : '',
       temperatureC:
         typeof parsed.temperatureC === 'number' && Number.isFinite(parsed.temperatureC)

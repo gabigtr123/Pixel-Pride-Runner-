@@ -39,6 +39,7 @@ import {
 } from './shop';
 import type { InputFrame } from './types';
 import {
+  computeNightFactor,
   createDefaultWeatherSettings,
   getEffectiveWeather,
   mapWmoCodeToWeather,
@@ -441,4 +442,12 @@ test('v2.1 Winter Theme and Live Weather Sync map WMO codes and resolve effectiv
 
   const manualStorm = { ...liveRain, source: 'manual' as const, manualWeather: 'storm' as const };
   assert.equal(getEffectiveWeather(manualStorm), 'storm', 'manual weather takes precedence');
+
+  // Day/Night cycle checks
+  assert.equal(computeNightFactor({ ...base, timeOfDay: 'day' }, 45), 0);
+  assert.equal(computeNightFactor({ ...base, timeOfDay: 'night' }, 0), 1);
+  assert.equal(computeNightFactor({ ...liveRain, liveIsDay: false }, 0), 1, 'live night sync');
+  assert.equal(computeNightFactor({ ...liveRain, liveIsDay: true }, 45), 0, 'live day sync');
+  assert.ok(computeNightFactor(base, 0) < 0.01, 'auto cycle starts at bright day');
+  assert.ok(computeNightFactor(base, 45) > 0.99, 'auto cycle reaches full night at half-period');
 });
