@@ -5,7 +5,7 @@
 <h1 align="center">PIXEL STRIDE</h1>
 
 <p align="center">
-  <strong>An 8-bit retro endless runner with playable heroes, a custom Hero Creator, Pixel Shop, 6 parallax biomes with dynamic weather, procedural chiptune audio, and Android 17 support.</strong>
+  <strong>An 8-bit retro endless runner with playable heroes, a custom Hero Creator, Pixel Shop 2.0 (Wardrobe, Gadgets & Boosters), 4 looping landscape levels, Winter Theme, Live Weather Sync, procedural chiptune audio, and Android 17 support.</strong>
 </p>
 
 <p align="center">
@@ -31,17 +31,29 @@
 
 - **8-Bit Hero Creator** — Toggle between **Male** & **Female** styles, pick a custom name or English preset (`ALEX`, `JACK`, `MAX`, `FINN`, `COLE`, `LEO` / `EMMA`, `RUBY`, `CHLOE`, `LUNA`, `ZOE`, `NOVA`), customize skin tone, hair/cap, scarf/ribbon, and outfit colors, and unlock 6 exclusive cosmetics (`CROWN GOLD`, `CYBER NEON`, `SOLAR GOLD`, `FROST SILK`, `SHADOW`, `STARLIGHT`) through career milestones.
 
-### 🌍 Gameplay, Biomes & Progression
-- **6 Parallax Pixel-Art Biomes** — Seamlessly transition every 400m through **Sunlit Highlands**, **Amber Canyon**, **Starlight Citadel**, **Dawn Peaks**, **Frost Tundra** *(falling snow)*, and **Volcanic Forge** *(rising embers)*, each with custom skies, parallax layers, and its own chiptune theme.
-- **Pixel Shop 2.0 (Wardrobe, Gadgets, Boosters & Top 5)** — Spend coins on **Wardrobe** cosmetics (**5 Hats** & **3 Capes / Jetpack / Angel Wings** worn live on any hero), **5 Equippable Gadgets** (*Spring Boots* Triple Jump, *Mega Magnet*, *Auto-Shield*, *Golden Touch*, *Second Wind* Revive — 2 active slots + unlockable **3rd slot**), repeatable **Pre-Run Boosters** (*Head Start*, *Shield Pack*, *2X Potion*), **Pixel Knight**, permanent upgrades, and runner trails!
-- **6 Power-Ups & Combo System** — Chain **Coins** for combo multipliers and grab **Star Shield**, **Heart**, **Coin Magnet**, **2X Score**, **Slow-Mo**, and **⚡ Turbo Dash** (invincible smash burst!) pickups.
-- **Crisp Platformer Physics & 4 Hazards** — Variable-height jump cut, double/triple jump, coyote time (`110ms`), jump buffering (`120ms`), ground slide/duck, mid-air fast-fall, and dynamic encounters with **Spikes**, stompable **Hoppers**, **Swoopers**, and **Flames**.
-- **Daily Missions & 7-Day Login Streak** — 3 fresh daily quests every calendar day plus a 7-day play streak unlocking starting score boosts, a free **Star Shield** (Day 3+), and a **Coin Magnet** (Day 5+).
-- **Procedural Chiptune Audio & Haptics** — Built-in Web Audio API synthesizer (`ChiptuneAudio`) with per-biome 16-step loops, retro SFX, and tactile mobile vibration feedback on stomps, power-ups, hits, and mission unlocks.
-- **Dedicated Portrait & Landscape Modes** — Automatically adapts between true vertical Portrait (`300×520` full-screen with underground touch control deck) and wide Landscape (`480×270` with bottom-right thumb controls).
-- **4 Looping Landscape Levels (Every 3 Day/Night Cycles)** — Every **3 full Day/Night cycles** (`30s` per cycle → `90s` per level), you level up (`+250` bonus) and the parallax landscape transforms through **Highland Meadows** → **Pyramid Canyon** → **Starlight City** → **Crystal Peaks** and loops seamlessly!
-- **Winter Theme, Day/Night Cycle & Weather-Reactive Terrain** — Switch on **Winter Wonderland** mode (snow-capped mountains & pines, pixel snowmen, snowfall) or sync real-world weather (`Clear`, `Rain`, `Storm`, `Snow`, `Fog`) + real **Day/Night** from your device location or any city via **Open-Meteo** (100% free, zero API keys). Rain & storms form glistening puddles, surface splashes, and trickling water streaks down the terrain; snow adds frosted ledges and pixel icicles!
-- **Android 17 (API 37) Ready** — Packaged with **Capacitor 9** (`compileSdkVersion = 37`, `targetSdkVersion = 37`), custom pixel-art Adaptive Icon with **Material You Themed Icon (`<monochrome>`)** support, edge-to-edge safe-area insets (`viewport-fit=cover` + `env(safe-area-inset-*)`), and automatic background audio pause.
+### 🛒 Pixel Shop 2.0 — Wardrobe, Gadgets & Boosters
+- **Wardrobe (Live on Any Hero):**
+  - **5 Pixel-Art Hats:** `Santa Hat` (150 C), `Gold Crown` (180 C), `Wizard Hat` (220 C), `Cyber Visor` (260 C), and floating `Gold Halo` (350 C).
+  - **3 Back Accessories:** flowing `Hero Cape` (200 C), thruster `Jetpack` (320 C), and flapping `Angel Wings` (400 C).
+- **5 Equippable Gadgets (2 Active Slots + Unlockable Slot #3 for 500 C):**
+  - `Spring Boots` (220 C) — **Triple Jump** (3 mid-air jumps!)
+  - `Mega Magnet` (260 C) — Permanent `68px` passive coin-pull aura
+  - `Auto-Shield` (320 C) — Regenerates a free **Star Shield** every `45s`
+  - `Golden Touch` (380 C) — `+50 GEM` every 5th coin & `+25%` coin bank payout
+  - `Second Wind` (450 C) — Auto-revives once per run with `2 HP` + hazard clear
+- **3 Consumable Pre-Run Boosters:** `Shield Pack` (25 C), `2X Potion` (35 C — 15s 2X Score), and `Head Start` (40 C — 5s invincible Turbo Dash launch).
+- **Upgrades, Runner Trails & Top-5 Leaderboard:** Permanent upgrades (**Magnet Time**, **Gold Value**, **Lucky Drops**), cosmetic trails (**Classic**, **Rainbow**, **Blossom**, **Ember**), and local **Top 5** high-score tracking.
+
+### 🌍 Levels, Biomes, Day/Night Cycle & Live Weather
+- **4 Looping Landscape Levels (Every 3 Day/Night Cycles):** Every **3 full Day/Night cycles** (`30s` per cycle → `90s` per level), you level up (`+250` bonus) and the parallax landscape architecture transforms through **Highland Meadows** → **Pyramid Canyon** → **Starlight City** → **Crystal Peaks** and loops seamlessly (`LV 5+`)!
+- **Winter Theme & Live Weather Sync (Alpha):**
+  - Toggle **Winter Wonderland** mode (snow-capped mountains & pines, pixel snowmen, glacial sky, snowfall).
+  - Sync real-world weather (`Clear`, `Rain`, `Storm`, `Snow`, `Fog`) + real **Day/Night** from your device GPS or any city via **Open-Meteo** (100% free, zero API keys), or pick `Auto / Day / Night` and manual weather anytime.
+  - **Weather-Reactive Terrain:** Rain & storms create glistening puddles, surface splashes, and animated water trickling down the masonry and dripping off platforms; snow adds frosted ledges and pixel icicles!
+- **6 Parallax Color Biomes & 6 Power-Ups:** Smoothly transition every 400m across **Sunlit Highlands**, **Amber Canyon**, **Starlight Citadel**, **Dawn Peaks**, **Frost Tundra**, and **Volcanic Forge**, collecting **Coins**, **Star Shield**, **Heart**, **Coin Magnet**, **2X Score**, **Slow-Mo**, and **⚡ Turbo Dash** (invincible smash burst!).
+- **Crisp Platformer Physics & 4 Hazards:** Variable-height jump cut, double/triple jump, coyote time (`110ms`), jump buffering (`120ms`), ground slide/duck, mid-air fast-fall, and dynamic encounters with **Spikes**, stompable **Hoppers**, **Swoopers**, and **Flames**.
+- **Daily Missions & 7-Day Login Streak:** 3 fresh daily quests every calendar day plus a 7-day play streak unlocking starting score boosts, a free **Star Shield** (Day 3+), and a **Coin Magnet** (Day 5+).
+- **Procedural Chiptune Audio, Haptics & Android 17 Ready:** Built-in Web Audio API synthesizer (`ChiptuneAudio`) with 6 biome themes, mobile haptic feedback, dedicated Portrait (`300×520`) & Landscape (`480×270`) framing, and **Capacitor 9** Android 17 (API 37) packaging with **Material You Themed Icon (`<monochrome>`)** & edge-to-edge safe areas.
 
 ---
 
@@ -63,11 +75,11 @@ Pre-built **Web** and **Android 17** packages are published on the [GitHub Relea
 | :--- | :--- | :--- |
 | **Choose Hero** | — | Tap **STRIDE**, **LILY**, **KNIGHT**, or **CUSTOM** on Title Screen |
 | **Hero Creator** | `Esc` closes modal | Tap **EDIT HERO** on Title Screen |
-| **Pixel Shop / Top 5** | `Esc` closes modal | Tap **Coins / SHOP** button on Title Screen |
-| **Theme & Weather** | `Esc` closes modal | Tap **☀️ WX / ❄️ WINTER** button on Title Screen |
+| **Pixel Shop 2.0 (Gear / Wardrobe / Gadgets / Top 5)** | `Esc` closes modal | Tap **Coins / SHOP** button on Title Screen |
+| **Theme, Day/Night & Live Weather** | `Esc` closes modal | Tap **☀️ WX / ❄️ WINTER** button on Title Screen |
 | **Daily Quests & Streak** | `Esc` closes modal | Tap **DAY X** button on Title Screen or Game Over |
 | **Start / Restart** | `Enter` or `Space` (on Title / Game Over), `R` | Tap **START RUN / TRY AGAIN** |
-| **Jump / Double Jump** | `Space`, `↑`, or `W` *(hold for higher jump)* | Tap / hold canvas or **JUMP** button |
+| **Jump / Double / Triple Jump** | `Space`, `↑`, or `W` *(hold for higher jump)* | Tap / hold canvas or **JUMP** button |
 | **Duck / Slide / Fast-Fall** | `↓` or `S` | Hold **DUCK** button |
 | **Pause / Resume** | `P` or `Esc` (`Space` / `Enter` also resumes) | Tap **Pause** HUD icon |
 | **Mute / Unmute Audio** | `M` | Tap **Sound** HUD icon |
@@ -112,7 +124,7 @@ npm run dev
 
 ### Automated Releases (GitHub Actions)
 
-- Push a single version tag `v*` (e.g., `v2.1.0`) to automatically run lint/tests, build both the **Signed Android 17 APK** and the **Web/PWA `.zip`**, and publish one unified GitHub Release via `.github/workflows/release.yml`.
+- Push a single version tag `v*` (e.g., `v2.4.0`) to automatically run lint/tests, build both the **Signed Android 17 APK** and the **Web/PWA `.zip`**, and publish one unified GitHub Release via `.github/workflows/release.yml`.
 - Every push to `main` automatically deploys the live installable PWA to GitHub Pages via `.github/workflows/deploy-pages.yml`.
 
 ---
@@ -128,7 +140,7 @@ Pixel-Pride-Runner-/
 │   │   └── release.yml         # Unified Android 17 Signed APK + Web zip release
 │   └── PULL_REQUEST_TEMPLATE.md
 ├── assets/
-│   └── banner.jpg              # README pixel-art banner
+│   └── banner.jpg              # README pixel-art banner (4 heroes + dynamic weather)
 ├── public/
 │   ├── icon-192.png            # PWA 192×192 pixel-art icon
 │   ├── icon-512.png            # PWA 512×512 pixel-art icon
@@ -141,25 +153,25 @@ Pixel-Pride-Runner-/
 │   ├── components/
 │   │   ├── CreatorModal.tsx    # 8-bit Hero Creator (Male/Female, presets & mission unlocks)
 │   │   ├── DailyModal.tsx      # Daily Quests & 7-day streak bonus modal
-│   │   ├── GameHud.tsx         # Score, HP hearts, power-up timers, portrait/landscape controls
+│   │   ├── GameHud.tsx         # Score, LV/cycle progress, HP, power-ups, touch controls
 │   │   ├── PixelIcons.tsx      # Crisp pixel-art SVG UI icons & character previews
-│   │   ├── ShopModal.tsx       # Pixel Shop (Knight, upgrades, trails, Top-5 leaderboard)
-│   │   ├── StatusModal.tsx     # Pause & Game Over overlays with mission/cosmetic unlocks
+│   │   ├── ShopModal.tsx       # Pixel Shop 2.0 (Gear, Wardrobe, Gadgets/Boosters, Top 5)
+│   │   ├── StatusModal.tsx     # Pause & Game Over overlays with level & mission unlocks
 │   │   ├── TitleOverlay.tsx    # Title screen, Daily/Shop/Weather/Creator & hero selector
-│   │   └── WeatherModal.tsx    # Winter Theme toggle & Live Weather Sync (Open-Meteo)
+│   │   └── WeatherModal.tsx    # Winter Theme, Day/Night cycle & Live Weather Sync
 │   ├── game/
 │   │   ├── audio.ts            # Procedural Web Audio chiptune soundtrack (6 biomes) & SFX
-│   │   ├── constants.ts        # Physics tuning, storage keys & 6 biome palettes
+│   │   ├── constants.ts        # Physics tuning, 4 level names, 30s cycle & 6 biome palettes
 │   │   ├── creator.ts          # Custom hero sprite composer, English presets & unlocks
 │   │   ├── daily.ts            # Deterministic Daily Missions & 7-day streak engine
-│   │   ├── engine.ts           # Fixed-step simulation, collision, power-ups, spawning
-│   │   ├── engine.test.ts      # 17 seeded unit tests (physics, shop, creator, daily, weather)
+│   │   ├── engine.ts           # Simulation, 3-cycle levels, Gadgets, Boosters, Turbo Dash
+│   │   ├── engine.test.ts      # 20 seeded unit tests (physics, levels, shop 2.0, weather)
 │   │   ├── haptics.ts          # Tactile vibration helper for Android & mobile browsers
-│   │   ├── renderer.ts         # Dual Portrait/Landscape Canvas renderer + 5 weather effects
-│   │   ├── shop.ts             # Coin bank, upgrades, trails & Top-5 leaderboard state
-│   │   ├── sprites.ts          # 8-bit sprite matrices (Stride, Lily, Pixel Knight, enemies)
-│   │   ├── types.ts            # Core state, character, viewport, HUD & audio types
-│   │   └── weather.ts          # Winter Wonderland palette & Open-Meteo live weather sync
+│   │   ├── renderer.ts         # 4 landscapes, Wardrobe gear, Day/Night & weather terrain
+│   │   ├── shop.ts             # Coin bank, Wardrobe, Gadgets (+3rd slot), Boosters, Top 5
+│   │   ├── sprites.ts          # 8-bit sprite matrices (Stride, Lily, Knight, pickups)
+│   │   ├── types.ts            # Core state, wardrobe, gadgets, boosters, HUD & audio types
+│   │   └── weather.ts          # Winter Wonderland palette, Day/Night & Open-Meteo sync
 │   ├── App.tsx                 # Main game loop, modal/input hub & React HUD bridge
 │   ├── index.css               # Retro pixel styling, safe-area & Tailwind CSS v4
 │   └── main.tsx                # Entry point & PWA Service Worker registration
