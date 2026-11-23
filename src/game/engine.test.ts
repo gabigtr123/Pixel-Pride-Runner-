@@ -443,11 +443,51 @@ test('v2.1 Winter Theme and Live Weather Sync map WMO codes and resolve effectiv
   const manualStorm = { ...liveRain, source: 'manual' as const, manualWeather: 'storm' as const };
   assert.equal(getEffectiveWeather(manualStorm), 'storm', 'manual weather takes precedence');
 
-  // Day/Night cycle checks
-  assert.equal(computeNightFactor({ ...base, timeOfDay: 'day' }, 45), 0);
+  // Day/Night cycle checks (30s full cycle -> 15s half-period)
+  assert.equal(computeNightFactor({ ...base, timeOfDay: 'day' }, 15), 0);
   assert.equal(computeNightFactor({ ...base, timeOfDay: 'night' }, 0), 1);
   assert.equal(computeNightFactor({ ...liveRain, liveIsDay: false }, 0), 1, 'live night sync');
-  assert.equal(computeNightFactor({ ...liveRain, liveIsDay: true }, 45), 0, 'live day sync');
+  assert.equal(computeNightFactor({ ...liveRain, liveIsDay: true }, 15), 0, 'live day sync');
   assert.ok(computeNightFactor(base, 0) < 0.01, 'auto cycle starts at bright day');
-  assert.ok(computeNightFactor(base, 45) > 0.99, 'auto cycle reaches full night at half-period');
+  assert.ok(computeNightFactor(base, 15) > 0.99, 'auto cycle reaches full night at 15s half-period');
+});
+
+test('v2.3 Level system advances every 3 Day/Night cycles (90s), awards bonus, and loops landscapes', () => {
+  const rng = makeSeededRng(101);
+  const st = startNewRun(createInitialState(0, 'title'));
+  assert.equal(st.level, 1);
+  assert.equal(st.dayCycleCount, 0);
+
+  // Advance just before 3 cycles (89.5s) -> still Level 1, cycle 2
+  st.runTime = 89.5;
+  stepSimulation(st, 1 / 60, IDLE_INPUT, rng);
+  assert.equal(st.dayCycleCount, 2);
+  assert.equal(st.level, 1);
+
+  // Cross 3 cycles (90s) -> Level 2 + bonus points + banner
+  const bonusBefore = st.bonusScore;
+  st.runTime = 90.05;
+  stepSimulation(st, 1 / 60, IDLE_INPUT, rng);
+  assert.equal(st.dayCycleCount, 3);
+  assert.equal(st.level, 2);
+  assert.ok(st.bonusScore >= bonusBefore + 250, 'level up awards +250 bonus');
+  assert.ok(st.levelBannerTimer > 2, 'level up shows banner');
+
+  // Cross 6, 9, and 12 cycles -> Levels 3, 4, and 5 (looping back to landscape 0)
+  st.runTime = 180.1;
+  stepSimulation(st, 1 / 60, IDLE_INPUT, rng);
+  assert.equal(st.level, 3);
+
+  st.runTime = 270.1;
+  stepSimulation(st, 1 / 60, IDLE_INPUT, rng);
+  assert.equal(st.level, 4);
+
+  st.runTime = 360.1;
+  stepSimulation(st, 1 / 60, IDLE_INPUT, rng);
+  assert.equal(st.level, 5, 'levels continue looping past Level 4');
+
+  // New run resets cleanly back to Level 1
+  const reset = startNewRun(st);
+  assert.equal(reset.level, 1);
+  assert.equal(reset.dayCycleCount, 0);
 });

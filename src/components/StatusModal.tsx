@@ -40,6 +40,7 @@ export function StatusModal({
     stomps: 0,
     zoneName: hud.zoneName,
     zoneIndex: hud.zoneIndex,
+    level: hud.level,
     isNewBest: false,
   };
 
@@ -68,7 +69,7 @@ export function StatusModal({
             </p>
           )}
           <p className="font-pixel-ui text-xs text-[#B8C4E4] tracking-wider">
-            {summary.zoneName}
+            LV {summary.level} · {summary.zoneName}
           </p>
         </div>
 

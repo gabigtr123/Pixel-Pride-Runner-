@@ -3,6 +3,8 @@ import {
   BIOMES,
   COMBO_DURATION,
   COYOTE_TIME,
+  CYCLES_PER_LEVEL,
+  DAY_NIGHT_CYCLE_SECONDS,
   DISTANCE_PER_ZONE,
   DOUBLE_JUMP_VELOCITY,
   FAST_FALL_GRAVITY,
@@ -11,6 +13,8 @@ import {
   JUMP_BUFFER_TIME,
   JUMP_CUT_MULTIPLIER,
   JUMP_VELOCITY,
+  LEVEL_BONUS_POINTS,
+  LEVEL_NAMES,
   MAX_FLOATING_TEXTS,
   MAX_PARTICLES,
   MAX_SPEED,
@@ -187,6 +191,9 @@ export function createInitialState(
     comboTimer: 0,
     zoneIndex: 0,
     zoneBannerTimer: phase === 'playing' ? 2.2 : 0,
+    level: 1,
+    dayCycleCount: 0,
+    levelBannerTimer: 0,
     hitstopTimer: 0,
     shakeTrauma: 0,
     gameOverDelayTimer: 0,
@@ -675,6 +682,7 @@ export function stepSimulation(
         stomps: state.stomps,
         zoneName: BIOMES[state.zoneIndex].name,
         zoneIndex: state.zoneIndex,
+        level: state.level,
         isNewBest,
       };
       state.phase = 'gameover';
@@ -692,6 +700,42 @@ export function stepSimulation(
   state.distance += distDelta;
   if (p.doubleScoreTimer > 0) {
     state.bonusScore += distDelta * 10;
+  }
+
+  // 3 Day/Night cycles (90s) -> Level Up & Landscape transformation (loops through 4 landscapes)
+  const completedCycles = Math.floor(state.runTime / DAY_NIGHT_CYCLE_SECONDS);
+  if (completedCycles !== state.dayCycleCount) {
+    state.dayCycleCount = completedCycles;
+  }
+  const targetLevel = 1 + Math.floor(completedCycles / CYCLES_PER_LEVEL);
+  if (targetLevel > state.level) {
+    state.level = targetLevel;
+    state.bonusScore += LEVEL_BONUS_POINTS;
+    state.levelBannerTimer = 2.8;
+    state.audioQueue.push({ type: 'zoneUp' });
+    const levelTitle = LEVEL_NAMES[(state.level - 1) % LEVEL_NAMES.length];
+    spawnFloatingText(
+      state,
+      VIRTUAL_WIDTH * 0.5,
+      72,
+      `LV ${state.level} ${levelTitle} +${LEVEL_BONUS_POINTS}`,
+      '#78F0A8',
+    );
+    spawnParticles(
+      state,
+      p.x + p.width * 0.5,
+      p.y - p.height * 0.5,
+      16,
+      ['#FFE05C', '#78F0A8', '#78E8FF'],
+      60,
+      140,
+      260,
+      rng,
+      -70,
+    );
+  }
+  if (state.levelBannerTimer > 0) {
+    state.levelBannerTimer = Math.max(0, state.levelBannerTimer - dt);
   }
 
   if (diff.zoneIndex !== state.zoneIndex) {
@@ -1116,6 +1160,9 @@ export function extractHudSnapshot(state: GameState): HudSnapshot {
     zoneName: BIOMES[state.zoneIndex].name,
     zoneIndex: state.zoneIndex,
     zoneBannerTimer: state.zoneBannerTimer,
+    level: state.level,
+    dayCycleCount: state.dayCycleCount,
+    levelBannerTimer: state.levelBannerTimer,
     finalRun: state.finalRun,
   };
 }

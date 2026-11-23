@@ -247,96 +247,222 @@ function drawParallaxWorld(
     ctx.fillRect(x + 12, c.y - 8, Math.max(10, c.w - 26), 6);
   }
 
-  // 2. Far pixel mountains (stepped silhouettes with sunlit snow/ridge caps)
+  const landscapeIdx = Math.max(0, state.level - 1) % 4;
+
+  // 2. Far parallax silhouettes (unique architecture per landscape level)
   const mtnScroll = scroll * 0.2;
   const mtnTile = 120;
   const mtnOffset = -((mtnScroll % mtnTile + mtnTile) % mtnTile);
   for (let base = mtnOffset - mtnTile; base < viewRight + mtnTile; base += mtnTile) {
     const bx = Math.round(base);
-    // Stepped pyramid peak 1
-    for (let step = 0; step < 14; step++) {
-      const w = 64 - step * 4;
-      ctx.fillStyle =
-        step >= (winterTheme ? 9 : 11)
-          ? winterTheme
-            ? '#F4FAFF'
-            : biome.cloudShadow
-          : biome.farMountain;
-      ctx.fillRect(bx + 8 + step * 2, GROUND_Y - 12 - step * 5, w, 6);
-    }
-    // Stepped peak 2
-    for (let step = 0; step < 10; step++) {
-      const w = 52 - step * 4;
-      ctx.fillStyle =
-        step >= (winterTheme ? 6 : 8)
-          ? winterTheme
-            ? '#F4FAFF'
-            : biome.cloudShadow
-          : biome.farMountain;
-      ctx.fillRect(bx + 62 + step * 2, GROUND_Y - 12 - step * 5, w, 6);
+    if (landscapeIdx === 1) {
+      // Level 2: Pyramid Canyon — stepped desert mesas & distant twin pyramids
+      ctx.fillStyle = biome.farMountain;
+      ctx.fillRect(bx + 6, GROUND_Y - 46, 48, 46);
+      ctx.fillRect(bx + 12, GROUND_Y - 56, 36, 10);
+      ctx.fillStyle = winterTheme ? '#F4FAFF' : biome.cloudShadow;
+      ctx.fillRect(bx + 12, GROUND_Y - 56, 36, 4);
+      // Giant far pyramid
+      for (let step = 0; step < 13; step++) {
+        const w = 54 - step * 4;
+        ctx.fillStyle = step >= 10 && winterTheme ? '#F4FAFF' : biome.farMountain;
+        ctx.fillRect(bx + 62 + step * 2, GROUND_Y - 8 - step * 5, w, 5);
+        ctx.fillStyle = biome.cloudShadow;
+        ctx.fillRect(bx + 62 + step * 2, GROUND_Y - 8 - step * 5, Math.max(2, Math.floor(w * 0.35)), 5);
+      }
+    } else if (landscapeIdx === 2) {
+      // Level 3: Starlight City — distant retro pixel skyline towers
+      const towers = [
+        { ox: 6, w: 22, h: 68 },
+        { ox: 32, w: 28, h: 86 },
+        { ox: 64, w: 20, h: 58 },
+        { ox: 88, w: 26, h: 74 },
+      ];
+      for (const t of towers) {
+        ctx.fillStyle = biome.farMountain;
+        ctx.fillRect(bx + t.ox, GROUND_Y - t.h, t.w, t.h);
+        if (winterTheme) {
+          ctx.fillStyle = '#F4FAFF';
+          ctx.fillRect(bx + t.ox, GROUND_Y - t.h - 2, t.w, 3);
+        }
+        // Rooftop antenna
+        ctx.fillStyle = biome.ruinHighlight;
+        ctx.fillRect(bx + t.ox + Math.floor(t.w / 2), GROUND_Y - t.h - 10, 2, 10);
+        // Glowing pixel windows
+        ctx.fillStyle = biome.starAlpha > 0.3 ? '#FFE478' : biome.cloudShadow;
+        for (let wy = GROUND_Y - t.h + 6; wy < GROUND_Y - 12; wy += 9) {
+          for (let wx = bx + t.ox + 4; wx < bx + t.ox + t.w - 4; wx += 6) {
+            ctx.fillRect(wx, wy, 3, 4);
+          }
+        }
+      }
+    } else if (landscapeIdx === 3) {
+      // Level 4: Crystal Peaks — jagged twin crystal/volcanic spires
+      for (let step = 0; step < 16; step++) {
+        const w = Math.max(4, 34 - step * 2);
+        ctx.fillStyle = step >= 12 ? '#78E8FF' : biome.farMountain;
+        ctx.fillRect(bx + 12 + step, GROUND_Y - 10 - step * 5, w, 6);
+      }
+      for (let step = 0; step < 13; step++) {
+        const w = Math.max(4, 28 - step * 2);
+        ctx.fillStyle = step >= 9 ? '#E878FF' : biome.farMountain;
+        ctx.fillRect(bx + 68 + step, GROUND_Y - 10 - step * 5, w, 6);
+      }
+    } else {
+      // Level 1: Highland Meadows — stepped mountain peaks
+      for (let step = 0; step < 14; step++) {
+        const w = 64 - step * 4;
+        ctx.fillStyle =
+          step >= (winterTheme ? 9 : 11)
+            ? winterTheme
+              ? '#F4FAFF'
+              : biome.cloudShadow
+            : biome.farMountain;
+        ctx.fillRect(bx + 8 + step * 2, GROUND_Y - 12 - step * 5, w, 6);
+      }
+      for (let step = 0; step < 10; step++) {
+        const w = 52 - step * 4;
+        ctx.fillStyle =
+          step >= (winterTheme ? 6 : 8)
+            ? winterTheme
+              ? '#F4FAFF'
+              : biome.cloudShadow
+            : biome.farMountain;
+        ctx.fillRect(bx + 62 + step * 2, GROUND_Y - 12 - step * 5, w, 6);
+      }
     }
   }
 
-  // 3. Midground pixel hills, pixel pines & ruins/battlements
+  // 3. Midground pixel scenery (distinct landmarks for each landscape level)
   const hillScroll = scroll * 0.42;
   const hillTile = 160;
   const hillOffset = -((hillScroll % hillTile + hillTile) % hillTile);
   for (let base = hillOffset - hillTile; base < viewRight + hillTile; base += hillTile) {
     const bx = Math.round(base);
-    // Rolling stepped hill
-    ctx.fillStyle = biome.nearHill;
-    ctx.fillRect(bx, GROUND_Y - 26, 98, 26);
-    ctx.fillRect(bx + 12, GROUND_Y - 34, 74, 8);
-    ctx.fillRect(bx + 26, GROUND_Y - 40, 46, 6);
-    // Hilltop snow / grass accent highlight
-    ctx.fillStyle = winterTheme ? '#F4FAFF' : biome.grassTrim;
-    ctx.fillRect(bx + 26, GROUND_Y - 40, 46, 2);
-    ctx.fillRect(bx + 12, GROUND_Y - 34, 14, 2);
+    if (landscapeIdx === 1) {
+      // Level 2: Pyramid Canyon — sand dune, pixel cacti & sandstone obelisk
+      ctx.fillStyle = biome.nearHill;
+      ctx.fillRect(bx, GROUND_Y - 20, 102, 20);
+      ctx.fillRect(bx + 16, GROUND_Y - 28, 70, 8);
+      ctx.fillStyle = winterTheme ? '#F4FAFF' : biome.grassTrim;
+      ctx.fillRect(bx + 16, GROUND_Y - 28, 70, 2);
 
-    // Classic 8-bit pixel pine trees flanking the hill
-    ctx.fillStyle = biome.dirtDark;
-    ctx.fillRect(bx + 16, GROUND_Y - 10, 4, 10);
-    ctx.fillRect(bx + 78, GROUND_Y - 8, 4, 8);
-    ctx.fillStyle = winterTheme ? '#2C6A68' : biome.grassTrim;
-    ctx.fillRect(bx + 10, GROUND_Y - 16, 16, 6);
-    ctx.fillRect(bx + 12, GROUND_Y - 22, 12, 6);
-    ctx.fillRect(bx + 15, GROUND_Y - 27, 6, 5);
-    ctx.fillRect(bx + 73, GROUND_Y - 14, 14, 6);
-    ctx.fillRect(bx + 76, GROUND_Y - 19, 8, 5);
-    if (winterTheme) {
-      // Snow caps on pine tops + cute 8-bit pixel snowman
-      ctx.fillStyle = '#F4FAFF';
-      ctx.fillRect(bx + 15, GROUND_Y - 28, 6, 2);
-      ctx.fillRect(bx + 12, GROUND_Y - 22, 12, 2);
-      ctx.fillRect(bx + 76, GROUND_Y - 20, 8, 2);
-      // Pixel snowman (body + head + red scarf + carrot nose)
-      ctx.fillRect(bx + 44, GROUND_Y - 8, 8, 8);
-      ctx.fillRect(bx + 45, GROUND_Y - 14, 6, 6);
-      ctx.fillStyle = '#E83B48';
-      ctx.fillRect(bx + 44, GROUND_Y - 9, 8, 2);
-      ctx.fillStyle = '#FF8820';
-      ctx.fillRect(bx + 50, GROUND_Y - 12, 3, 1);
-      ctx.fillStyle = '#121324';
-      ctx.fillRect(bx + 47, GROUND_Y - 13, 1, 1);
-      ctx.fillRect(bx + 49, GROUND_Y - 13, 1, 1);
-    }
+      // Pixel cacti
+      ctx.fillStyle = winterTheme ? '#489890' : '#2C8848';
+      ctx.fillRect(bx + 26, GROUND_Y - 22, 4, 22);
+      ctx.fillRect(bx + 20, GROUND_Y - 16, 6, 3);
+      ctx.fillRect(bx + 20, GROUND_Y - 20, 3, 5);
+      ctx.fillRect(bx + 30, GROUND_Y - 14, 6, 3);
+      ctx.fillRect(bx + 33, GROUND_Y - 19, 3, 6);
 
-    // Ancient pixel aqueduct / ruin tower
-    ctx.fillStyle = biome.ruinColor;
-    ctx.fillRect(bx + 106, GROUND_Y - 44, 28, 44);
-    ctx.fillRect(bx + 102, GROUND_Y - 48, 8, 6);
-    ctx.fillRect(bx + 116, GROUND_Y - 48, 8, 6);
-    ctx.fillRect(bx + 130, GROUND_Y - 48, 8, 6);
-    ctx.fillStyle = biome.ruinHighlight;
-    ctx.fillRect(bx + 108, GROUND_Y - 42, 4, 38);
-    if (winterTheme) {
-      ctx.fillStyle = '#F4FAFF';
-      ctx.fillRect(bx + 102, GROUND_Y - 49, 8, 2);
-      ctx.fillRect(bx + 116, GROUND_Y - 49, 8, 2);
-      ctx.fillRect(bx + 130, GROUND_Y - 49, 8, 2);
+      // Sandstone obelisk landmark
+      ctx.fillStyle = biome.ruinColor;
+      ctx.fillRect(bx + 114, GROUND_Y - 46, 14, 46);
+      ctx.fillRect(bx + 117, GROUND_Y - 52, 8, 6);
+      ctx.fillStyle = biome.ruinHighlight;
+      ctx.fillRect(bx + 116, GROUND_Y - 44, 3, 40);
+      ctx.fillStyle = '#FFE05C';
+      ctx.fillRect(bx + 120, GROUND_Y - 34, 3, 4);
+      ctx.fillRect(bx + 120, GROUND_Y - 24, 3, 4);
+    } else if (landscapeIdx === 2) {
+      // Level 3: Starlight City — midground pixel buildings + neon sky-bridge
+      ctx.fillStyle = biome.nearHill;
+      ctx.fillRect(bx + 8, GROUND_Y - 42, 34, 42);
+      ctx.fillRect(bx + 54, GROUND_Y - 54, 42, 54);
+      ctx.fillRect(bx + 112, GROUND_Y - 36, 36, 36);
+      // Elevated neon sky-bridge
+      ctx.fillStyle = biome.ruinColor;
+      ctx.fillRect(bx + 42, GROUND_Y - 26, 12, 6);
+      ctx.fillRect(bx + 96, GROUND_Y - 24, 16, 6);
+      ctx.fillStyle = '#78E8FF';
+      ctx.fillRect(bx + 42, GROUND_Y - 26, 12, 2);
+      ctx.fillRect(bx + 96, GROUND_Y - 24, 16, 2);
+      // Glowing cyan/gold windows
+      ctx.fillStyle = biome.starAlpha > 0.25 ? '#78E8FF' : biome.ruinHighlight;
+      for (let wy = GROUND_Y - 46; wy < GROUND_Y - 8; wy += 9) {
+        ctx.fillRect(bx + 60, wy, 5, 4);
+        ctx.fillRect(bx + 70, wy, 5, 4);
+        ctx.fillRect(bx + 82, wy, 5, 4);
+      }
+      ctx.fillStyle = '#FFE05C';
+      ctx.fillRect(bx + 16, GROUND_Y - 34, 6, 4);
+      ctx.fillRect(bx + 28, GROUND_Y - 24, 6, 4);
+      ctx.fillRect(bx + 122, GROUND_Y - 28, 6, 4);
+    } else if (landscapeIdx === 3) {
+      // Level 4: Crystal Peaks — crystal outcrops & floating monolith arch
+      ctx.fillStyle = biome.nearHill;
+      ctx.fillRect(bx + 4, GROUND_Y - 24, 92, 24);
+      ctx.fillRect(bx + 18, GROUND_Y - 34, 58, 10);
+      // Glowing crystal shards
+      ctx.fillStyle = '#58D8FF';
+      ctx.fillRect(bx + 22, GROUND_Y - 22, 6, 22);
+      ctx.fillRect(bx + 24, GROUND_Y - 28, 3, 6);
+      ctx.fillStyle = '#E878FF';
+      ctx.fillRect(bx + 68, GROUND_Y - 18, 6, 18);
+      ctx.fillRect(bx + 70, GROUND_Y - 24, 3, 6);
+      // Ancient floating rune monolith arch
+      ctx.fillStyle = biome.ruinColor;
+      ctx.fillRect(bx + 108, GROUND_Y - 48, 8, 48);
+      ctx.fillRect(bx + 132, GROUND_Y - 48, 8, 48);
+      ctx.fillRect(bx + 104, GROUND_Y - 54, 40, 8);
+      ctx.fillStyle = '#78F0A8';
+      ctx.fillRect(bx + 111, GROUND_Y - 38, 2, 16);
+      ctx.fillRect(bx + 135, GROUND_Y - 38, 2, 16);
+      ctx.fillRect(bx + 118, GROUND_Y - 51, 12, 2);
+    } else {
+      // Level 1: Highland Meadows — rolling hills, pixel pines & stone ruins
+      ctx.fillStyle = biome.nearHill;
+      ctx.fillRect(bx, GROUND_Y - 26, 98, 26);
+      ctx.fillRect(bx + 12, GROUND_Y - 34, 74, 8);
+      ctx.fillRect(bx + 26, GROUND_Y - 40, 46, 6);
+      ctx.fillStyle = winterTheme ? '#F4FAFF' : biome.grassTrim;
+      ctx.fillRect(bx + 26, GROUND_Y - 40, 46, 2);
+      ctx.fillRect(bx + 12, GROUND_Y - 34, 14, 2);
+
+      // Classic 8-bit pixel pine trees flanking the hill
+      ctx.fillStyle = biome.dirtDark;
+      ctx.fillRect(bx + 16, GROUND_Y - 10, 4, 10);
+      ctx.fillRect(bx + 78, GROUND_Y - 8, 4, 8);
+      ctx.fillStyle = winterTheme ? '#2C6A68' : biome.grassTrim;
+      ctx.fillRect(bx + 10, GROUND_Y - 16, 16, 6);
+      ctx.fillRect(bx + 12, GROUND_Y - 22, 12, 6);
+      ctx.fillRect(bx + 15, GROUND_Y - 27, 6, 5);
+      ctx.fillRect(bx + 73, GROUND_Y - 14, 14, 6);
+      ctx.fillRect(bx + 76, GROUND_Y - 19, 8, 5);
+      if (winterTheme) {
+        ctx.fillStyle = '#F4FAFF';
+        ctx.fillRect(bx + 15, GROUND_Y - 28, 6, 2);
+        ctx.fillRect(bx + 12, GROUND_Y - 22, 12, 2);
+        ctx.fillRect(bx + 76, GROUND_Y - 20, 8, 2);
+        // Pixel snowman (body + head + red scarf + carrot nose)
+        ctx.fillRect(bx + 44, GROUND_Y - 8, 8, 8);
+        ctx.fillRect(bx + 45, GROUND_Y - 14, 6, 6);
+        ctx.fillStyle = '#E83B48';
+        ctx.fillRect(bx + 44, GROUND_Y - 9, 8, 2);
+        ctx.fillStyle = '#FF8820';
+        ctx.fillRect(bx + 50, GROUND_Y - 12, 3, 1);
+        ctx.fillStyle = '#121324';
+        ctx.fillRect(bx + 47, GROUND_Y - 13, 1, 1);
+        ctx.fillRect(bx + 49, GROUND_Y - 13, 1, 1);
+      }
+
+      // Ancient pixel aqueduct / ruin tower
+      ctx.fillStyle = biome.ruinColor;
+      ctx.fillRect(bx + 106, GROUND_Y - 44, 28, 44);
+      ctx.fillRect(bx + 102, GROUND_Y - 48, 8, 6);
+      ctx.fillRect(bx + 116, GROUND_Y - 48, 8, 6);
+      ctx.fillRect(bx + 130, GROUND_Y - 48, 8, 6);
+      ctx.fillStyle = biome.ruinHighlight;
+      ctx.fillRect(bx + 108, GROUND_Y - 42, 4, 38);
+      if (winterTheme) {
+        ctx.fillStyle = '#F4FAFF';
+        ctx.fillRect(bx + 102, GROUND_Y - 49, 8, 2);
+        ctx.fillRect(bx + 116, GROUND_Y - 49, 8, 2);
+        ctx.fillRect(bx + 130, GROUND_Y - 49, 8, 2);
+      }
+      ctx.fillStyle = biome.skyHorizon;
+      ctx.fillRect(bx + 116, GROUND_Y - 26, 8, 12); // window arch
     }
-    ctx.fillStyle = biome.skyHorizon;
-    ctx.fillRect(bx + 116, GROUND_Y - 26, 8, 12); // window arch
   }
 }
 

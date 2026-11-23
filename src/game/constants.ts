@@ -25,6 +25,15 @@ export const BASE_SPEED = 148;
 export const MAX_SPEED = 295;
 export const SAFE_OPENING_SECONDS = 2.6;
 export const DISTANCE_PER_ZONE = 400;
+export const DAY_NIGHT_CYCLE_SECONDS = 30; // 30s per full Day/Night cycle -> 90s per level (3 cycles)
+export const CYCLES_PER_LEVEL = 3;
+export const LEVEL_BONUS_POINTS = 250;
+export const LEVEL_NAMES = [
+  'HIGHLAND MEADOWS',
+  'PYRAMID CANYON',
+  'STARLIGHT CITY',
+  'CRYSTAL PEAKS',
+] as const;
 
 export const MAX_PARTICLES = 96;
 export const MAX_FLOATING_TEXTS = 16;

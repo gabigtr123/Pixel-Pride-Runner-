@@ -157,6 +157,9 @@ function hudChanged(a: HudSnapshot, b: HudSnapshot): boolean {
     a.slowMoSeconds !== b.slowMoSeconds ||
     a.zoneIndex !== b.zoneIndex ||
     (a.zoneBannerTimer > 0) !== (b.zoneBannerTimer > 0) ||
+    a.level !== b.level ||
+    a.dayCycleCount !== b.dayCycleCount ||
+    (a.levelBannerTimer > 0) !== (b.levelBannerTimer > 0) ||
     a.finalRun !== b.finalRun
   );
 }
@@ -706,10 +709,11 @@ export default function App() {
             saveBestScore(persistedBest);
           }
 
+          const cycleClock = st.phase === 'playing' ? st.runTime : st.elapsed;
           const env = {
             winterTheme: weatherRef.current.theme === 'winter',
             weatherOverride: getEffectiveWeather(weatherRef.current),
-            nightFactor: computeNightFactor(weatherRef.current, st.elapsed),
+            nightFactor: computeNightFactor(weatherRef.current, cycleClock),
           };
           syncCanvasSize(mode);
           renderGameWorld(ctx, st, mode, env);
@@ -717,10 +721,11 @@ export default function App() {
           lastRenderedMode = mode;
           handlersRef.current.syncDomAndHud(st);
         } else if (lastRenderedPhase !== st.phase || lastRenderedMode !== mode) {
+          const cycleClock = st.phase === 'playing' ? st.runTime : st.elapsed;
           const env = {
             winterTheme: weatherRef.current.theme === 'winter',
             weatherOverride: getEffectiveWeather(weatherRef.current),
-            nightFactor: computeNightFactor(weatherRef.current, st.elapsed),
+            nightFactor: computeNightFactor(weatherRef.current, cycleClock),
           };
           syncCanvasSize(mode);
           renderGameWorld(ctx, st, mode, env);

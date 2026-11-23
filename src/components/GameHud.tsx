@@ -1,4 +1,5 @@
 import React from 'react';
+import { CYCLES_PER_LEVEL, LEVEL_NAMES } from '../game/constants';
 import type { HudSnapshot, OrientationMode } from '../game/types';
 import {
   CoinIcon,
@@ -59,6 +60,13 @@ export function GameHud({
             </div>
 
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5">
+              <span className="font-pixel-display text-[10px] sm:text-xs text-[#78F0A8] pixel-text-shadow tracking-wider whitespace-nowrap">
+                LV {hud.level}
+                <span className="font-pixel-ui text-[10px] text-[#FFE89C] ml-1">
+                  {hud.dayCycleCount % CYCLES_PER_LEVEL}/{CYCLES_PER_LEVEL}
+                </span>
+              </span>
+
               <span className="font-pixel-ui text-[11px] sm:text-xs text-[#FFF9E8] pixel-text-shadow tracking-wider whitespace-nowrap">
                 {hud.distance}M
                 <span className="hidden sm:inline"> · {hud.zoneName}</span>
@@ -219,13 +227,21 @@ export function GameHud({
         </div>
       </div>
 
-      {/* Transient biome arrival callout — unboxed typography in upper sky */}
-      {hud.zoneBannerTimer > 0 && (
-        <div className="self-center mt-2">
-          <p className="font-pixel-display text-xs sm:text-sm text-[#FFF4A8] pixel-text-shadow tracking-widest">
-            {hud.zoneName}
+      {/* Transient level-up or biome arrival callout — unboxed typography in upper sky */}
+      {hud.levelBannerTimer > 0 ? (
+        <div className="self-center mt-2 text-center">
+          <p className="font-pixel-display text-xs sm:text-sm text-[#78F0A8] pixel-text-shadow tracking-widest">
+            LEVEL {hud.level} — {LEVEL_NAMES[(hud.level - 1) % LEVEL_NAMES.length]}
           </p>
         </div>
+      ) : (
+        hud.zoneBannerTimer > 0 && (
+          <div className="self-center mt-2">
+            <p className="font-pixel-display text-xs sm:text-sm text-[#FFF4A8] pixel-text-shadow tracking-widest">
+              {hud.zoneName}
+            </p>
+          </div>
+        )
       )}
 
       {/* Dedicated touch controls: Portrait = full-width underground deck; Landscape = bottom-right cluster away from runner */}

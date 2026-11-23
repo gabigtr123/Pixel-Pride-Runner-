@@ -180,6 +180,7 @@ export interface RunSnapshot {
   stomps: number;
   zoneName: string;
   zoneIndex: number;
+  level: number;
   isNewBest: boolean;
 }
 
@@ -201,6 +202,9 @@ export interface HudSnapshot {
   zoneName: string;
   zoneIndex: number;
   zoneBannerTimer: number;
+  level: number;
+  dayCycleCount: number;
+  levelBannerTimer: number;
   finalRun: RunSnapshot | null;
 }
 
@@ -227,6 +231,9 @@ export interface GameState {
   comboTimer: number;
   zoneIndex: number;
   zoneBannerTimer: number;
+  level: number;
+  dayCycleCount: number;
+  levelBannerTimer: number;
   hitstopTimer: number;
   shakeTrauma: number;
   gameOverDelayTimer: number;

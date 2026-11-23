@@ -1,3 +1,4 @@
+import { DAY_NIGHT_CYCLE_SECONDS } from './constants';
 import type { BiomePalette } from './types';
 
 export type ThemeMode = 'classic' | 'winter';
@@ -83,9 +84,8 @@ export function computeNightFactor(settings: WeatherSettings, elapsedSeconds: nu
   if (settings.source === 'live' && settings.liveIsDay !== null) {
     return settings.liveIsDay ? 0 : 1;
   }
-  // Smooth 90-second Day -> Sunset -> Night -> Dawn cycle starting in bright Day
-  const cycleSeconds = 90;
-  return 0.5 - 0.5 * Math.cos((elapsedSeconds / cycleSeconds) * Math.PI * 2);
+  // Smooth 30-second Day -> Sunset -> Night -> Dawn cycle (3 cycles = 90s per level)
+  return 0.5 - 0.5 * Math.cos((elapsedSeconds / DAY_NIGHT_CYCLE_SECONDS) * Math.PI * 2);
 }
 
 /**

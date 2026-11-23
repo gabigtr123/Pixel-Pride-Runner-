@@ -39,6 +39,7 @@
 - **Daily Missions & 7-Day Login Streak** — 3 fresh daily quests every calendar day plus a 7-day play streak unlocking starting score boosts, a free **Star Shield** (Day 3+), and a **Coin Magnet** (Day 5+).
 - **Procedural Chiptune Audio & Haptics** — Built-in Web Audio API synthesizer (`ChiptuneAudio`) with per-biome 16-step loops, retro SFX, and tactile mobile vibration feedback on stomps, power-ups, hits, and mission unlocks.
 - **Dedicated Portrait & Landscape Modes** — Automatically adapts between true vertical Portrait (`300×520` full-screen with underground touch control deck) and wide Landscape (`480×270` with bottom-right thumb controls).
+- **4 Looping Landscape Levels (Every 3 Day/Night Cycles)** — Every **3 full Day/Night cycles** (`30s` per cycle → `90s` per level), you level up (`+250` bonus) and the parallax landscape transforms through **Highland Meadows** → **Pyramid Canyon** → **Starlight City** → **Crystal Peaks** and loops seamlessly!
 - **Winter Theme, Day/Night Cycle & Weather-Reactive Terrain** — Switch on **Winter Wonderland** mode (snow-capped mountains & pines, pixel snowmen, snowfall) or sync real-world weather (`Clear`, `Rain`, `Storm`, `Snow`, `Fog`) + real **Day/Night** from your device location or any city via **Open-Meteo** (100% free, zero API keys). Rain & storms form glistening puddles, surface splashes, and trickling water streaks down the terrain; snow adds frosted ledges and pixel icicles!
 - **Android 17 (API 37) Ready** — Packaged with **Capacitor 9** (`compileSdkVersion = 37`, `targetSdkVersion = 37`), custom pixel-art Adaptive Icon with **Material You Themed Icon (`<monochrome>`)** support, edge-to-edge safe-area insets (`viewport-fit=cover` + `env(safe-area-inset-*)`), and automatic background audio pause.
 
@@ -51,8 +52,8 @@ Pre-built **Web** and **Android 17** packages are published on the [GitHub Relea
 | Platform | Latest Release | Artifact | How to Run / Install |
 | :--- | :--- | :--- | :--- |
 | **Android / Web PWA (Live)** | [Play / Install PWA](https://gabigtr123.github.io/Pixel-Pride-Runner-/) | GitHub Pages | Open in Chrome on Android and tap **Install app** — full-screen offline play, automatic updates, **0 Play Protect warnings**. |
-| **Android 17 Signed APK** | [`v2.2.1`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v2.2.1) | `pixel-stride-v2.2.1-android.apk` | Signed Release APK (API 37 / Capacitor 9) with Material You themed icon & persistent keystore. |
-| **Web (Static Bundle)** | [`v2.2.1`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v2.2.1) | `pixel-stride-v2.2.1-web.zip` | Unzip and serve with any static host (`npx serve .`, Netlify, Vercel, or GitHub Pages). |
+| **Android 17 Signed APK** | [`v2.3.0`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v2.3.0) | `pixel-stride-v2.3.0-android.apk` | Signed Release APK (API 37 / Capacitor 9) with Material You themed icon & persistent keystore. |
+| **Web (Static Bundle)** | [`v2.3.0`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v2.3.0) | `pixel-stride-v2.3.0-web.zip` | Unzip and serve with any static host (`npx serve .`, Netlify, Vercel, or GitHub Pages). |
 
 ---
 
