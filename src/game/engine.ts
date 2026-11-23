@@ -153,6 +153,9 @@ export function createInitialPlayer(characterId: CharacterId = 'stride'): Player
     magnetTimer: 0,
     doubleScoreTimer: 0,
     slowMoTimer: 0,
+    turboDashTimer: 0,
+    autoShieldTimer: 45,
+    secondWindUsed: false,
     trailTimer: 0,
     scaleX: 1,
     scaleY: 1,
@@ -173,6 +176,9 @@ export function createInitialState(
     phase,
     characterId,
     trailId: 'classic',
+    hatId: 'none',
+    capeId: 'none',
+    gadgets: [],
     magnetDurationBonus: 0,
     coinBonusPoints: 0,
     powerupCooldownReduction: 0,
@@ -222,9 +228,21 @@ export function startNewRun(
   const best = Math.max(state.bestScore, state.score);
   const next = createInitialState(best, 'playing', state.characterId);
   next.customCharacter = state.customCharacter;
+  next.hatId = state.hatId;
+  next.capeId = state.capeId;
+  next.gadgets = [...state.gadgets];
   if (modifiers) {
     if (modifiers.trailId) {
       next.trailId = modifiers.trailId;
+    }
+    if (modifiers.hatId) {
+      next.hatId = modifiers.hatId;
+    }
+    if (modifiers.capeId) {
+      next.capeId = modifiers.capeId;
+    }
+    if (modifiers.gadgets) {
+      next.gadgets = [...modifiers.gadgets];
     }
     if (modifiers.magnetDurationBonus && modifiers.magnetDurationBonus > 0) {
       next.magnetDurationBonus = modifiers.magnetDurationBonus;
@@ -253,6 +271,26 @@ export function startNewRun(
     if (modifiers.startMagnetSeconds && modifiers.startMagnetSeconds > 0) {
       next.player.magnetTimer = modifiers.startMagnetSeconds;
     }
+    if (modifiers.startDoubleScoreSeconds && modifiers.startDoubleScoreSeconds > 0) {
+      next.player.doubleScoreTimer = Math.max(
+        next.player.doubleScoreTimer,
+        modifiers.startDoubleScoreSeconds,
+      );
+    }
+    if (modifiers.startTurboDashSeconds && modifiers.startTurboDashSeconds > 0) {
+      next.player.turboDashTimer = modifiers.startTurboDashSeconds;
+      spawnFloatingText(
+        next,
+        next.player.x + 12,
+        next.player.y - next.player.height - 20,
+        'HEAD START!',
+        '#FFE848',
+      );
+    }
+  }
+  if (next.gadgets.includes('springBoots')) {
+    next.player.maxJumps = 3;
+    next.player.jumpsRemaining = 3;
   }
   next.audioQueue.push({ type: 'start' });
   return next;
@@ -357,7 +395,7 @@ export function executeJump(state: GameState, rng: () => number = Math.random): 
 
 export function applyDamageToPlayer(state: GameState, rng: () => number = Math.random): boolean {
   const p = state.player;
-  if (p.invulnTimer > 0 || p.koActive || state.phase !== 'playing') {
+  if (p.invulnTimer > 0 || p.turboDashTimer > 0 || p.koActive || state.phase !== 'playing') {
     return false;
   }
 
@@ -384,6 +422,18 @@ export function applyDamageToPlayer(state: GameState, rng: () => number = Math.r
   spawnParticles(state, p.x + p.width * 0.5, p.y - p.height * 0.5, 18, ['#FF4858', '#FFA848', '#FFFFFF'], 50, 155, 280, rng, -50);
 
   if (p.hp <= 0) {
+    if (state.gadgets.includes('secondWind') && !p.secondWindUsed) {
+      p.secondWindUsed = true;
+      p.hp = Math.min(p.maxHp, 2);
+      p.invulnTimer = 2.2;
+      p.vy = -240;
+      p.onGround = false;
+      state.hazards = state.hazards.filter((h) => h.x < p.x - 20 || h.x > p.x + 150);
+      spawnParticles(state, p.x + p.width * 0.5, p.y - p.height * 0.5, 24, ['#78F0A8', '#FFE05C', '#FFFFFF'], 70, 180, 160, rng, -60);
+      spawnFloatingText(state, p.x + 10, p.y - p.height - 8, 'SECOND WIND!', '#78F0A8');
+      state.audioQueue.push({ type: 'powerup', kind: 'heart' });
+      return true;
+    }
     p.koActive = true;
     p.vy = -210;
     p.onGround = false;
@@ -560,17 +610,19 @@ function spawnCoinArc(state: GameState, rng: () => number): void {
 function spawnPowerup(state: GameState, rng: () => number): void {
   const p = state.player;
   const roll = rng();
-  let kind: 'shield' | 'heart' | 'magnet' | 'doubleScore' | 'slowMo' = 'shield';
-  if (p.hp < p.maxHp && roll < 0.34) {
+  let kind: 'shield' | 'heart' | 'magnet' | 'doubleScore' | 'slowMo' | 'turboDash' = 'shield';
+  if (p.hp < p.maxHp && roll < 0.28) {
     kind = 'heart';
-  } else if (roll < 0.52 && !p.shieldActive) {
+  } else if (roll < 0.44 && !p.shieldActive) {
     kind = 'shield';
-  } else if (roll < 0.7) {
+  } else if (roll < 0.6) {
     kind = 'magnet';
-  } else if (roll < 0.86) {
+  } else if (roll < 0.74) {
     kind = 'doubleScore';
-  } else {
+  } else if (roll < 0.87) {
     kind = 'slowMo';
+  } else {
+    kind = 'turboDash';
   }
 
   state.pickups.push({
@@ -693,7 +745,9 @@ export function stepSimulation(
   // Advance difficulty & biome
   state.runTime += dt;
   const diff = computeDifficulty(state.runTime, state.distance);
-  state.speed = p.slowMoTimer > 0 ? diff.speed * 0.65 : diff.speed;
+  const dashMult = p.turboDashTimer > 0 ? 1.45 : 1;
+  const slowMult = p.slowMoTimer > 0 ? 0.65 : 1;
+  state.speed = diff.speed * slowMult * dashMult;
   const scrollDx = state.speed * dt;
   state.worldScroll += scrollDx;
   const distDelta = scrollDx * 0.085; // ~12-25m per second
@@ -767,16 +821,33 @@ export function stepSimulation(
   if (p.slowMoTimer > 0) {
     p.slowMoTimer = Math.max(0, p.slowMoTimer - dt);
   }
-  if (state.trailId !== 'classic') {
+  if (p.turboDashTimer > 0) {
+    p.turboDashTimer = Math.max(0, p.turboDashTimer - dt);
+    if (p.turboDashTimer === 0) {
+      // Brief grace invulnerability when Turbo Dash ends
+      p.invulnTimer = Math.max(p.invulnTimer, 0.75);
+    }
+  }
+  if (state.gadgets.includes('autoShield') && !p.shieldActive) {
+    p.autoShieldTimer -= dt;
+    if (p.autoShieldTimer <= 0) {
+      p.autoShieldTimer = 45;
+      p.shieldActive = true;
+      spawnParticles(state, p.x + p.width * 0.5, p.y - p.height * 0.5, 14, ['#78E8FF', '#FFFFFF'], 40, 110, 80, rng, -25);
+      spawnFloatingText(state, p.x + 8, p.y - p.height - 6, 'AUTO SHIELD!', '#78E8FF');
+      state.audioQueue.push({ type: 'powerup', kind: 'shield' });
+    }
+  }
+  if (state.trailId !== 'classic' || p.turboDashTimer > 0) {
     p.trailTimer -= dt;
     if (p.trailTimer <= 0) {
-      p.trailTimer = 0.065;
+      p.trailTimer = p.turboDashTimer > 0 ? 0.03 : 0.065;
       spawnParticles(
         state,
         p.x + 2,
         p.y - p.height * 0.45,
-        1,
-        getTrailColors(state.trailId),
+        p.turboDashTimer > 0 ? 2 : 1,
+        p.turboDashTimer > 0 ? ['#FFFFFF', '#FFE848', '#FF9820'] : getTrailColors(state.trailId),
         10,
         28,
         25,
@@ -1014,7 +1085,18 @@ export function stepSimulation(
       const stompable = h.kind === 'hopper' || h.kind === 'swooper';
       const playerFallingFromAbove = p.vy > 0 && prevY <= h.y + h.height * 0.72;
 
-      if (stompable && playerFallingFromAbove) {
+      if (p.turboDashTimer > 0) {
+        // Invincible Turbo Dash smashes straight through any hazard!
+        const scoreMult = p.doubleScoreTimer > 0 ? 2 : 1;
+        const pts = 100 * scoreMult;
+        state.bonusScore += pts;
+        state.stomps += 1;
+        state.shakeTrauma = Math.min(1, state.shakeTrauma + 0.3);
+        spawnParticles(state, h.x + h.width * 0.5, h.y + h.height * 0.5, 16, ['#FFFFFF', '#FFE848', '#FF9820'], 65, 175, 220, rng, -55);
+        spawnFloatingText(state, h.x + 4, h.y - 6, `SMASH +${pts}`, '#FFE848');
+        state.audioQueue.push({ type: 'stomp' });
+        state.hazards.splice(i, 1);
+      } else if (stompable && playerFallingFromAbove) {
         // Clean Mario/Sonic-style stomp kill!
         h.stomped = true;
         h.koTimer = 0.42;
@@ -1054,9 +1136,15 @@ export function stepSimulation(
     item.x -= scrollDx;
     item.bobOffset += dt * 4.5;
 
-    // Coin magnet attraction (plus Lily gentle passive coin aura)
+    // Coin magnet attraction (Magnet powerup > Mega Magnet gadget > Lily passive aura)
     const pullRadius =
-      p.magnetTimer > 0 ? 115 : state.characterId === 'lily' ? 48 : 0;
+      p.magnetTimer > 0
+        ? 115
+        : state.gadgets.includes('megaMagnet')
+          ? 68
+          : state.characterId === 'lily'
+            ? 48
+            : 0;
     if (item.kind === 'coin' && pullRadius > 0) {
       const cx = p.x + p.width * 0.5;
       const cy = p.y - p.height * 0.5;
@@ -1064,7 +1152,7 @@ export function stepSimulation(
       const dy = cy - (item.y + item.height * 0.5);
       const dist = Math.hypot(dx, dy);
       if (dist < pullRadius && dist > 1) {
-        const pull = (p.magnetTimer > 0 ? 280 : 165) * dt;
+        const pull = (p.magnetTimer > 0 ? 280 : 195) * dt;
         item.x += (dx / dist) * pull;
         item.y += (dy / dist) * pull;
       }
@@ -1089,10 +1177,31 @@ export function stepSimulation(
         state.combo = Math.min(5, state.comboTimer > 0 ? state.combo + (state.coins % 3 === 0 ? 1 : 0) : 1);
         state.comboTimer = COMBO_DURATION;
         const customMult = state.characterId === 'custom' ? 1.15 : 1;
-        const pts = Math.round((50 + state.coinBonusPoints) * state.combo * scoreMult * customMult);
+        const gemBonus =
+          state.gadgets.includes('goldenTouch') && state.coins % 5 === 0 ? 50 * scoreMult : 0;
+        const pts =
+          Math.round((50 + state.coinBonusPoints) * state.combo * scoreMult * customMult) +
+          gemBonus;
         state.bonusScore += pts;
-        spawnParticles(state, item.x + 5, item.y + 5, 6, ['#FFE048', '#FFF8C4', '#F09820'], 24, 75, 110, rng, -25);
-        spawnFloatingText(state, item.x, item.y - 4, `+${pts}`, '#FFE868');
+        spawnParticles(
+          state,
+          item.x + 5,
+          item.y + 5,
+          gemBonus > 0 ? 10 : 6,
+          gemBonus > 0 ? ['#78F0FF', '#FFE848', '#FFFFFF'] : ['#FFE048', '#FFF8C4', '#F09820'],
+          24,
+          75,
+          110,
+          rng,
+          -25,
+        );
+        spawnFloatingText(
+          state,
+          item.x,
+          item.y - 4,
+          gemBonus > 0 ? `GEM +${pts}` : `+${pts}`,
+          gemBonus > 0 ? '#78F0FF' : '#FFE868',
+        );
         state.audioQueue.push({ type: 'coin', combo: state.combo });
       } else if (item.kind === 'shield') {
         p.shieldActive = true;
@@ -1128,6 +1237,12 @@ export function stepSimulation(
         spawnParticles(state, item.x + 7, item.y + 7, 14, ['#78F0FF', '#FFFFFF', '#3888E8'], 35, 105, 60, rng, -20);
         spawnFloatingText(state, item.x, item.y - 6, 'SLOW-MO!', '#78F0FF');
         state.audioQueue.push({ type: 'powerup', kind: 'slowMo' });
+      } else if (item.kind === 'turboDash') {
+        p.turboDashTimer = Math.max(p.turboDashTimer, 4.0);
+        state.bonusScore += 150 * scoreMult;
+        spawnParticles(state, item.x + 7, item.y + 7, 18, ['#FFFFFF', '#FFE848', '#FF9820'], 50, 140, 80, rng, -30);
+        spawnFloatingText(state, item.x, item.y - 6, 'TURBO DASH!', '#FFE848');
+        state.audioQueue.push({ type: 'powerup', kind: 'turboDash' });
       }
 
       state.pickups.splice(i, 1);
@@ -1157,6 +1272,7 @@ export function extractHudSnapshot(state: GameState): HudSnapshot {
     magnetSeconds: Math.ceil(state.player.magnetTimer),
     doubleScoreSeconds: Math.ceil(state.player.doubleScoreTimer),
     slowMoSeconds: Math.ceil(state.player.slowMoTimer),
+    turboDashSeconds: Math.ceil(state.player.turboDashTimer),
     zoneName: BIOMES[state.zoneIndex].name,
     zoneIndex: state.zoneIndex,
     zoneBannerTimer: state.zoneBannerTimer,

@@ -1,11 +1,24 @@
 import React, { useState } from 'react';
 import {
+  BOOSTER_CATALOG,
+  CAPE_CATALOG,
+  EXTRA_GADGET_SLOT_PRICE,
+  GADGET_CATALOG,
+  getMaxGadgetSlots,
+  HAT_CATALOG,
   KNIGHT_PRICE,
   TRAIL_CATALOG,
   UPGRADE_COSTS,
   type ShopState,
 } from '../game/shop';
-import type { CustomCharacterConfig, TrailId } from '../game/types';
+import type {
+  BoosterId,
+  CapeId,
+  CustomCharacterConfig,
+  GadgetId,
+  HatId,
+  TrailId,
+} from '../game/types';
 import { CharacterPreviewIcon, CoinIcon } from './PixelIcons';
 
 interface ShopModalProps {
@@ -15,6 +28,12 @@ interface ShopModalProps {
   onBuyKnight: () => void;
   onBuyUpgrade: (key: keyof ShopState['upgrades']) => void;
   onSelectTrail: (id: TrailId) => void;
+  onSelectHat: (id: HatId) => void;
+  onSelectCape: (id: CapeId) => void;
+  onBuyOrToggleGadget: (id: GadgetId) => void;
+  onBuyExtraGadgetSlot: () => void;
+  onBuyBooster: (id: BoosterId) => void;
+  onToggleArmBooster: (id: BoosterId) => void;
   onClose: () => void;
 }
 
@@ -28,6 +47,8 @@ const UPGRADE_META: {
   { key: 'powerupFreqLevel', title: 'LUCKY DROPS', desc: 'Faster power-up spawns' },
 ];
 
+type ShopTab = 'gear' | 'wardrobe' | 'gadgets' | 'scores';
+
 export function ShopModal({
   open,
   shop,
@@ -35,13 +56,20 @@ export function ShopModal({
   onBuyKnight,
   onBuyUpgrade,
   onSelectTrail,
+  onSelectHat,
+  onSelectCape,
+  onBuyOrToggleGadget,
+  onBuyExtraGadgetSlot,
+  onBuyBooster,
+  onToggleArmBooster,
   onClose,
 }: ShopModalProps) {
-  const [tab, setTab] = useState<'shop' | 'scores'>('shop');
+  const [tab, setTab] = useState<ShopTab>('gear');
 
   if (!open) return null;
 
   const knightUnlocked = shop.unlockedCharacters.includes('knight');
+  const maxGadgetSlots = getMaxGadgetSlots(shop);
 
   return (
     <div
@@ -51,9 +79,9 @@ export function ShopModal({
       aria-labelledby="shop-modal-title"
       data-testid="shop-modal"
     >
-      <div className="pixel-panel w-full max-w-md max-h-full overflow-y-auto p-4 sm:p-6 flex flex-col gap-4">
+      <div className="pixel-panel w-full max-w-lg max-h-full overflow-y-auto p-4 sm:p-5 flex flex-col gap-3.5">
         {/* Header */}
-        <div className="flex items-center justify-between gap-2 border-b-2 border-[#303A68] pb-3">
+        <div className="flex items-center justify-between gap-2 border-b-2 border-[#303A68] pb-2.5">
           <div className="flex flex-col gap-1">
             <h2
               id="shop-modal-title"
@@ -67,41 +95,42 @@ export function ShopModal({
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setTab('shop')}
-              className={`px-2.5 py-1.5 font-pixel-display text-[9px] border-2 cursor-pointer ${
-                tab === 'shop'
-                  ? 'bg-[#293568] border-[#FFE05C] text-[#FFF4A8]'
-                  : 'bg-[#141830] border-[#3A467A] text-[#A2B0D8]'
-              }`}
-            >
-              SHOP
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('scores')}
-              className={`px-2.5 py-1.5 font-pixel-display text-[9px] border-2 cursor-pointer ${
-                tab === 'scores'
-                  ? 'bg-[#293568] border-[#FFE05C] text-[#FFF4A8]'
-                  : 'bg-[#141830] border-[#3A467A] text-[#A2B0D8]'
-              }`}
-            >
-              TOP 5
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close Shop"
-              className="pixel-icon-btn px-2.5 py-1.5 font-pixel-display text-[10px] cursor-pointer"
-            >
-              X
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close Shop"
+            className="pixel-icon-btn px-2.5 py-1.5 font-pixel-display text-[10px] cursor-pointer"
+          >
+            X
+          </button>
         </div>
 
-        {tab === 'shop' ? (
+        {/* 4-Tab Bar */}
+        <div className="grid grid-cols-4 gap-1.5">
+          {(
+            [
+              { id: 'gear', label: 'GEAR' },
+              { id: 'wardrobe', label: 'WARDROBE' },
+              { id: 'gadgets', label: 'GADGETS' },
+              { id: 'scores', label: 'TOP 5' },
+            ] as const
+          ).map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className={`py-1.5 px-1 font-pixel-display text-[8px] sm:text-[9px] border-2 cursor-pointer ${
+                tab === t.id
+                  ? 'bg-[#293568] border-[#FFE05C] text-[#FFF4A8]'
+                  : 'bg-[#141830] border-[#3A467A] text-[#A2B0D8]'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'gear' && (
           <div className="flex flex-col gap-3">
             {/* Unlockable Character: Pixel Knight */}
             <div className="bg-[#12162D] border-2 border-[#3A467A] p-3 flex items-center justify-between gap-3">
@@ -227,7 +256,223 @@ export function ShopModal({
               </div>
             </div>
           </div>
-        ) : (
+        )}
+
+        {tab === 'wardrobe' && (
+          <div className="flex flex-col gap-3">
+            <p className="font-pixel-ui text-[10px] text-[#B8C4E4]">
+              Equips onto ANY hero (Stride, Lily, Knight, or Custom) live in-game!
+            </p>
+
+            {/* Hats / Headgear */}
+            <div className="flex flex-col gap-2">
+              <span className="font-pixel-display text-[10px] text-[#FFE05C]">HATS &amp; HEADGEAR</span>
+              <div className="grid grid-cols-2 gap-2">
+                {HAT_CATALOG.map((h) => {
+                  const unlocked = shop.unlockedHats.includes(h.id);
+                  const equipped = shop.activeHat === h.id;
+                  const canAfford = shop.coinsBank >= h.price;
+                  return (
+                    <button
+                      key={h.id}
+                      type="button"
+                      disabled={!unlocked && !canAfford}
+                      onClick={() => onSelectHat(h.id)}
+                      className={`p-2 border-2 flex items-center justify-between gap-1.5 cursor-pointer ${
+                        equipped
+                          ? 'bg-[#1F2952] border-[#FFE05C] text-[#FFF4A8]'
+                          : unlocked
+                            ? 'bg-[#12162D] border-[#4C5C96] text-[#E4EAF8] hover:border-[#F8F6EE]'
+                            : canAfford
+                              ? 'bg-[#12162D] border-[#3A467A] text-[#FFE05C]'
+                              : 'bg-[#12162D] border-[#262E52] text-[#6E7BA6] cursor-not-allowed'
+                      }`}
+                    >
+                      <span className="font-pixel-display text-[8px] sm:text-[9px] truncate">
+                        {h.icon} {h.name}
+                      </span>
+                      <span className="font-pixel-ui text-[10px] shrink-0">
+                        {equipped ? 'ON' : unlocked ? 'USE' : `${h.price}C`}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Capes / Jetpack / Wings */}
+            <div className="flex flex-col gap-2">
+              <span className="font-pixel-display text-[10px] text-[#FFE05C]">CAPES, JETPACK &amp; WINGS</span>
+              <div className="grid grid-cols-2 gap-2">
+                {CAPE_CATALOG.map((c) => {
+                  const unlocked = shop.unlockedCapes.includes(c.id);
+                  const equipped = shop.activeCape === c.id;
+                  const canAfford = shop.coinsBank >= c.price;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      disabled={!unlocked && !canAfford}
+                      onClick={() => onSelectCape(c.id)}
+                      className={`p-2 border-2 flex items-center justify-between gap-1.5 cursor-pointer ${
+                        equipped
+                          ? 'bg-[#1F2952] border-[#FFE05C] text-[#FFF4A8]'
+                          : unlocked
+                            ? 'bg-[#12162D] border-[#4C5C96] text-[#E4EAF8] hover:border-[#F8F6EE]'
+                            : canAfford
+                              ? 'bg-[#12162D] border-[#3A467A] text-[#FFE05C]'
+                              : 'bg-[#12162D] border-[#262E52] text-[#6E7BA6] cursor-not-allowed'
+                      }`}
+                    >
+                      <span className="font-pixel-display text-[8px] sm:text-[9px] truncate">
+                        {c.icon} {c.name}
+                      </span>
+                      <span className="font-pixel-ui text-[10px] shrink-0">
+                        {equipped ? 'ON' : unlocked ? 'USE' : `${c.price}C`}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tab === 'gadgets' && (
+          <div className="flex flex-col gap-3">
+            {/* Permanent Gadgets Header + Extra Slot Unlock */}
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-pixel-display text-[10px] text-[#78E8FF]">
+                GADGETS ({shop.equippedGadgets.length}/{maxGadgetSlots} ACTIVE)
+              </span>
+              {!shop.extraGadgetSlot && (
+                <button
+                  type="button"
+                  disabled={shop.coinsBank < EXTRA_GADGET_SLOT_PRICE}
+                  onClick={onBuyExtraGadgetSlot}
+                  className={`px-2 py-1 font-pixel-display text-[8px] inline-flex items-center gap-1 cursor-pointer ${
+                    shop.coinsBank >= EXTRA_GADGET_SLOT_PRICE
+                      ? 'pixel-btn-primary'
+                      : 'bg-[#1C213D] border border-[#38426E] text-[#6E7BA6] cursor-not-allowed'
+                  }`}
+                >
+                  +SLOT #3 ({EXTRA_GADGET_SLOT_PRICE}C)
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              {GADGET_CATALOG.map((g) => {
+                const unlocked = shop.unlockedGadgets.includes(g.id);
+                const equipped = shop.equippedGadgets.includes(g.id);
+                const canAfford = shop.coinsBank >= g.price;
+                return (
+                  <div
+                    key={g.id}
+                    className={`p-2.5 border-2 flex items-center justify-between gap-2 ${
+                      equipped
+                        ? 'bg-[#1B2A4A] border-[#78F0A8]'
+                        : 'bg-[#12162D] border-[#303A68]'
+                    }`}
+                  >
+                    <div className="flex flex-col">
+                      <span className="font-pixel-display text-[9px] sm:text-[10px] text-[#F8F6EE]">
+                        {g.icon} {g.name}
+                      </span>
+                      <span className="font-pixel-ui text-[10px] text-[#A2B0D8]">{g.desc}</span>
+                    </div>
+
+                    {unlocked ? (
+                      <button
+                        type="button"
+                        onClick={() => onBuyOrToggleGadget(g.id)}
+                        className={`px-2.5 py-1.5 font-pixel-display text-[9px] border-2 cursor-pointer shrink-0 ${
+                          equipped
+                            ? 'bg-[#142A26] border-[#48C878] text-[#78F0A8]'
+                            : 'bg-[#1E2548] border-[#586AA8] text-[#E4EAF8]'
+                        }`}
+                      >
+                        {equipped ? 'ON ✓' : 'EQUIP'}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={!canAfford}
+                        onClick={() => onBuyOrToggleGadget(g.id)}
+                        className={`px-2.5 py-1.5 font-pixel-display text-[9px] inline-flex items-center gap-1 cursor-pointer shrink-0 ${
+                          canAfford
+                            ? 'pixel-btn-primary'
+                            : 'bg-[#1C213D] border-2 border-[#38426E] text-[#6E7BA6] cursor-not-allowed'
+                        }`}
+                      >
+                        <CoinIcon className="w-3 h-3" />
+                        {g.price}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Consumable Pre-Run Boosters */}
+            <div className="flex flex-col gap-1.5 pt-1 border-t-2 border-[#303A68]">
+              <span className="font-pixel-display text-[10px] text-[#FFE05C]">
+                PRE-RUN BOOSTERS (CONSUMABLE)
+              </span>
+              {BOOSTER_CATALOG.map((b) => {
+                const count = shop.boosters[b.id] ?? 0;
+                const armed = shop.armedBoosters.includes(b.id) && count > 0;
+                const canAfford = shop.coinsBank >= b.price;
+                return (
+                  <div
+                    key={b.id}
+                    className={`p-2 border-2 flex items-center justify-between gap-2 ${
+                      armed ? 'bg-[#262044] border-[#FFE05C]' : 'bg-[#12162D] border-[#303A68]'
+                    }`}
+                  >
+                    <div className="flex flex-col">
+                      <span className="font-pixel-display text-[9px] text-[#F8F6EE]">
+                        {b.icon} {b.name}{' '}
+                        <span className="text-[#78E8FF]">x{count}</span>
+                      </span>
+                      <span className="font-pixel-ui text-[10px] text-[#A2B0D8]">{b.desc}</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {count > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => onToggleArmBooster(b.id)}
+                          className={`px-2 py-1.5 font-pixel-display text-[8px] border-2 cursor-pointer ${
+                            armed
+                              ? 'bg-[#FFE05C] border-[#FFF8C8] text-[#141220]'
+                              : 'bg-[#1E2548] border-[#586AA8] text-[#E4EAF8]'
+                          }`}
+                        >
+                          {armed ? 'ARMED' : 'USE'}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        disabled={!canAfford}
+                        onClick={() => onBuyBooster(b.id)}
+                        className={`px-2 py-1.5 font-pixel-display text-[9px] inline-flex items-center gap-1 cursor-pointer ${
+                          canAfford
+                            ? 'pixel-btn-primary'
+                            : 'bg-[#1C213D] border-2 border-[#38426E] text-[#6E7BA6] cursor-not-allowed'
+                        }`}
+                      >
+                        +{b.price}C
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {tab === 'scores' && (
           /* Local Top-5 Leaderboard */
           <div className="flex flex-col gap-2">
             {shop.leaderboard.length === 0 ? (

@@ -563,3 +563,23 @@ export const SLOWMO_SPRITE: PixelGrid = [
   '.KGGGGGGK.',
   '.KKKKKKKK.',
 ];
+
+export const TURBO_DASH_PALETTE: Record<string, string> = {
+  K: '#141224',
+  W: '#FFFFFF',
+  Y: '#FFE848',
+  O: '#FF9820',
+};
+
+export const TURBO_DASH_SPRITE: PixelGrid = [
+  '....KKKK..',
+  '...KWWYK..',
+  '..KWWYYK..',
+  '.KWWYYKK..',
+  'KWWYYYYYK.',
+  'KKKYYYOK..',
+  '..KYYOK...',
+  '.KYYOK....',
+  '.KOOOK....',
+  '..KKK.....',
+];

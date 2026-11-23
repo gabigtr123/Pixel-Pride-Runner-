@@ -33,9 +33,9 @@
 
 ### 🌍 Gameplay, Biomes & Progression
 - **6 Parallax Pixel-Art Biomes** — Seamlessly transition every 400m through **Sunlit Highlands**, **Amber Canyon**, **Starlight Citadel**, **Dawn Peaks**, **Frost Tundra** *(falling snow)*, and **Volcanic Forge** *(rising embers)*, each with custom skies, parallax layers, and its own chiptune theme.
-- **Pixel Shop & Top-5 Leaderboard** — Bank collected coins across runs to unlock **Pixel Knight**, permanent upgrades (**Magnet Time**, **Gold Value**, **Lucky Drops**), and cosmetic runner trails (**Classic**, **Rainbow**, **Blossom**, **Ember**), plus track your local **Top 5** high scores.
-- **5 Power-Ups & Combo System** — Chain **Coins** for combo multipliers and grab **Star Shield**, **Heart**, **Coin Magnet**, **2X Score**, and **Slow-Mo** pickups.
-- **Crisp Platformer Physics & 4 Hazards** — Variable-height jump cut, double jump, coyote time (`110ms`), jump buffering (`120ms`), ground slide/duck, mid-air fast-fall, and dynamic encounters with **Spikes**, stompable **Hoppers**, **Swoopers**, and **Flames**.
+- **Pixel Shop 2.0 (Wardrobe, Gadgets, Boosters & Top 5)** — Spend coins on **Wardrobe** cosmetics (**5 Hats** & **3 Capes / Jetpack / Angel Wings** worn live on any hero), **5 Equippable Gadgets** (*Spring Boots* Triple Jump, *Mega Magnet*, *Auto-Shield*, *Golden Touch*, *Second Wind* Revive — 2 active slots + unlockable **3rd slot**), repeatable **Pre-Run Boosters** (*Head Start*, *Shield Pack*, *2X Potion*), **Pixel Knight**, permanent upgrades, and runner trails!
+- **6 Power-Ups & Combo System** — Chain **Coins** for combo multipliers and grab **Star Shield**, **Heart**, **Coin Magnet**, **2X Score**, **Slow-Mo**, and **⚡ Turbo Dash** (invincible smash burst!) pickups.
+- **Crisp Platformer Physics & 4 Hazards** — Variable-height jump cut, double/triple jump, coyote time (`110ms`), jump buffering (`120ms`), ground slide/duck, mid-air fast-fall, and dynamic encounters with **Spikes**, stompable **Hoppers**, **Swoopers**, and **Flames**.
 - **Daily Missions & 7-Day Login Streak** — 3 fresh daily quests every calendar day plus a 7-day play streak unlocking starting score boosts, a free **Star Shield** (Day 3+), and a **Coin Magnet** (Day 5+).
 - **Procedural Chiptune Audio & Haptics** — Built-in Web Audio API synthesizer (`ChiptuneAudio`) with per-biome 16-step loops, retro SFX, and tactile mobile vibration feedback on stomps, power-ups, hits, and mission unlocks.
 - **Dedicated Portrait & Landscape Modes** — Automatically adapts between true vertical Portrait (`300×520` full-screen with underground touch control deck) and wide Landscape (`480×270` with bottom-right thumb controls).
@@ -52,8 +52,8 @@ Pre-built **Web** and **Android 17** packages are published on the [GitHub Relea
 | Platform | Latest Release | Artifact | How to Run / Install |
 | :--- | :--- | :--- | :--- |
 | **Android / Web PWA (Live)** | [Play / Install PWA](https://gabigtr123.github.io/Pixel-Pride-Runner-/) | GitHub Pages | Open in Chrome on Android and tap **Install app** — full-screen offline play, automatic updates, **0 Play Protect warnings**. |
-| **Android 17 Signed APK** | [`v2.3.0`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v2.3.0) | `pixel-stride-v2.3.0-android.apk` | Signed Release APK (API 37 / Capacitor 9) with Material You themed icon & persistent keystore. |
-| **Web (Static Bundle)** | [`v2.3.0`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v2.3.0) | `pixel-stride-v2.3.0-web.zip` | Unzip and serve with any static host (`npx serve .`, Netlify, Vercel, or GitHub Pages). |
+| **Android 17 Signed APK** | [`v2.4.0`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v2.4.0) | `pixel-stride-v2.4.0-android.apk` | Signed Release APK (API 37 / Capacitor 9) with Material You themed icon & persistent keystore. |
+| **Web (Static Bundle)** | [`v2.4.0`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v2.4.0) | `pixel-stride-v2.4.0-web.zip` | Unzip and serve with any static host (`npx serve .`, Netlify, Vercel, or GitHub Pages). |
 
 ---
 

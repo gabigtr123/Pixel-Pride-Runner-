@@ -53,19 +53,30 @@ import { triggerHaptic } from './game/haptics';
 import { getRenderViewport, renderGameWorld } from './game/renderer';
 import {
   addCoinsToBank,
+  buyBooster,
+  buyExtraGadgetSlot,
   buyKnightCharacter,
+  buyOrEquipCape,
+  buyOrEquipHat,
   buyOrEquipTrail,
+  buyOrToggleGadget,
   buyUpgrade,
+  consumeArmedBoosters,
   createDefaultShopState,
   loadShopState,
   recordLeaderboardRun,
   saveShopState,
+  toggleArmBooster,
   type ShopState,
 } from './game/shop';
 import type {
+  BoosterId,
+  CapeId,
   CharacterId,
   CustomCharacterConfig,
+  GadgetId,
   GameState,
+  HatId,
   HudSnapshot,
   InputFrame,
   OrientationMode,
@@ -155,6 +166,7 @@ function hudChanged(a: HudSnapshot, b: HudSnapshot): boolean {
     a.magnetSeconds !== b.magnetSeconds ||
     a.doubleScoreSeconds !== b.doubleScoreSeconds ||
     a.slowMoSeconds !== b.slowMoSeconds ||
+    a.turboDashSeconds !== b.turboDashSeconds ||
     a.zoneIndex !== b.zoneIndex ||
     (a.zoneBannerTimer > 0) !== (b.zoneBannerTimer > 0) ||
     a.level !== b.level ||
@@ -278,8 +290,11 @@ export default function App() {
       saveCreatorState(nextCreator);
       setNewlyUnlockedCosmetics(unlockedNow);
 
-      // Bank run coins + update Top-5 local leaderboard
-      let nextShop = addCoinsToBank(shopRef.current, nextState.finalRun.coins);
+      // Bank run coins (+25% with Golden Touch gadget) + update Top-5 local leaderboard
+      const bankedCoins = nextState.gadgets.includes('goldenTouch')
+        ? Math.ceil(nextState.finalRun.coins * 1.25)
+        : nextState.finalRun.coins;
+      let nextShop = addCoinsToBank(shopRef.current, bankedCoins);
       nextShop = recordLeaderboardRun(nextShop, {
         score: nextState.finalRun.score,
         distance: nextState.finalRun.distance,
@@ -332,14 +347,26 @@ export default function App() {
       saveDailyProgress(syncedDaily);
     }
     const dailyBonus = computeActiveRunBonus(syncedDaily);
+    const { nextShop: postBoosterShop, consumed } = consumeArmedBoosters(shopRef.current);
+    if (postBoosterShop !== shopRef.current) {
+      shopRef.current = postBoosterShop;
+      setShop(postBoosterShop);
+      saveShopState(postBoosterShop);
+    }
     const currentShop = shopRef.current;
     curr.customCharacter = creatorRef.current.config;
     const next = startNewRun(curr, {
       ...dailyBonus,
+      startWithShield: dailyBonus.startWithShield || consumed.includes('shieldPack'),
+      startDoubleScoreSeconds: consumed.includes('doublePotion') ? 15 : 0,
+      startTurboDashSeconds: consumed.includes('headStart') ? 5 : 0,
       magnetDurationBonus: currentShop.upgrades.magnetLevel * 1.5,
       coinBonusPoints: currentShop.upgrades.coinValueLevel * 15,
       powerupCooldownReduction: currentShop.upgrades.powerupFreqLevel * 1.8,
       trailId: currentShop.activeTrail,
+      hatId: currentShop.activeHat,
+      capeId: currentShop.activeCape,
+      gadgets: currentShop.equippedGadgets,
     });
     stateRef.current = next;
     saveBestScore(next.bestScore);
@@ -413,6 +440,74 @@ export default function App() {
       setShop(next);
       saveShopState(next);
       audioRef.current?.playEvents([{ type: 'coin', combo: 2 }]);
+    }
+  }, []);
+
+  const handleSelectHat = useCallback((id: HatId) => {
+    const next = buyOrEquipHat(shopRef.current, id);
+    if (next !== shopRef.current) {
+      shopRef.current = next;
+      setShop(next);
+      saveShopState(next);
+      if (stateRef.current) stateRef.current.hatId = next.activeHat;
+      audioRef.current?.playEvents([{ type: 'coin', combo: 3 }]);
+      triggerHaptic('powerup');
+    }
+  }, []);
+
+  const handleSelectCape = useCallback((id: CapeId) => {
+    const next = buyOrEquipCape(shopRef.current, id);
+    if (next !== shopRef.current) {
+      shopRef.current = next;
+      setShop(next);
+      saveShopState(next);
+      if (stateRef.current) stateRef.current.capeId = next.activeCape;
+      audioRef.current?.playEvents([{ type: 'coin', combo: 3 }]);
+      triggerHaptic('powerup');
+    }
+  }, []);
+
+  const handleBuyOrToggleGadget = useCallback((id: GadgetId) => {
+    const next = buyOrToggleGadget(shopRef.current, id);
+    if (next !== shopRef.current) {
+      shopRef.current = next;
+      setShop(next);
+      saveShopState(next);
+      if (stateRef.current) stateRef.current.gadgets = [...next.equippedGadgets];
+      audioRef.current?.playEvents([{ type: 'powerup', kind: 'magnet' }]);
+      triggerHaptic('powerup');
+    }
+  }, []);
+
+  const handleBuyExtraGadgetSlot = useCallback(() => {
+    const next = buyExtraGadgetSlot(shopRef.current);
+    if (next !== shopRef.current) {
+      shopRef.current = next;
+      setShop(next);
+      saveShopState(next);
+      audioRef.current?.playEvents([{ type: 'powerup', kind: 'shield' }]);
+      triggerHaptic('mission');
+    }
+  }, []);
+
+  const handleBuyBooster = useCallback((id: BoosterId) => {
+    const next = buyBooster(shopRef.current, id);
+    if (next !== shopRef.current) {
+      shopRef.current = next;
+      setShop(next);
+      saveShopState(next);
+      audioRef.current?.playEvents([{ type: 'coin', combo: 4 }]);
+      triggerHaptic('powerup');
+    }
+  }, []);
+
+  const handleToggleArmBooster = useCallback((id: BoosterId) => {
+    const next = toggleArmBooster(shopRef.current, id);
+    if (next !== shopRef.current) {
+      shopRef.current = next;
+      setShop(next);
+      saveShopState(next);
+      audioRef.current?.playEvents([{ type: 'coin', combo: 1 }]);
     }
   }, []);
 
@@ -506,6 +601,9 @@ export default function App() {
     }
     const baseState = createInitialState(initialBest, 'title', initialCharacter);
     baseState.customCharacter = creatorRef.current.config;
+    baseState.hatId = shopRef.current.activeHat;
+    baseState.capeId = shopRef.current.activeCape;
+    baseState.gadgets = [...shopRef.current.equippedGadgets];
     const initialState = autoStart
       ? startNewRun(baseState, {
           ...computeActiveRunBonus(dailyRef.current),
@@ -513,6 +611,9 @@ export default function App() {
           coinBonusPoints: shopRef.current.upgrades.coinValueLevel * 15,
           powerupCooldownReduction: shopRef.current.upgrades.powerupFreqLevel * 1.8,
           trailId: shopRef.current.activeTrail,
+          hatId: shopRef.current.activeHat,
+          capeId: shopRef.current.activeCape,
+          gadgets: shopRef.current.equippedGadgets,
         })
       : baseState;
     stateRef.current = initialState;
@@ -928,6 +1029,12 @@ export default function App() {
         onBuyKnight={handleBuyKnight}
         onBuyUpgrade={handleBuyUpgrade}
         onSelectTrail={handleSelectTrail}
+        onSelectHat={handleSelectHat}
+        onSelectCape={handleSelectCape}
+        onBuyOrToggleGadget={handleBuyOrToggleGadget}
+        onBuyExtraGadgetSlot={handleBuyExtraGadgetSlot}
+        onBuyBooster={handleBuyBooster}
+        onToggleArmBooster={handleToggleArmBooster}
         onClose={() => setShopOpen(false)}
       />
 

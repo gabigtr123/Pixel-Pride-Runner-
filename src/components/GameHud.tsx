@@ -97,6 +97,12 @@ export function GameHud({
                   SLOW {hud.slowMoSeconds}S
                 </span>
               )}
+
+              {hud.turboDashSeconds > 0 && (
+                <span className="inline-flex items-center gap-1 font-pixel-display text-[10px] sm:text-xs text-[#FFE848] pixel-text-shadow whitespace-nowrap">
+                  ⚡ DASH {hud.turboDashSeconds}S
+                </span>
+              )}
             </div>
           </div>
 

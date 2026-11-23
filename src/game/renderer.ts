@@ -31,6 +31,8 @@ import {
   SWOOPER_DOWN,
   SWOOPER_PALETTE,
   SWOOPER_UP,
+  TURBO_DASH_PALETTE,
+  TURBO_DASH_SPRITE,
 } from './sprites';
 import type { BiomePalette, GameState, OrientationMode, RenderViewport } from './types';
 import { WINTER_BIOME_PALETTE, type WeatherCondition } from './weather';
@@ -628,6 +630,8 @@ function drawPickups(ctx: CanvasRenderingContext2D, state: GameState): void {
       drawPixelGrid(ctx, DOUBLE_STAR_SPRITE, DOUBLE_STAR_PALETTE, x + 1, y + 1, 1);
     } else if (item.kind === 'slowMo') {
       drawPixelGrid(ctx, SLOWMO_SPRITE, SLOWMO_PALETTE, x + 1, y + 1, 1);
+    } else if (item.kind === 'turboDash') {
+      drawPixelGrid(ctx, TURBO_DASH_SPRITE, TURBO_DASH_PALETTE, x + 1, y + 1, 1);
     }
   }
 }
@@ -845,6 +849,43 @@ function drawPlayer(ctx: CanvasRenderingContext2D, state: GameState): void {
   }
   ctx.scale(p.scaleX, p.scaleY);
 
+  // Equipped Cape / Jetpack / Angel Wings (drawn behind hero)
+  if (state.capeId !== 'none' && !p.koActive) {
+    const flutter = Math.round(Math.sin(state.elapsed * 16) * 1.5);
+    const backX = -spriteW * 0.5 - 1;
+    const bodyY = -spriteH + (p.isDucking ? 3 : 6);
+    if (state.capeId === 'hero') {
+      ctx.fillStyle = '#141224';
+      ctx.fillRect(backX - 6, bodyY - 1 + flutter, 8, 9);
+      ctx.fillStyle = '#E83044';
+      ctx.fillRect(backX - 5, bodyY + flutter, 6, 7);
+      ctx.fillStyle = '#FF7888';
+      ctx.fillRect(backX - 4, bodyY + flutter, 4, 2);
+    } else if (state.capeId === 'jetpack') {
+      ctx.fillStyle = '#141224';
+      ctx.fillRect(backX - 4, bodyY, 6, 9);
+      ctx.fillStyle = '#B8C8E0';
+      ctx.fillRect(backX - 3, bodyY + 1, 4, 7);
+      ctx.fillStyle = '#E84048';
+      ctx.fillRect(backX - 3, bodyY + 2, 4, 2);
+      if (!p.onGround || p.turboDashTimer > 0) {
+        const flameH = 4 + (Math.floor(state.elapsed * 24) % 3);
+        ctx.fillStyle = '#FF9820';
+        ctx.fillRect(backX - 3, bodyY + 9, 4, flameH);
+        ctx.fillStyle = '#FFF8A8';
+        ctx.fillRect(backX - 2, bodyY + 9, 2, Math.max(2, flameH - 2));
+      }
+    } else if (state.capeId === 'wings') {
+      const flap = p.onGround ? flutter : Math.round(Math.sin(state.elapsed * 24) * 3);
+      ctx.fillStyle = '#141224';
+      ctx.fillRect(backX - 7, bodyY - 3 + flap, 9, 8);
+      ctx.fillStyle = '#FFFDF5';
+      ctx.fillRect(backX - 6, bodyY - 2 + flap, 7, 6);
+      ctx.fillStyle = '#FFE068';
+      ctx.fillRect(backX - 5, bodyY - 1 + flap, 5, 2);
+    }
+  }
+
   drawPixelGrid(
     ctx,
     grid,
@@ -854,7 +895,68 @@ function drawPlayer(ctx: CanvasRenderingContext2D, state: GameState): void {
     1,
     p.hitFlashTimer > 0,
   );
+
+  // Equipped Hat / Headgear (anchored cleanly to hero head)
+  if (state.hatId !== 'none' && !p.koActive) {
+    const headTopY = -spriteH;
+    if (state.hatId === 'crown') {
+      ctx.fillStyle = '#141224';
+      ctx.fillRect(-5, headTopY - 4, 10, 5);
+      ctx.fillStyle = '#FFE048';
+      ctx.fillRect(-4, headTopY - 3, 2, 3);
+      ctx.fillRect(-1, headTopY - 4, 2, 4);
+      ctx.fillRect(2, headTopY - 3, 2, 3);
+      ctx.fillRect(-4, headTopY - 1, 8, 2);
+      ctx.fillStyle = '#FF3858';
+      ctx.fillRect(-1, headTopY - 1, 2, 1);
+    } else if (state.hatId === 'wizard') {
+      ctx.fillStyle = '#141224';
+      ctx.fillRect(-6, headTopY - 1, 12, 3);
+      ctx.fillRect(-4, headTopY - 4, 8, 4);
+      ctx.fillRect(-2, headTopY - 7, 4, 3);
+      ctx.fillStyle = '#5844C8';
+      ctx.fillRect(-5, headTopY, 10, 1);
+      ctx.fillRect(-3, headTopY - 3, 6, 3);
+      ctx.fillRect(-1, headTopY - 6, 2, 3);
+      ctx.fillStyle = '#FFE05C';
+      ctx.fillRect(-3, headTopY - 1, 6, 1);
+    } else if (state.hatId === 'santa') {
+      ctx.fillStyle = '#141224';
+      ctx.fillRect(-5, headTopY - 4, 10, 5);
+      ctx.fillStyle = '#E8283C';
+      ctx.fillRect(-4, headTopY - 3, 7, 3);
+      ctx.fillRect(-2, headTopY - 4, 4, 1);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(-4, headTopY - 1, 8, 2);
+      ctx.fillRect(3, headTopY - 2, 2, 2);
+    } else if (state.hatId === 'visor') {
+      const eyeY = headTopY + (p.isDucking ? 3 : 4);
+      ctx.fillStyle = '#121324';
+      ctx.fillRect(-2, eyeY - 1, 8, 4);
+      ctx.fillStyle = '#48F0FF';
+      ctx.fillRect(-1, eyeY, 6, 2);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(3, eyeY, 2, 1);
+    } else if (state.hatId === 'halo') {
+      const bob = Math.round(Math.sin(state.elapsed * 6));
+      ctx.fillStyle = '#FFE848';
+      ctx.fillRect(-4, headTopY - 5 + bob, 8, 2);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(-2, headTopY - 5 + bob, 4, 1);
+    }
+  }
   ctx.restore();
+
+  // Golden electric aura when Turbo Dash is active
+  if (p.turboDashTimer > 0 && !p.koActive) {
+    const cx = Math.round(p.x + p.width * 0.5);
+    const cy = Math.round(p.y - p.height * 0.5);
+    ctx.fillStyle = 'rgba(255, 232, 72, 0.28)';
+    ctx.fillRect(cx - 14, cy - 13, 28, 26);
+    ctx.fillStyle = '#FFF8C0';
+    ctx.fillRect(cx - 18, cy - 6, 8, 2);
+    ctx.fillRect(cx - 22, cy + 2, 10, 2);
+  }
 
   // Orbiting Star Shield barrier (diegetic on-character visual)
   if (p.shieldActive && !p.koActive) {

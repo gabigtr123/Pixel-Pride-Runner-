@@ -15,6 +15,14 @@ export interface CustomCharacterConfig {
 
 export type TrailId = 'classic' | 'rainbow' | 'blossom' | 'ember';
 
+export type HatId = 'none' | 'crown' | 'wizard' | 'santa' | 'visor' | 'halo';
+
+export type CapeId = 'none' | 'hero' | 'jetpack' | 'wings';
+
+export type GadgetId = 'springBoots' | 'megaMagnet' | 'autoShield' | 'secondWind' | 'goldenTouch';
+
+export type BoosterId = 'headStart' | 'shieldPack' | 'doublePotion';
+
 export type OrientationMode = 'portrait' | 'landscape';
 
 export interface RenderViewport {
@@ -27,7 +35,14 @@ export interface RenderViewport {
 
 export type HazardKind = 'spike' | 'hopper' | 'swooper' | 'flame';
 
-export type PickupKind = 'coin' | 'shield' | 'heart' | 'magnet' | 'doubleScore' | 'slowMo';
+export type PickupKind =
+  | 'coin'
+  | 'shield'
+  | 'heart'
+  | 'magnet'
+  | 'doubleScore'
+  | 'slowMo'
+  | 'turboDash';
 
 export type AudioEvent =
   | { type: 'jump'; pitchScale: number }
@@ -35,7 +50,7 @@ export type AudioEvent =
   | { type: 'land' }
   | { type: 'slide' }
   | { type: 'coin'; combo: number }
-  | { type: 'powerup'; kind: 'shield' | 'heart' | 'magnet' | 'doubleScore' | 'slowMo' }
+  | { type: 'powerup'; kind: 'shield' | 'heart' | 'magnet' | 'doubleScore' | 'slowMo' | 'turboDash' }
   | { type: 'stomp' }
   | { type: 'telegraph' }
   | { type: 'shieldBreak' }
@@ -76,6 +91,9 @@ export interface PlayerState {
   magnetTimer: number;
   doubleScoreTimer: number;
   slowMoTimer: number;
+  turboDashTimer: number;
+  autoShieldTimer: number;
+  secondWindUsed: boolean;
   trailTimer: number;
   scaleX: number;
   scaleY: number;
@@ -199,6 +217,7 @@ export interface HudSnapshot {
   magnetSeconds: number;
   doubleScoreSeconds: number;
   slowMoSeconds: number;
+  turboDashSeconds: number;
   zoneName: string;
   zoneIndex: number;
   zoneBannerTimer: number;
@@ -213,6 +232,9 @@ export interface GameState {
   characterId: CharacterId;
   customCharacter?: CustomCharacterConfig;
   trailId: TrailId;
+  hatId: HatId;
+  capeId: CapeId;
+  gadgets: GadgetId[];
   magnetDurationBonus: number;
   coinBonusPoints: number;
   powerupCooldownReduction: number;

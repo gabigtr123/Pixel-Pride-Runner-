@@ -31,10 +31,17 @@ import {
 import { getRenderViewport } from './renderer';
 import {
   addCoinsToBank,
+  buyBooster,
+  buyExtraGadgetSlot,
   buyKnightCharacter,
+  buyOrEquipCape,
+  buyOrEquipHat,
   buyOrEquipTrail,
+  buyOrToggleGadget,
   buyUpgrade,
+  consumeArmedBoosters,
   createDefaultShopState,
+  getMaxGadgetSlots,
   recordLeaderboardRun,
 } from './shop';
 import type { InputFrame } from './types';
@@ -490,4 +497,83 @@ test('v2.3 Level system advances every 3 Day/Night cycles (90s), awards bonus, a
   const reset = startNewRun(st);
   assert.equal(reset.level, 1);
   assert.equal(reset.dayCycleCount, 0);
+});
+
+test('v2.4 Shop 2.0 handles Wardrobe, 2-slot + unlockable 3rd Gadget slot, and consumable Boosters', () => {
+  let shop = addCoinsToBank(createDefaultShopState(), 2500);
+
+  // Wardrobe hats & capes
+  shop = buyOrEquipHat(shop, 'crown');
+  assert.equal(shop.activeHat, 'crown');
+  shop = buyOrEquipCape(shop, 'jetpack');
+  assert.equal(shop.activeCape, 'jetpack');
+
+  // 2 gadget slots by default
+  assert.equal(getMaxGadgetSlots(shop), 2);
+  shop = buyOrToggleGadget(shop, 'springBoots');
+  shop = buyOrToggleGadget(shop, 'secondWind');
+  shop = buyOrToggleGadget(shop, 'megaMagnet'); // bought, stays unequipped at 2/2 cap
+  assert.equal(shop.equippedGadgets.length, 2);
+
+  // Unlock 3rd extra gadget slot (500C) and equip 3rd gadget
+  shop = buyExtraGadgetSlot(shop);
+  assert.equal(getMaxGadgetSlots(shop), 3);
+  shop = buyOrToggleGadget(shop, 'megaMagnet');
+  assert.equal(shop.equippedGadgets.length, 3);
+
+  // Buy & consume pre-run boosters
+  shop = buyBooster(shop, 'headStart');
+  assert.equal(shop.boosters.headStart, 1);
+  assert.equal(shop.armedBoosters.includes('headStart'), true);
+  const { nextShop, consumed } = consumeArmedBoosters(shop);
+  assert.deepEqual(consumed, ['headStart']);
+  assert.equal(nextShop.boosters.headStart, 0);
+  assert.equal(nextShop.armedBoosters.length, 0);
+});
+
+test('v2.4 Gadgets & Turbo Dash grant Triple Jump, Second Wind revive, and invincible hazard smash', () => {
+  const rng = makeSeededRng(204);
+  const st = startNewRun(createInitialState(0, 'title'), {
+    gadgets: ['springBoots', 'secondWind'],
+    startTurboDashSeconds: 4,
+  });
+
+  // Spring Boots grants 3 jumps
+  assert.equal(st.player.maxJumps, 3);
+  assert.equal(st.player.turboDashTimer, 4);
+
+  // Turbo Dash smashes hazards while invincible without hurting player
+  st.hazards.push({
+    id: 999,
+    kind: 'spike',
+    x: st.player.x,
+    y: st.player.y - 14,
+    width: 16,
+    height: 14,
+    baseY: st.player.y - 14,
+    vx: 0,
+    vy: 0,
+    phaseTimer: 0,
+    telegraphTimer: 0,
+    telegraphSounded: false,
+    isActive: true,
+    stomped: false,
+    koTimer: 0,
+    koVx: 0,
+    koVy: 0,
+    hitFlash: 0,
+  });
+  const hpBefore = st.player.hp;
+  stepSimulation(st, 1 / 60, IDLE_INPUT, rng);
+  assert.equal(st.player.hp, hpBefore, 'Turbo Dash must protect from spikes');
+  assert.equal(st.hazards.length, 0, 'Turbo Dash must smash the hazard');
+
+  // Second Wind revives player once when hitting 0 HP
+  st.player.turboDashTimer = 0;
+  st.player.invulnTimer = 0;
+  st.player.hp = 1;
+  applyDamageToPlayer(st, rng);
+  assert.equal(st.player.koActive, false, 'Second Wind prevents KO');
+  assert.equal(st.player.hp, 2, 'Second Wind restores 2 HP');
+  assert.equal(st.player.secondWindUsed, true);
 });
