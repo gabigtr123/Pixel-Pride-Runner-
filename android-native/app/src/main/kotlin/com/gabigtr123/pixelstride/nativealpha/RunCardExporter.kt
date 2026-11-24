@@ -158,6 +158,9 @@ object RunCardExporter {
             onGround = true,
             ducking = false,
             animTime = 0f,
+            custom = snapshot.customHero,
+            hat = snapshot.hat,
+            cape = snapshot.cape,
         )
         if (snapshot.pet != PetId.NONE) {
             val petX = heroCenterX - 134f
@@ -259,7 +262,7 @@ object RunCardExporter {
         textPaint.textSize = 9f
         textPaint.textAlign = Paint.Align.LEFT
         textPaint.color = 0xFF8898C8.toInt()
-        c.drawText("PIXEL STRIDE v4.0-ALPHA.4 · $dateStr", 52f, h - 50f, textPaint)
+        c.drawText("PIXEL STRIDE v4.0-BETA.1 · $dateStr", 52f, h - 50f, textPaint)
         textPaint.textAlign = Paint.Align.RIGHT
         textPaint.color = accent
         c.drawText("100% NATIVE ANDROID 17", w - 52f, h - 50f, textPaint)

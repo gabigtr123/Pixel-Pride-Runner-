@@ -15,9 +15,26 @@ enum class UiAction {
     SELECT_HERO_STRIDE,
     SELECT_HERO_LILY,
     SELECT_HERO_KNIGHT,
-    CYCLE_PET,
+    SELECT_HERO_CUSTOM,
+    OPEN_SHOP,
+    OPEN_CREATOR,
+    OPEN_DAILY,
+    OPEN_TROPHY,
     OPEN_WEATHER,
+    CLOSE_MODAL,
     CLOSE_WEATHER,
+    SHOP_TAB,
+    SHOP_HAT,
+    SHOP_CAPE,
+    SHOP_PET,
+    SHOP_GADGET,
+    SHOP_UNLOCK_SLOT3,
+    SHOP_BOOSTER,
+    CREATOR_CYCLE,
+    CREATOR_USE,
+    CLAIM_DAILY,
+    CLAIM_TROPHY,
+    TROPHY_PAGE,
     SET_TOD_AUTO,
     SET_TOD_DAY,
     SET_TOD_NIGHT,
@@ -50,7 +67,7 @@ enum class UiAction {
     DUCK_BTN,
 }
 
-data class HitButton(val action: UiAction, val rect: RectF)
+data class HitButton(val action: UiAction, val rect: RectF, val payload: String = "")
 
 class GameRenderer(
     private val displayFont: Typeface,
@@ -81,6 +98,19 @@ class GameRenderer(
 
     val buttons = mutableListOf<HitButton>()
 
+    private val metaModals = MetaModalsRenderer(
+        paint = paint,
+        strokePaint = strokePaint,
+        displayPaint = displayPaint,
+        uiPaint = uiPaint,
+        buttons = buttons,
+        drawPixelPanel = { c, r, dp -> drawPixelPanel(c, r, dp) },
+        drawPrimaryBtn = { c, r, label, sz, dp -> drawPixelButtonPrimary(c, r, label, sz, dp) },
+        drawSecondaryBtn = { c, r, label, sz, dp, col -> drawPixelButtonSecondary(c, r, label, sz, dp, col) },
+        drawModePill = { c, r, label, sel, dp -> drawModePill(c, r, label, sel, dp) },
+        drawShadowTitle = { c, txt, x, y, sz, col, dp, al -> drawShadowDisplayText(c, txt, x, y, sz, col, dp, al) },
+    )
+
     var toastMessage: String? = null
     var toastTimer: Float = 0f
 
@@ -91,6 +121,9 @@ class GameRenderer(
         insetTopPx: Float,
         insetBottomPx: Float,
         engine: GameEngine,
+        meta: MetaProgressionManager,
+        shopTab: ShopTab,
+        trophyPage: Int,
         muted: Boolean,
         runCardPreview: Bitmap?,
     ) {
@@ -98,7 +131,6 @@ class GameRenderer(
         val vw = viewWidth.toFloat().coerceAtLeast(1f)
         val vh = viewHeight.toFloat().coerceAtLeast(1f)
         val isPortrait = vh >= vw
-        // Full-bleed pixel scaling (zero black letterbox bars on tall 20:9 Android screens!)
         val scale = if (isPortrait) vw / engine.worldWidth else vh / engine.worldHeight
         val visibleWorldW = vw / scale
         val visibleWorldH = vh / scale
@@ -125,14 +157,18 @@ class GameRenderer(
         val topSafe = insetTopPx + 10f
         val bottomSafe = insetBottomPx + 12f
         when (engine.phase) {
-            GamePhase.TITLE -> drawTitleOverlay(canvas, vw, vh, topSafe, bottomSafe, engine, muted)
+            GamePhase.TITLE -> drawTitleOverlay(canvas, vw, vh, topSafe, bottomSafe, engine, meta, muted)
             GamePhase.WEATHER -> drawWeatherModal(canvas, vw, vh, topSafe, bottomSafe, engine)
+            GamePhase.SHOP -> metaModals.drawShopModal(canvas, vw, vh, topSafe, bottomSafe, engine, meta, shopTab)
+            GamePhase.CREATOR -> metaModals.drawCreatorModal(canvas, vw, vh, topSafe, bottomSafe, engine, meta)
+            GamePhase.DAILY -> metaModals.drawDailyModal(canvas, vw, vh, topSafe, bottomSafe, meta)
+            GamePhase.TROPHY -> metaModals.drawTrophyModal(canvas, vw, vh, topSafe, bottomSafe, meta, trophyPage)
             GamePhase.PLAYING -> drawPlayingHud(canvas, vw, vh, topSafe, bottomSafe, engine, muted)
             GamePhase.PAUSED -> {
                 drawPlayingHud(canvas, vw, vh, topSafe, bottomSafe, engine, muted)
                 drawPauseOverlay(canvas, vw, vh)
             }
-            GamePhase.GAME_OVER -> drawGameOverOverlay(canvas, vw, vh, topSafe, bottomSafe, engine)
+            GamePhase.GAME_OVER -> drawGameOverOverlay(canvas, vw, vh, topSafe, bottomSafe, engine, meta)
             GamePhase.RUN_CARD -> drawRunCardModal(canvas, vw, vh, topSafe, bottomSafe, runCardPreview)
         }
 
@@ -500,6 +536,9 @@ class GameRenderer(
                 onGround = engine.onGround,
                 ducking = isDuck,
                 animTime = engine.elapsed,
+                custom = engine.customHero,
+                hat = engine.hat,
+                cape = engine.cape,
             )
 
             if (engine.hasShield) {
@@ -538,73 +577,87 @@ class GameRenderer(
         topSafe: Float,
         bottomSafe: Float,
         engine: GameEngine,
+        meta: MetaProgressionManager,
         muted: Boolean,
     ) {
-        // ZERO dark scrim — sunlit sky, horizon & running hero stay 100% bright & alive like v3.0.3!
         val dp = minOf(vw, vh) / 360f
         val cx = vw / 2f
 
-        // Top HUD bar: Coins, Pet selector, Weather button on left; Sound toggle on right
-        val coinRect = RectF(10f * dp, topSafe, 92f * dp, topSafe + 36f * dp)
-        drawPixelButtonSecondary(c, coinRect, "${engine.totalCoins}C", 9f * dp, dp, textColor = 0xFFFFF4A8.toInt())
+        // Exact v3.0.3 top HUD bar: DAY X | COINS SHOP | TROPHY | WX | SFX
+        val h = 34f * dp
+        val dailyRect = RectF(8f * dp, topSafe, 82f * dp, topSafe + h)
+        drawPixelButtonSecondary(c, dailyRect, "D${meta.streakDays} ${meta.completedDailyCount()}/3", 7.5f * dp, dp, textColor = 0xFFFFE05C.toInt())
+        if (meta.hasUnclaimedDaily()) {
+            paint.color = 0xFF78F0A8.toInt()
+            c.drawRect(dailyRect.right - 8f * dp, dailyRect.top + 3f * dp, dailyRect.right - 2f * dp, dailyRect.top + 9f * dp, paint)
+        }
+        buttons.add(HitButton(UiAction.OPEN_DAILY, dailyRect))
 
-        val petRect = RectF(98f * dp, topSafe, 200f * dp, topSafe + 36f * dp)
-        drawPixelButtonSecondary(c, petRect, "PET:${engine.pet.displayName}", 7.5f * dp, dp, textColor = engine.pet.accentColor)
-        buttons.add(HitButton(UiAction.CYCLE_PET, petRect))
+        val shopRect = RectF(86f * dp, topSafe, 174f * dp, topSafe + h)
+        drawPixelButtonSecondary(c, shopRect, "${engine.totalCoins}C SHOP", 7.5f * dp, dp, textColor = 0xFFFFF4A8.toInt())
+        buttons.add(HitButton(UiAction.OPEN_SHOP, shopRect))
 
-        val wxRect = RectF(206f * dp, topSafe, 294f * dp, topSafe + 36f * dp)
-        drawPixelButtonSecondary(c, wxRect, engine.weatherBadgeLabel(), 8f * dp, dp, textColor = 0xFF78E8FF.toInt())
+        val trophyRect = RectF(178f * dp, topSafe, 232f * dp, topSafe + h)
+        drawPixelButtonSecondary(c, trophyRect, "🏆${meta.unlockedTrophies.size}", 8f * dp, dp, textColor = 0xFFFFE05C.toInt())
+        if (meta.hasUnclaimedTrophy()) {
+            paint.color = 0xFF78F0A8.toInt()
+            c.drawRect(trophyRect.right - 8f * dp, trophyRect.top + 3f * dp, trophyRect.right - 2f * dp, trophyRect.top + 9f * dp, paint)
+        }
+        buttons.add(HitButton(UiAction.OPEN_TROPHY, trophyRect))
+
+        val wxRect = RectF(236f * dp, topSafe, 304f * dp, topSafe + h)
+        drawPixelButtonSecondary(c, wxRect, engine.weatherBadgeLabel(), 7.5f * dp, dp, textColor = 0xFF78E8FF.toInt())
         buttons.add(HitButton(UiAction.OPEN_WEATHER, wxRect))
 
-        val muteRect = RectF(vw - 52f * dp, topSafe, vw - 10f * dp, topSafe + 36f * dp)
-        drawPixelButtonSecondary(c, muteRect, if (muted) "OFF" else "SFX", 8.5f * dp, dp)
+        val muteRect = RectF(vw - 48f * dp, topSafe, vw - 8f * dp, topSafe + h)
+        drawPixelButtonSecondary(c, muteRect, if (muted) "OFF" else "SFX", 7.5f * dp, dp)
         buttons.add(HitButton(UiAction.TOGGLE_MUTE, muteRect))
 
         // Exact v3.0.3 PixelStrideTitleLogo cartridge plaque in the upper sky!
         val logoW = minOf(vw - 24f * dp, 326f * dp)
         val logoH = logoW * (116f / 420f)
-        val logoY = topSafe + 48f * dp
+        val logoY = topSafe + 46f * dp
         drawTitleLogo(c, cx - logoW / 2f, logoY, logoW, logoH)
 
-        // Lower underground masonry deck: Hero selector pills + PERK + Mode pills + START RUN
-        val stackW = minOf(vw - 20f * dp, 340f * dp)
+        // Lower underground masonry deck: 4 Hero pills + PERK/EDIT + 4 Mode pills + START RUN
+        val stackW = minOf(vw - 18f * dp, 344f * dp)
         val startH = 50f * dp
-        val modeH = 32f * dp
+        val modeH = 30f * dp
         val perkH = 22f * dp
-        val heroH = 42f * dp
+        val heroH = 38f * dp
         val startY = vh - bottomSafe - startH - 6f * dp
-        val modeY = startY - 12f * dp - modeH
+        val modeY = startY - 10f * dp - modeH
         val perkY = modeY - 8f * dp - perkH
         val heroY = perkY - 8f * dp - heroH
 
-        // 3 Compact Horizontal Hero Selector Pills (exact v3.0.3 style)
-        val heroGap = 6f * dp
-        val heroW = (stackW - heroGap * 2f) / 3f
+        // 4 Compact Horizontal Hero Selector Pills (STRIDE, LILY, KNIGHT, CUSTOM)
+        val heroGap = 4f * dp
+        val heroW = (stackW - heroGap * 3f) / 4f
         val heroActions = listOf(
             HeroId.STRIDE to UiAction.SELECT_HERO_STRIDE,
             HeroId.LILY to UiAction.SELECT_HERO_LILY,
             HeroId.KNIGHT to UiAction.SELECT_HERO_KNIGHT,
+            HeroId.CUSTOM to UiAction.SELECT_HERO_CUSTOM,
         )
         for (i in heroActions.indices) {
             val (hId, action) = heroActions[i]
             val rx = cx - stackW / 2f + i * (heroW + heroGap)
             val rect = RectF(rx, heroY, rx + heroW, heroY + heroH)
-            val selected = engine.hero == hId
-            drawHeroPill(c, rect, hId, selected, engine.elapsed, dp)
+            drawHeroPill(c, rect, hId, engine.hero == hId, engine.elapsed, engine.customHero, dp)
             buttons.add(HitButton(action, rect))
         }
 
-        // Active Hero & Pet PERK badge
-        val perkText = if (engine.pet != PetId.NONE) {
-            "PERK: ${engine.hero.perk} · PET: ${engine.pet.perk}"
-        } else {
-            "PERK: ${engine.hero.perk} · BEST: ${engine.bestScore}"
+        // Active Hero PERK / EDIT HERO badge
+        val perkText = when {
+            engine.hero == HeroId.CUSTOM -> "TAP CUSTOM AGAIN TO EDIT HERO · BEST ${engine.bestScore}"
+            engine.pet != PetId.NONE -> "PERK: ${engine.hero.perk} · PET: ${engine.pet.displayName}"
+            else -> "PERK: ${engine.hero.perk} · BEST: ${engine.bestScore}"
         }
-        val perkW = minOf(stackW, 290f * dp)
+        val perkW = minOf(stackW, 316f * dp)
         paint.color = 0xC0111324.toInt()
         c.drawRect(cx - perkW / 2f, perkY, cx + perkW / 2f, perkY + perkH, paint)
         uiPaint.textAlign = Paint.Align.CENTER
-        uiPaint.textSize = 8.5f * dp
+        uiPaint.textSize = 8f * dp
         uiPaint.color = 0xFF78F0A8.toInt()
         c.drawText(perkText, cx, perkY + 14.5f * dp, uiPaint)
 
@@ -625,7 +678,7 @@ class GameRenderer(
             buttons.add(HitButton(action, rect))
         }
 
-        // Golden Pixel START RUN button (exact v3.0.3 .pixel-btn-primary)
+        // Golden Pixel START RUN button
         val startRect = RectF(cx - stackW / 2f, startY, cx + stackW / 2f, startY + startH)
         drawPixelButtonPrimary(c, startRect, "START RUN", 14f * dp, dp)
         buttons.add(HitButton(UiAction.START_RUN, startRect))
@@ -817,6 +870,7 @@ class GameRenderer(
         hero: HeroId,
         selected: Boolean,
         animTime: Float,
+        customHero: CustomHeroConfig,
         dp: Float,
     ) {
         paint.color = 0xFF0A0C18.toInt()
@@ -827,16 +881,16 @@ class GameRenderer(
         strokePaint.strokeWidth = (if (selected) 3f else 2f) * dp
         c.drawRect(rect, strokePaint)
 
-        val spScale = 1.45f * dp
-        val spX = rect.left + 7f * dp
+        val spScale = 1.25f * dp
+        val spX = rect.left + 5f * dp
         val spY = rect.centerY() - (19f * spScale) / 2f
-        PixelSprites.drawHero(c, hero, spX, spY, spScale, onGround = true, ducking = false, animTime = if (selected) animTime else 0f)
+        PixelSprites.drawHero(c, hero, spX, spY, spScale, onGround = true, ducking = false, animTime = if (selected) animTime else 0f, custom = customHero)
 
         displayPaint.textAlign = Paint.Align.LEFT
-        displayPaint.textSize = 8.5f * dp
+        displayPaint.textSize = 7f * dp
         displayPaint.color = if (selected) 0xFFFFF4A8.toInt() else 0xFFC8D2EE.toInt()
         val baseline = rect.centerY() - (displayPaint.descent() + displayPaint.ascent()) / 2f
-        c.drawText(hero.displayName, spX + 26f * dp, baseline, displayPaint)
+        c.drawText(hero.displayName, spX + 21f * dp, baseline, displayPaint)
     }
 
     private fun drawModePill(c: Canvas, rect: RectF, label: String, selected: Boolean, dp: Float) {
@@ -950,13 +1004,14 @@ class GameRenderer(
         topSafe: Float,
         bottomSafe: Float,
         engine: GameEngine,
+        meta: MetaProgressionManager,
     ) {
         paint.color = 0xC80B0D1A.toInt()
         c.drawRect(0f, 0f, vw, vh, paint)
         val dp = minOf(vw, vh) / 360f
         val cx = vw / 2f
         val panelW = minOf(vw - 28f * dp, 330f * dp)
-        val panelH = minOf(vh - topSafe - bottomSafe - 24f * dp, 360f * dp)
+        val panelH = minOf(vh - topSafe - bottomSafe - 24f * dp, 368f * dp)
         val topY = (vh - panelH) / 2f
         val snap = engine.lastRun
 
@@ -965,7 +1020,12 @@ class GameRenderer(
 
         drawShadowDisplayText(c, "RUN OVER", cx, topY + 42f * dp, 18f * dp, 0xFFFF6878.toInt(), dp)
 
-        if (snap?.isNewBest == true) {
+        if (meta.newlyUnlockedTrophies.isNotEmpty()) {
+            uiPaint.textAlign = Paint.Align.CENTER
+            uiPaint.textSize = 10f * dp
+            uiPaint.color = 0xFFFFE05C.toInt()
+            c.drawText("🏆 TROPHY UNLOCKED: ${meta.newlyUnlockedTrophies.first().title}!", cx, topY + 64f * dp, uiPaint)
+        } else if (snap?.isNewBest == true) {
             uiPaint.textAlign = Paint.Align.CENTER
             uiPaint.textSize = 11f * dp
             uiPaint.color = 0xFF78F0A8.toInt()

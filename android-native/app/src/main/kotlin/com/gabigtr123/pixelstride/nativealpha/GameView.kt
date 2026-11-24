@@ -14,6 +14,7 @@ import androidx.core.content.res.ResourcesCompat
 
 class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback, EngineFeedback {
     private val prefs = context.getSharedPreferences("pixel_stride_native_v4", Context.MODE_PRIVATE)
+    private val meta = MetaProgressionManager(prefs)
     private val synth = ChiptuneSynth()
     private val engine = GameEngine(this)
     private val displayFont = ResourcesCompat.getFont(context, R.font.press_start_2p)
@@ -26,6 +27,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     private var running = false
     private var renderThread: Thread? = null
     private var runCardPreview: Bitmap? = null
+    private var shopTab: ShopTab = ShopTab.WARDROBE
+    private var trophyPage: Int = 0
 
     var insetTopPx: Float = 48f
     var insetBottomPx: Float = 32f
@@ -49,6 +52,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         engine.timeOfDayMode = TimeOfDayMode.entries.getOrElse(prefs.getInt("tod_ordinal", 0)) { TimeOfDayMode.AUTO }
         engine.weatherSource = WeatherSource.entries.getOrElse(prefs.getInt("wx_src_ordinal", 0)) { WeatherSource.AUTO }
         engine.manualWeather = WeatherCondition.entries.getOrElse(prefs.getInt("wx_man_ordinal", 1)) { WeatherCondition.RAIN }
+        engine.hat = meta.equippedHat
+        engine.cape = meta.equippedCape
+        engine.customHero = meta.customHero
         synth.muted = prefs.getBoolean("muted", false)
     }
 
@@ -64,6 +70,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             .putInt("wx_man_ordinal", engine.manualWeather.ordinal)
             .putBoolean("muted", synth.muted)
             .apply()
+        meta.save()
     }
 
     private fun vibrate(ms: Long, amplitude: Int = 80) {
@@ -180,6 +187,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                                 insetTopPx = insetTopPx,
                                 insetBottomPx = insetBottomPx,
                                 engine = engine,
+                                meta = meta,
+                                shopTab = shopTab,
+                                trophyPage = trophyPage,
                                 muted = synth.muted,
                                 runCardPreview = runCardPreview,
                             )
@@ -225,7 +235,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                 MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                     val hit = renderer.buttons.firstOrNull { it.rect.contains(x, y) }
                     if (hit != null) {
-                        handleButtonPress(hit.action, pointerId)
+                        handleButtonPress(hit, pointerId)
                         return true
                     }
                     if (engine.phase == GamePhase.PLAYING) {
@@ -248,30 +258,156 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         return true
     }
 
-    private fun handleButtonPress(action: UiAction, pointerId: Int) {
-        when (action) {
+    private fun handleButtonPress(hit: HitButton, pointerId: Int) {
+        when (hit.action) {
             UiAction.START_RUN, UiAction.RESTART -> {
                 runCardPreview?.recycle()
                 runCardPreview = null
-                engine.startNewRun()
+                engine.hat = meta.equippedHat
+                engine.cape = meta.equippedCape
+                engine.customHero = meta.customHero
+                engine.startNewRun(meta)
                 synth.startMusic()
                 vibrate(14, 70)
             }
             UiAction.SELECT_HERO_STRIDE -> selectHero(HeroId.STRIDE)
             UiAction.SELECT_HERO_LILY -> selectHero(HeroId.LILY)
             UiAction.SELECT_HERO_KNIGHT -> selectHero(HeroId.KNIGHT)
-            UiAction.CYCLE_PET -> {
-                val next = (engine.pet.ordinal + 1) % PetId.entries.size
-                engine.pet = PetId.entries[next]
-                persistSave()
+            UiAction.SELECT_HERO_CUSTOM -> {
+                if (engine.hero == HeroId.CUSTOM) {
+                    engine.phase = GamePhase.CREATOR
+                    vibrate(10, 50)
+                } else {
+                    selectHero(HeroId.CUSTOM)
+                }
+            }
+            UiAction.OPEN_SHOP -> {
+                engine.phase = GamePhase.SHOP
+                vibrate(10, 50)
+            }
+            UiAction.OPEN_CREATOR -> {
+                engine.phase = GamePhase.CREATOR
+                vibrate(10, 50)
+            }
+            UiAction.OPEN_DAILY -> {
+                engine.phase = GamePhase.DAILY
+                vibrate(10, 50)
+            }
+            UiAction.OPEN_TROPHY -> {
+                engine.phase = GamePhase.TROPHY
                 vibrate(10, 50)
             }
             UiAction.OPEN_WEATHER -> {
                 engine.phase = GamePhase.WEATHER
                 vibrate(10, 50)
             }
-            UiAction.CLOSE_WEATHER -> {
+            UiAction.CLOSE_MODAL, UiAction.CLOSE_WEATHER -> {
                 engine.phase = GamePhase.TITLE
+            }
+            UiAction.SHOP_TAB -> {
+                runCatching { shopTab = ShopTab.valueOf(hit.payload) }
+            }
+            UiAction.SHOP_HAT -> {
+                runCatching {
+                    val hat = HatId.valueOf(hit.payload)
+                    val (coins, msg) = meta.buyOrEquipHat(hat, engine.totalCoins)
+                    engine.totalCoins = coins
+                    engine.hat = meta.equippedHat
+                    persistSave()
+                    showToast(msg)
+                    vibrate(12, 60)
+                }
+            }
+            UiAction.SHOP_CAPE -> {
+                runCatching {
+                    val cape = CapeId.valueOf(hit.payload)
+                    val (coins, msg) = meta.buyOrEquipCape(cape, engine.totalCoins)
+                    engine.totalCoins = coins
+                    engine.cape = meta.equippedCape
+                    persistSave()
+                    showToast(msg)
+                    vibrate(12, 60)
+                }
+            }
+            UiAction.SHOP_PET -> {
+                runCatching {
+                    val pet = PetId.valueOf(hit.payload)
+                    val (coins, equipped, msg) = meta.buyOrEquipPet(pet, engine.totalCoins)
+                    engine.totalCoins = coins
+                    if (equipped) engine.pet = pet
+                    persistSave()
+                    showToast(msg)
+                    vibrate(12, 60)
+                }
+            }
+            UiAction.SHOP_GADGET -> {
+                runCatching {
+                    val g = GadgetId.valueOf(hit.payload)
+                    val (coins, msg) = meta.toggleOrBuyGadget(g, engine.totalCoins)
+                    engine.totalCoins = coins
+                    persistSave()
+                    showToast(msg)
+                    vibrate(12, 60)
+                }
+            }
+            UiAction.SHOP_UNLOCK_SLOT3 -> {
+                val (coins, msg) = meta.unlockThirdSlot(engine.totalCoins)
+                engine.totalCoins = coins
+                persistSave()
+                showToast(msg)
+                vibrate(15, 80)
+            }
+            UiAction.SHOP_BOOSTER -> {
+                runCatching {
+                    val b = BoosterId.valueOf(hit.payload)
+                    val (coins, msg) = meta.buyBooster(b, engine.totalCoins)
+                    engine.totalCoins = coins
+                    persistSave()
+                    showToast(msg)
+                    vibrate(12, 60)
+                }
+            }
+            UiAction.CREATOR_CYCLE -> {
+                val c = meta.customHero
+                meta.customHero = when (hit.payload) {
+                    "HAIR" -> c.copy(hairIndex = (c.hairIndex + 1) % CustomHeroConfig.HAIR_COLORS.size)
+                    "TUNIC" -> c.copy(tunicIndex = (c.tunicIndex + 1) % CustomHeroConfig.TUNIC_COLORS.size)
+                    "SCARF" -> c.copy(scarfIndex = (c.scarfIndex + 1) % CustomHeroConfig.SCARF_COLORS.size)
+                    "BOOTS" -> c.copy(bootsIndex = (c.bootsIndex + 1) % CustomHeroConfig.BOOTS_COLORS.size)
+                    else -> c
+                }
+                engine.customHero = meta.customHero
+                persistSave()
+                vibrate(10, 50)
+            }
+            UiAction.CREATOR_USE -> {
+                engine.hero = HeroId.CUSTOM
+                engine.customHero = meta.customHero
+                engine.phase = GamePhase.TITLE
+                persistSave()
+                showToast("CUSTOM HERO READY!")
+            }
+            UiAction.CLAIM_DAILY -> {
+                val idx = hit.payload.toIntOrNull() ?: return
+                val reward = meta.claimDaily(idx)
+                if (reward > 0) {
+                    engine.totalCoins += reward
+                    persistSave()
+                    synth.playPowerUp()
+                    showToast("CLAIMED +${reward}C!")
+                }
+            }
+            UiAction.CLAIM_TROPHY -> {
+                val reward = meta.claimTrophy(hit.payload)
+                if (reward > 0) {
+                    engine.totalCoins += reward
+                    persistSave()
+                    synth.playPowerUp()
+                    showToast("TROPHY REWARD +${reward}C!")
+                }
+            }
+            UiAction.TROPHY_PAGE -> {
+                trophyPage = hit.payload.toIntOrNull() ?: 0
             }
             UiAction.SET_TOD_AUTO -> setTimeOfDay(TimeOfDayMode.AUTO)
             UiAction.SET_TOD_DAY -> setTimeOfDay(TimeOfDayMode.DAY)
@@ -437,6 +573,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         synth.stopMusic()
         synth.playGameOver()
         vibrate(80, 200)
+        meta.recordRunCompleted(snapshot)
         persistSave()
     }
 }

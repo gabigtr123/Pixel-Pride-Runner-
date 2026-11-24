@@ -1,15 +1,16 @@
-name: Release Native Alpha (Android 17 Kotlin / Zero WebView)
+name: Release Native (Android 17 Kotlin / Zero WebView)
 
 on:
   push:
     tags:
       - "v*-alpha*"
+      - "v*-beta*"
   workflow_dispatch:
     inputs:
       tag:
-        description: "Alpha release tag (e.g. v4.0.0-alpha.1)"
+        description: "Pre-release tag (e.g. v4.0.0-beta.1)"
         required: true
-        default: "v4.0.0-alpha.1"
+        default: "v4.0.0-beta.1"
 
 permissions:
   contents: write
@@ -80,16 +81,18 @@ jobs:
               "### Downloads" \
               "- **Native Android 17 Signed APK (Alpha):** \`${APK}\` (Package ID: \`com.gabigtr123.pixelstride.nativealpha\` — installs side-by-side alongside v3.0.3 without overwriting your saves!)" \
               "" \
-              "### What's New in v4.0.0-alpha.4 (Milestone 2: Audio, Pets & Live Weather Parity)" \
-              "- **6 Biome Chiptune Music Loops + Boss Battle Theme (\`AudioTrack\`):** Ported all 6 exact 16-step chiptune lead + bass loops (Sunlit Highlands, Amber Canyon, Starlight Citadel, Dawn Peaks, Frost Tundra, Volcanic Forge) plus the Boss Battle theme, streaming natively with zero audio files." \
-              "- **3 Pet Companions (Live Gameplay + Run Card PNG):**" \
-              "  - **Pixel Fox** — Hops beside you and fetches nearby coins (\`95px\` pull radius)." \
-              "  - **Frost Owl** — Hovers overhead and grants \`+10%\` bonus score on everything." \
-              "  - **Mini Dragon** — Hovers overhead and zaps 1 visible hazard ahead every \`20s\` with a lightning beam for \`+75 ZAP!\`." \
-              "- **Live Weather Sync (Open-Meteo + Native Android GPS):** Tap the Weather pill on the Title Screen to toggle Day/Night (\`AUTO / DAY / NIGHT\`), pick manual weather (\`SUN / RAIN / STORM / SNOW / FOG\`), pick a preset city, or tap **DETECT DEVICE GPS** (native Android runtime Location permission) — with weather-reactive ground puddles, rain splashes, storm lightning, fog mist, and snow icicles!" \
+              "### What's New in v4.0.0-beta.1 (Milestone 3: Full Meta-Progression Parity)" \
+              "- **Pixel Shop 2.0 (4 Tabs: Wardrobe, Gadgets, Boosts, Top 5):**" \
+              "  - **Wardrobe:** 5 Hats (Crown, Wizard, Santa, Visor, Halo), 3 Back Gear (Hero Cape, Jetpack, Angel Wings), and 3 Pet Companions (Pixel Fox, Frost Owl, Mini Dragon) — rendered live in gameplay AND on the \`640×900\` Run Card PNG!" \
+              "  - **5 Equippable Gadgets** (2 slots + unlockable Slot #3 for \`400 C\`): Feather Boots (Triple Jump), Phoenix Charm (Second Wind 1× Revive), Magnet Ring (\`80px\` pull), Golden Emblem (\`+15%\` score), Aegis Buckle (Start Shield)." \
+              "  - **3 Consumable Boosters:** Turbo Start (\`4.5s\` Turbo Dash), Heart Flask (\`+1\` Max HP), 2X Coins Run." \
+              "  - **Local Top-5 Leaderboard:** Tracks your top 5 runs with hero, mode, and date." \
+              "- **Hero Creator (\`CUSTOM\` Hero):** Customize Hair/Cap, Tunic, Scarf, and Boots colors with live animated preview — playable in-game and rendered on Run Card PNGs." \
+              "- **Daily Missions & 7-Day Login Streak:** 3 deterministic daily quests with progress bars & claimable coin rewards, plus 7-day streak perks (Day 2 \`+150\` score, Day 3 free Star Shield, Day 5 Coin Magnet)." \
+              "- **Trophy Room (12 Achievements + Career Stats):** 12 claimable milestones (\`+50 C\` to \`+200 C\`), Career Stats bar, and instant **🏆 TROPHY UNLOCKED!** Game Over banner." \
               > release-notes-alpha.md
             gh release create "$RELEASE_TAG" "$APK" \
-              --title "Pixel Stride Native ${RELEASE_TAG} (Zero WebView Alpha)" \
+              --title "Pixel Stride Native ${RELEASE_TAG} (Zero WebView Beta)" \
               --notes-file release-notes-alpha.md \
               --prerelease
           fi

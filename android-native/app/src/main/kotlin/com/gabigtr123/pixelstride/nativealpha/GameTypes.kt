@@ -7,12 +7,17 @@ enum class GamePhase {
     GAME_OVER,
     RUN_CARD,
     WEATHER,
+    SHOP,
+    CREATOR,
+    DAILY,
+    TROPHY,
 }
 
 enum class HeroId(val displayName: String, val perk: String, val maxHp: Int, val accentColor: Int) {
     STRIDE("STRIDE", "+25% STOMP", 3, 0xFFFFE05C.toInt()),
     LILY("LILY", "COIN AURA", 3, 0xFFFF78B4.toInt()),
     KNIGHT("KNIGHT", "4 MAX HP", 4, 0xFF78E8FF.toInt()),
+    CUSTOM("CUSTOM", "HERO CREATOR", 3, 0xFF78F0A8.toInt()),
 }
 
 enum class PetId(val displayName: String, val perk: String, val accentColor: Int) {
@@ -236,6 +241,9 @@ data class RunSnapshot(
     val zoneName: String,
     val hero: HeroId,
     val pet: PetId = PetId.NONE,
+    val hat: HatId = HatId.NONE,
+    val cape: CapeId = CapeId.NONE,
+    val customHero: CustomHeroConfig = CustomHeroConfig(),
     val mode: GameMode,
     val isNewBest: Boolean,
 )

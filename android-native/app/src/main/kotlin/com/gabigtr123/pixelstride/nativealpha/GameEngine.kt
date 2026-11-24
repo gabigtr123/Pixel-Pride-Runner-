@@ -32,7 +32,17 @@ class GameEngine(private val feedback: EngineFeedback) {
     var phase: GamePhase = GamePhase.TITLE
     var hero: HeroId = HeroId.STRIDE
     var pet: PetId = PetId.NONE
+    var hat: HatId = HatId.NONE
+    var cape: CapeId = CapeId.NONE
+    var customHero: CustomHeroConfig = CustomHeroConfig()
     var mode: GameMode = GameMode.ENDLESS
+
+    // Active run perk flags (populated from Gadgets, Boosters & Streak on startNewRun)
+    var maxJumps: Int = 2
+    var secondWindReady: Boolean = false
+    var gadgetMagnetActive: Boolean = false
+    var gadgetScoreBoostActive: Boolean = false
+    var doubleCoinsRunActive: Boolean = false
 
     // Weather & Time-of-Day state
     var weatherSource: WeatherSource = WeatherSource.AUTO
@@ -168,16 +178,25 @@ class GameEngine(private val feedback: EngineFeedback) {
         }
     }
 
-    fun startNewRun() {
+    fun startNewRun(meta: MetaProgressionManager? = null) {
         phase = GamePhase.PLAYING
-        maxHp = if (mode == GameMode.HARDCORE) 1 else hero.maxHp
+        val (headStart, extraHeart, doubleCoins) = meta?.consumeRunBoosters() ?: Triple(false, false, false)
+        val streak = meta?.streakDays ?: 1
+        maxJumps = if (meta?.hasGadget(GadgetId.TRIPLE_JUMP) == true) 3 else 2
+        secondWindReady = meta?.hasGadget(GadgetId.SECOND_WIND) == true
+        gadgetMagnetActive = meta?.hasGadget(GadgetId.COIN_MAGNET) == true
+        gadgetScoreBoostActive = meta?.hasGadget(GadgetId.SCORE_BOOST) == true
+        doubleCoinsRunActive = doubleCoins
+
+        val baseHp = if (mode == GameMode.HARDCORE) 1 else hero.maxHp
+        maxHp = if (extraHeart && mode != GameMode.HARDCORE) baseHp + 1 else baseHp
         hp = maxHp
-        hasShield = false
-        magnetTimer = 0f
+        hasShield = (meta?.hasGadget(GadgetId.SHIELD_START) == true) || streak >= 3
+        magnetTimer = if (streak >= 5) 8f else 0f
         doubleScoreTimer = 0f
         slowMoTimer = 0f
-        turboTimer = 0f
-        score = 0f
+        turboTimer = if (headStart) 4.5f else 0f
+        score = if (streak >= 2) 150f else 0f
         runCoins = 0
         distance = 0f
         stomps = 0
@@ -191,7 +210,7 @@ class GameEngine(private val feedback: EngineFeedback) {
         playerVy = 0f
         ducking = false
         onGround = true
-        jumpsRemaining = 2
+        jumpsRemaining = maxJumps
         coyoteTimer = 0f
         jumpBufferTimer = 0f
         invulnTimer = 0f
@@ -230,7 +249,6 @@ class GameEngine(private val feedback: EngineFeedback) {
         val wasDuck = ducking
         ducking = active
         if (active && !onGround && playerVy < 340f) {
-            // Fast-fall in mid-air
             playerVy = 390f
         } else if (onGround && active != wasDuck) {
             playerY = groundY - currentPlayerHeight()
@@ -262,7 +280,7 @@ class GameEngine(private val feedback: EngineFeedback) {
             playerVy = -355f
             onGround = false
             coyoteTimer = 0f
-            jumpsRemaining = 1
+            jumpsRemaining = maxJumps - 1
             jumpBufferTimer = 0f
             ducking = false
             spawnDust(playerX + 10f, groundY, 6, 0xFFE8EEF8.toInt())
@@ -279,7 +297,7 @@ class GameEngine(private val feedback: EngineFeedback) {
 
     fun update(rawDt: Float) {
         val dt = rawDt.coerceIn(0f, 0.05f)
-        if (phase == GamePhase.TITLE || phase == GamePhase.WEATHER) {
+        if (phase == GamePhase.TITLE || phase == GamePhase.WEATHER || phase == GamePhase.SHOP || phase == GamePhase.CREATOR || phase == GamePhase.DAILY || phase == GamePhase.TROPHY) {
             elapsed += dt
             scrollX += 65f * dt
             return
@@ -308,8 +326,9 @@ class GameEngine(private val feedback: EngineFeedback) {
         distance += (currentSpeed * dt) / 14f
 
         val owlMult = if (pet == PetId.OWL) 1.10f else 1f
+        val gadgetScoreMult = if (gadgetScoreBoostActive) 1.15f else 1f
         val scoreMult = (if (doubleScoreTimer > 0f) 2f else 1f) *
-            (if (mode == GameMode.HARDCORE) 2f else 1f) * owlMult
+            (if (mode == GameMode.HARDCORE) 2f else 1f) * owlMult * gadgetScoreMult
         score += (currentSpeed * dt * 0.14f) * scoreMult
 
         // Level & biome progression
@@ -367,7 +386,7 @@ class GameEngine(private val feedback: EngineFeedback) {
             playerY = targetGroundTop
             playerVy = 0f
             onGround = true
-            jumpsRemaining = 2
+            jumpsRemaining = maxJumps
             coyoteTimer = 0.11f
             tryConsumeJump()
         } else if (onGround) {
@@ -616,6 +635,7 @@ class GameEngine(private val feedback: EngineFeedback) {
                 val pullRadius = when {
                     magnetTimer > 0f -> 125f
                     pet == PetId.FOX -> 95f
+                    gadgetMagnetActive -> 80f
                     hero == HeroId.LILY -> 58f
                     else -> 0f
                 }
@@ -639,7 +659,7 @@ class GameEngine(private val feedback: EngineFeedback) {
             if (hit) {
                 when (c.type) {
                     CollectibleType.COIN -> {
-                        val gain = if (mode == GameMode.HARDCORE) 2 else 1
+                        val gain = (if (mode == GameMode.HARDCORE) 2 else 1) * (if (doubleCoinsRunActive) 2 else 1)
                         runCoins += gain
                         totalCoins += gain
                         score += 15f * scoreMult
@@ -694,6 +714,16 @@ class GameEngine(private val feedback: EngineFeedback) {
             return
         }
         hp--
+        if (hp <= 0 && secondWindReady) {
+            secondWindReady = false
+            hp = 1
+            invulnTimer = 1.8f
+            screenShake = 6f
+            spawnDust(playerX + 10f, playerY + 10f, 18, 0xFFFFE05C.toInt())
+            floatingTexts.add(FloatingText(playerX + 10f, playerY - 16f, "SECOND WIND!", 0xFFFFE05C.toInt(), 1.2f))
+            feedback.onPowerUp()
+            return
+        }
         invulnTimer = 1.35f
         screenShake = 7f
         spawnDust(playerX + 10f, playerY + 10f, 14, 0xFFFF4868.toInt())
@@ -714,6 +744,9 @@ class GameEngine(private val feedback: EngineFeedback) {
                 zoneName = currentBiome().name,
                 hero = hero,
                 pet = pet,
+                hat = hat,
+                cape = cape,
+                customHero = customHero,
                 mode = mode,
                 isNewBest = isNewBest,
             )

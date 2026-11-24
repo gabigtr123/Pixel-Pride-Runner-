@@ -621,10 +621,11 @@ object PixelSprites {
         "..KK..........KK..",
     )
 
-    fun paletteFor(hero: HeroId): Map<Char, Int> = when (hero) {
+    fun paletteFor(hero: HeroId, custom: CustomHeroConfig = CustomHeroConfig()): Map<Char, Int> = when (hero) {
         HeroId.STRIDE -> STRIDE_PALETTE
         HeroId.LILY -> LILY_PALETTE
         HeroId.KNIGHT -> KNIGHT_PALETTE
+        HeroId.CUSTOM -> custom.toPalette()
     }
 
     fun heroFrame(hero: HeroId, onGround: Boolean, ducking: Boolean, animTime: Float): List<String> {
@@ -659,16 +660,119 @@ object PixelSprites {
         ducking: Boolean,
         animTime: Float,
         whiteFlash: Boolean = false,
+        custom: CustomHeroConfig = CustomHeroConfig(),
+        hat: HatId = HatId.NONE,
+        cape: CapeId = CapeId.NONE,
     ) {
-        drawPixelGrid(
-            canvas,
-            heroFrame(hero, onGround, ducking, animTime),
-            paletteFor(hero),
-            x,
-            y,
-            scale,
-            whiteFlash,
-        )
+        val frame = heroFrame(hero, onGround, ducking, animTime)
+        val anchorX = x + (frame[0].length * scale) / 2f
+        val feetY = y + frame.size * scale
+        if (cape != CapeId.NONE) {
+            drawHeroExtras(canvas, HatId.NONE, cape, anchorX, feetY, frame[0].length, frame.size, scale)
+        }
+        drawPixelGrid(canvas, frame, paletteFor(hero, custom), x, y, scale, whiteFlash)
+        if (hat != HatId.NONE) {
+            drawHeroExtras(canvas, hat, CapeId.NONE, anchorX, feetY, frame[0].length, frame.size, scale)
+        }
+    }
+
+    fun drawHeroExtras(
+        c: Canvas,
+        hat: HatId,
+        cape: CapeId,
+        anchorX: Float,
+        feetY: Float,
+        spriteW: Int,
+        spriteH: Int,
+        s: Float,
+    ) {
+        val backX = anchorX - (spriteW * s) / 2f - s
+        val bodyY = feetY - spriteH * s + 6f * s
+
+        when (cape) {
+            CapeId.HERO -> {
+                paint.color = 0xFF141224.toInt()
+                c.drawRect(backX - 6f * s, bodyY - s, backX + 2f * s, bodyY + 8f * s, paint)
+                paint.color = 0xFFE83044.toInt()
+                c.drawRect(backX - 5f * s, bodyY, backX + s, bodyY + 7f * s, paint)
+                paint.color = 0xFFFF7888.toInt()
+                c.drawRect(backX - 4f * s, bodyY, backX, bodyY + 2f * s, paint)
+            }
+            CapeId.JETPACK -> {
+                paint.color = 0xFF141224.toInt()
+                c.drawRect(backX - 4f * s, bodyY, backX + 2f * s, bodyY + 9f * s, paint)
+                paint.color = 0xFFB8C8E0.toInt()
+                c.drawRect(backX - 3f * s, bodyY + s, backX + s, bodyY + 8f * s, paint)
+                paint.color = 0xFFE84048.toInt()
+                c.drawRect(backX - 3f * s, bodyY + 2f * s, backX + s, bodyY + 4f * s, paint)
+                paint.color = 0xFFFF9820.toInt()
+                c.drawRect(backX - 3f * s, bodyY + 9f * s, backX + s, bodyY + 13f * s, paint)
+                paint.color = 0xFFFFF8A8.toInt()
+                c.drawRect(backX - 2f * s, bodyY + 9f * s, backX, bodyY + 11f * s, paint)
+            }
+            CapeId.WINGS -> {
+                paint.color = 0xFF141224.toInt()
+                c.drawRect(backX - 7f * s, bodyY - 3f * s, backX + 2f * s, bodyY + 5f * s, paint)
+                paint.color = 0xFFFFFDF5.toInt()
+                c.drawRect(backX - 6f * s, bodyY - 2f * s, backX + s, bodyY + 4f * s, paint)
+                paint.color = 0xFFFFE068.toInt()
+                c.drawRect(backX - 5f * s, bodyY - s, backX, bodyY + s, paint)
+            }
+            CapeId.NONE -> Unit
+        }
+
+        val headTopY = feetY - spriteH * s
+        when (hat) {
+            HatId.CROWN -> {
+                paint.color = 0xFF141224.toInt()
+                c.drawRect(anchorX - 5f * s, headTopY - 4f * s, anchorX + 5f * s, headTopY + s, paint)
+                paint.color = 0xFFFFE048.toInt()
+                c.drawRect(anchorX - 4f * s, headTopY - 3f * s, anchorX - 2f * s, headTopY, paint)
+                c.drawRect(anchorX - s, headTopY - 4f * s, anchorX + s, headTopY, paint)
+                c.drawRect(anchorX + 2f * s, headTopY - 3f * s, anchorX + 4f * s, headTopY, paint)
+                c.drawRect(anchorX - 4f * s, headTopY - s, anchorX + 4f * s, headTopY + s, paint)
+                paint.color = 0xFFFF3858.toInt()
+                c.drawRect(anchorX - s, headTopY - s, anchorX + s, headTopY, paint)
+            }
+            HatId.WIZARD -> {
+                paint.color = 0xFF141224.toInt()
+                c.drawRect(anchorX - 6f * s, headTopY - s, anchorX + 6f * s, headTopY + 2f * s, paint)
+                c.drawRect(anchorX - 4f * s, headTopY - 4f * s, anchorX + 4f * s, headTopY, paint)
+                c.drawRect(anchorX - 2f * s, headTopY - 7f * s, anchorX + 2f * s, headTopY - 4f * s, paint)
+                paint.color = 0xFF5844C8.toInt()
+                c.drawRect(anchorX - 5f * s, headTopY, anchorX + 5f * s, headTopY + s, paint)
+                c.drawRect(anchorX - 3f * s, headTopY - 3f * s, anchorX + 3f * s, headTopY, paint)
+                c.drawRect(anchorX - s, headTopY - 6f * s, anchorX + s, headTopY - 3f * s, paint)
+                paint.color = 0xFFFFE05C.toInt()
+                c.drawRect(anchorX - 3f * s, headTopY - s, anchorX + 3f * s, headTopY, paint)
+            }
+            HatId.SANTA -> {
+                paint.color = 0xFF141224.toInt()
+                c.drawRect(anchorX - 5f * s, headTopY - 4f * s, anchorX + 5f * s, headTopY + s, paint)
+                paint.color = 0xFFE8283C.toInt()
+                c.drawRect(anchorX - 4f * s, headTopY - 3f * s, anchorX + 3f * s, headTopY, paint)
+                c.drawRect(anchorX - 2f * s, headTopY - 4f * s, anchorX + 2f * s, headTopY - 3f * s, paint)
+                paint.color = 0xFFFFFFFF.toInt()
+                c.drawRect(anchorX - 4f * s, headTopY - s, anchorX + 4f * s, headTopY + s, paint)
+                c.drawRect(anchorX + 3f * s, headTopY - 2f * s, anchorX + 5f * s, headTopY, paint)
+            }
+            HatId.VISOR -> {
+                val eyeY = headTopY + 4f * s
+                paint.color = 0xFF121324.toInt()
+                c.drawRect(anchorX - 2f * s, eyeY - s, anchorX + 6f * s, eyeY + 3f * s, paint)
+                paint.color = 0xFF48F0FF.toInt()
+                c.drawRect(anchorX - s, eyeY, anchorX + 5f * s, eyeY + 2f * s, paint)
+                paint.color = 0xFFFFFFFF.toInt()
+                c.drawRect(anchorX + 3f * s, eyeY, anchorX + 5f * s, eyeY + s, paint)
+            }
+            HatId.HALO -> {
+                paint.color = 0xFFFFE848.toInt()
+                c.drawRect(anchorX - 4f * s, headTopY - 5f * s, anchorX + 4f * s, headTopY - 3f * s, paint)
+                paint.color = 0xFFFFFFFF.toInt()
+                c.drawRect(anchorX - 2f * s, headTopY - 5f * s, anchorX + 2f * s, headTopY - 4f * s, paint)
+            }
+            HatId.NONE -> Unit
+        }
     }
 
     fun drawHopper(canvas: Canvas, x: Float, y: Float, scale: Float, animPhase: Float) {
