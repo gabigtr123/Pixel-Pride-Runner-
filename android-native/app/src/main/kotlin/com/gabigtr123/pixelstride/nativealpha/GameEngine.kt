@@ -91,12 +91,12 @@ class GameEngine(private val feedback: EngineFeedback) {
         if (isPortrait) {
             worldWidth = 300f
             worldHeight = 520f
-            groundY = 418f
-            playerX = 52f
+            groundY = 340f
+            playerX = 48f
         } else {
             worldWidth = 480f
             worldHeight = 270f
-            groundY = 224f
+            groundY = 220f
             playerX = 76f
         }
         val delta = groundY - oldGround

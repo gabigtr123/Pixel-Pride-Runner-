@@ -3,11 +3,9 @@ package com.gabigtr123.pixelstride.nativealpha
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
-import android.graphics.Shader
 import android.graphics.Typeface
 import kotlin.math.abs
 import kotlin.math.sin
@@ -81,16 +79,13 @@ class GameRenderer(
         buttons.clear()
         val vw = viewWidth.toFloat().coerceAtLeast(1f)
         val vh = viewHeight.toFloat().coerceAtLeast(1f)
-        val scaleX = vw / engine.worldWidth
-        val scaleY = vh / engine.worldHeight
-        val scale = minOf(scaleX, scaleY)
-        val drawW = engine.worldWidth * scale
-        val drawH = engine.worldHeight * scale
-        val offsetX = (vw - drawW) / 2f
-        val offsetY = (vh - drawH) / 2f
-
-        paint.color = 0xFF0D1022.toInt()
-        canvas.drawRect(0f, 0f, vw, vh, paint)
+        val isPortrait = vh >= vw
+        // Full-bleed pixel scaling (zero black letterbox bars on tall 20:9 Android screens!)
+        val scale = if (isPortrait) vw / engine.worldWidth else vh / engine.worldHeight
+        val visibleWorldW = vw / scale
+        val visibleWorldH = vh / scale
+        val offsetX = (vw - engine.worldWidth * scale) / 2f
+        val offsetY = (vh - engine.worldHeight * scale) / 2f
 
         canvas.save()
         canvas.translate(offsetX, offsetY)
@@ -102,7 +97,11 @@ class GameRenderer(
             canvas.translate(sx, sy)
         }
 
-        drawWorld(canvas, engine)
+        val worldLeft = -offsetX / scale - 4f
+        val worldTop = -offsetY / scale - 4f
+        val worldRight = worldLeft + visibleWorldW + 8f
+        val worldBottom = worldTop + visibleWorldH + 8f
+        drawWorld(canvas, engine, worldLeft, worldTop, worldRight, worldBottom)
         canvas.restore()
 
         val topSafe = insetTopPx + 10f
@@ -123,57 +122,97 @@ class GameRenderer(
         }
     }
 
-    private fun drawWorld(c: Canvas, engine: GameEngine) {
+    private fun drawWorld(
+        c: Canvas,
+        engine: GameEngine,
+        worldLeft: Float,
+        worldTop: Float,
+        worldRight: Float,
+        worldBottom: Float,
+    ) {
         val w = engine.worldWidth
-        val h = engine.worldHeight
         val groundY = engine.groundY
         val biome = engine.currentBiome()
-        val night = engine.nightFactor()
+        val night = if (engine.phase == GamePhase.TITLE) 0f else engine.nightFactor()
         val isWinter = engine.mode == GameMode.WINTER || biome.name == "FROST TUNDRA"
         val landscapeIdx = (engine.level - 1) % 4
 
-        // 1. Sky gradient
-        val skyTop = blendColor(biome.skyTop, 0xFF0B1028.toInt(), night * 0.72f)
-        val skyMid = blendColor(biome.skyMid, 0xFF182048.toInt(), night * 0.68f)
-        val skyHor = blendColor(biome.skyHorizon, 0xFF283468.toInt(), night * 0.58f)
-        paint.shader = LinearGradient(
-            0f, 0f, 0f, groundY,
-            intArrayOf(skyTop, skyMid, skyHor),
-            floatArrayOf(0f, 0.55f, 1f),
-            Shader.TileMode.CLAMP,
-        )
-        c.drawRect(0f, 0f, w, groundY, paint)
-        paint.shader = null
+        // 1. Authentic stepped 3-band 8-bit sky + sunset/dawn coral glow + 2px pixel dither seams
+        val duskGlow = (1f - abs(night - 0.5f) * 2.6f).coerceIn(0f, 1f)
+        val skyTop = blendColor(biome.skyTop, 0xFF0B1028.toInt(), night * 0.90f)
+        val baseMid = blendColor(biome.skyMid, 0xFF16224A.toInt(), night * 0.88f)
+        val baseHor = blendColor(biome.skyHorizon, 0xFF283A6E.toInt(), night * 0.85f)
+        val skyMid = if (duskGlow > 0.05f) blendColor(baseMid, 0xFFC86068.toInt(), duskGlow * 0.42f) else baseMid
+        val skyHor = if (duskGlow > 0.05f) blendColor(baseHor, 0xFFF4A262.toInt(), duskGlow * 0.55f) else baseHor
 
-        // 2. Stars at night
-        if (night > 0.22f) {
-            val alpha = ((night - 0.22f) / 0.78f * 235f).toInt().coerceIn(0, 235)
-            paint.color = Color.argb(alpha, 255, 250, 224)
-            for (i in 0 until 22) {
-                val sx = ((i * 57 + 19) % w.toInt()).toFloat()
-                val sy = ((i * 31 + 22) % (groundY * 0.55f).toInt().coerceAtLeast(20)).toFloat()
-                val sz = if (i % 4 == 0) 2f else 1.5f
+        val band1Y = groundY - 146f
+        val band2Y = groundY - 70f
+        paint.color = skyTop
+        c.drawRect(worldLeft, worldTop, worldRight, band1Y, paint)
+        paint.color = skyMid
+        c.drawRect(worldLeft, band1Y, worldRight, band2Y, paint)
+        paint.color = skyHor
+        c.drawRect(worldLeft, band2Y, worldRight, groundY, paint)
+
+        // Stepped 2px pixel dither seams between bands
+        val ditherStart = (worldLeft.toInt() / 4) * 4
+        paint.color = skyMid
+        var dx = ditherStart.toFloat()
+        while (dx < worldRight) {
+            c.drawRect(dx, band1Y - 2f, dx + 2f, band1Y, paint)
+            dx += 4f
+        }
+        paint.color = skyHor
+        dx = ditherStart + 2f
+        while (dx < worldRight) {
+            c.drawRect(dx, band2Y - 2f, dx + 2f, band2Y, paint)
+            dx += 4f
+        }
+
+        // 2. Twinkling stars at night
+        val starAlpha = ((night - 0.35f) / 0.65f * 0.92f).coerceIn(0f, 1f)
+        if (starAlpha > 0.02f) {
+            for (i in 0 until 32) {
+                val sx = ((i * 73 + 19) % w.toInt()).toFloat()
+                val sy = worldTop + 12f + ((i * 41 + 11) % (groundY - worldTop - 70f).toInt().coerceAtLeast(30)).toFloat()
+                val twinkle = 0.45f + 0.55f * sin(engine.elapsed * 3.2f + i * 0.9f)
+                paint.color = Color.argb((starAlpha * twinkle * 255f).toInt().coerceIn(0, 255), 255, 249, 224)
+                val sz = if (i % 5 == 0) 2f else 1f
                 c.drawRect(sx, sy, sx + sz, sy + sz, paint)
             }
         }
 
-        // 3. Sun / Moon with pixel highlight
-        val celX = w - 58f
-        val celY = 44f + night * 14f
-        paint.color = if (night > 0.55f) 0xFFE8F4FF.toInt() else biome.celestialColor
-        c.drawRect(celX, celY, celX + 20f, celY + 20f, paint)
-        paint.color = 0x66FFFFFF
-        c.drawRect(celX + 3f, celY + 3f, celX + 9f, celY + 9f, paint)
+        // 3. Pixel Sun / Sunset Disc / Crescent Moon
+        val isMoon = night >= 0.62f
+        val isSunset = night in 0.34f..0.62f
+        val celX = w - 54f
+        val celY = if (isSunset) groundY - 92f else band1Y - 34f
+        paint.color = when {
+            isMoon -> 0xFFF2F6FF.toInt()
+            isSunset -> blendColor(0xFFFFE478.toInt(), 0xFFFF9858.toInt(), duskGlow)
+            else -> biome.celestialColor
+        }
+        c.drawRect(celX - 10f, celY - 14f, celX + 10f, celY + 14f, paint)
+        c.drawRect(celX - 14f, celY - 10f, celX + 14f, celY + 10f, paint)
+        if (isMoon) {
+            paint.color = skyTop
+            c.drawRect(celX - 4f, celY - 12f, celX + 10f, celY + 10f, paint)
+            c.drawRect(celX - 8f, celY - 8f, celX + 6f, celY + 6f, paint)
+        }
 
-        // 4. Parallax clouds
-        paint.color = blendColor(0xD8FFFFFF.toInt(), 0x70586898.toInt(), night)
-        val cloudSpan = w + 90f
+        // 4. Stepped pixel clouds with shadow underside
+        val cloudMain = blendColor(0xFFFFFFFF.toInt(), 0xFF485888.toInt(), night * 0.68f)
+        val cloudShade = blendColor(0xFFD4E6FA.toInt(), 0xFF263056.toInt(), night * 0.72f)
+        val cloudSpan = w + 100f
         val cloudOffset = (engine.scrollX * 0.12f) % cloudSpan
         for (i in 0 until 4) {
             val cx = ((i * 112f - cloudOffset) % cloudSpan + cloudSpan) % cloudSpan - 44f
-            val cy = 52f + (i % 2) * 28f
-            c.drawRect(cx, cy, cx + 34f, cy + 8f, paint)
-            c.drawRect(cx + 6f, cy - 5f, cx + 26f, cy, paint)
+            val cy = band1Y - 14f + (i % 2) * 28f
+            paint.color = cloudShade
+            c.drawRect(cx, cy + 5f, cx + 36f, cy + 10f, paint)
+            paint.color = cloudMain
+            c.drawRect(cx + 2f, cy + 2f, cx + 34f, cy + 7f, paint)
+            c.drawRect(cx + 8f, cy - 4f, cx + 26f, cy + 2f, paint)
         }
 
         // 5. 4 Looping Landscape Silhouettes (Meadows -> Pyramid Canyon -> Starlight City -> Crystal Peaks)
@@ -266,30 +305,36 @@ class GameRenderer(
             }
         }
 
-        // 6. Ground & pixel masonry + Winter frost/icicles
+        // 6. Full-bleed ground & repeating underground pixel masonry + Winter frost/icicles
         paint.color = 0xFF121526.toInt()
-        c.drawRect(0f, groundY - 2f, w, groundY, paint)
+        c.drawRect(worldLeft, groundY - 2f, worldRight, groundY, paint)
         paint.color = biome.grassTop
-        c.drawRect(0f, groundY, w, groundY + 7f, paint)
+        c.drawRect(worldLeft, groundY, worldRight, groundY + 7f, paint)
         paint.color = biome.grassTrim
-        c.drawRect(0f, groundY + 7f, w, groundY + 11f, paint)
+        c.drawRect(worldLeft, groundY + 7f, worldRight, groundY + 11f, paint)
         paint.color = biome.dirtMain
-        c.drawRect(0f, groundY + 11f, w, h, paint)
-        paint.color = biome.dirtDark
+        c.drawRect(worldLeft, groundY + 11f, worldRight, worldBottom, paint)
         val brickStep = 24f
         val brickOff = engine.scrollX % brickStep
-        var bx = -brickOff
-        while (bx < w + brickStep) {
-            c.drawRect(bx + 2f, groundY + 18f, bx + 14f, groundY + 24f, paint)
-            c.drawRect(bx + 12f, groundY + 32f, bx + 22f, groundY + 38f, paint)
-            if (isWinter) {
-                // Hanging pixel icicles under frosted ledge
-                paint.color = 0xFFD8F4FF.toInt()
-                c.drawRect(bx + 6f, groundY + 11f, bx + 10f, groundY + 16f, paint)
-                c.drawRect(bx + 7f, groundY + 16f, bx + 9f, groundY + 19f, paint)
-                paint.color = biome.dirtDark
+        val startBx = (kotlin.math.floor(worldLeft / brickStep) * brickStep) - brickOff
+        var rowY = groundY + 18f
+        var rowIdx = 0
+        while (rowY < worldBottom) {
+            paint.color = biome.dirtDark
+            val stagger = if (rowIdx % 2 == 0) 0f else 12f
+            var bx = startBx - brickStep
+            while (bx < worldRight + brickStep) {
+                c.drawRect(bx + 2f + stagger, rowY, bx + 14f + stagger, rowY + 6f, paint)
+                if (rowIdx == 0 && isWinter) {
+                    paint.color = 0xFFD8F4FF.toInt()
+                    c.drawRect(bx + 6f, groundY + 11f, bx + 10f, groundY + 16f, paint)
+                    c.drawRect(bx + 7f, groundY + 16f, bx + 9f, groundY + 19f, paint)
+                    paint.color = biome.dirtDark
+                }
+                bx += brickStep
             }
-            bx += brickStep
+            rowY += 16f
+            rowIdx++
         }
 
         // 7. Two-layer Winter snowfall
@@ -420,38 +465,41 @@ class GameRenderer(
         engine: GameEngine,
         muted: Boolean,
     ) {
-        paint.color = 0x7A0B0D1A
-        c.drawRect(0f, 0f, vw, vh, paint)
-
+        // ZERO dark scrim — sunlit sky, horizon & running hero stay 100% bright & alive like v3.0.3!
         val dp = minOf(vw, vh) / 360f
         val cx = vw / 2f
 
-        // Top HUD bar: Best + Coins left, Mute right
-        val pillRect = RectF(12f * dp, topSafe, 198f * dp, topSafe + 34f * dp)
-        drawPixelPanel(c, pillRect, dp)
-        uiPaint.textAlign = Paint.Align.LEFT
-        uiPaint.textSize = 11f * dp
-        uiPaint.color = 0xFFFFE05C.toInt()
-        c.drawText("★ ${engine.bestScore}   ● ${engine.totalCoins}C", pillRect.left + 12f * dp, pillRect.centerY() + 4f * dp, uiPaint)
+        // Top HUD bar: Coins + Best left, Sound right (exact pixel-icon-btn style)
+        val coinRect = RectF(12f * dp, topSafe, 118f * dp, topSafe + 38f * dp)
+        drawPixelButtonSecondary(c, coinRect, "${engine.totalCoins} C", 10f * dp, dp, textColor = 0xFFFFF4A8.toInt())
 
-        val muteRect = RectF(vw - 54f * dp, topSafe, vw - 12f * dp, topSafe + 34f * dp)
-        drawPixelButtonSecondary(c, muteRect, if (muted) "MUTE" else "SFX", 9f * dp, dp)
+        val bestRect = RectF(126f * dp, topSafe, 250f * dp, topSafe + 38f * dp)
+        drawPixelButtonSecondary(c, bestRect, "BEST ${engine.bestScore}", 9f * dp, dp, textColor = 0xFF78E8FF.toInt())
+
+        val muteRect = RectF(vw - 54f * dp, topSafe, vw - 12f * dp, topSafe + 38f * dp)
+        drawPixelButtonSecondary(c, muteRect, if (muted) "OFF" else "SFX", 9f * dp, dp)
         buttons.add(HitButton(UiAction.TOGGLE_MUTE, muteRect))
 
-        // Center Title Logo
-        val titleY = topSafe + 84f * dp
-        drawShadowDisplayText(c, "PIXEL STRIDE", cx, titleY, 24f * dp, 0xFFFFE05C.toInt(), dp)
-        uiPaint.textAlign = Paint.Align.CENTER
-        uiPaint.textSize = 10f * dp
-        uiPaint.color = 0xFF78F0A8.toInt()
-        c.drawText("NATIVE ANDROID 17 · v4.0-ALPHA.2 · ZERO WEBVIEW", cx, titleY + 22f * dp, uiPaint)
+        // Exact v3.0.3 PixelStrideTitleLogo cartridge plaque in the upper sky!
+        val logoW = minOf(vw - 24f * dp, 326f * dp)
+        val logoH = logoW * (116f / 420f)
+        val logoY = topSafe + 50f * dp
+        drawTitleLogo(c, cx - logoW / 2f, logoY, logoW, logoH)
 
-        // 3 Live Hero Selector Cards (STRIDE / LILY / KNIGHT)
-        val stackW = minOf(vw - 24f * dp, 340f * dp)
-        val cardGap = 8f * dp
-        val cardW = (stackW - cardGap * 2f) / 3f
-        val cardH = 108f * dp
-        val cardY = titleY + 42f * dp
+        // Lower underground masonry deck: Hero selector pills + PERK + Mode pills + START RUN
+        val stackW = minOf(vw - 20f * dp, 340f * dp)
+        val startH = 50f * dp
+        val modeH = 32f * dp
+        val perkH = 22f * dp
+        val heroH = 42f * dp
+        val startY = vh - bottomSafe - startH - 6f * dp
+        val modeY = startY - 12f * dp - modeH
+        val perkY = modeY - 8f * dp - perkH
+        val heroY = perkY - 8f * dp - heroH
+
+        // 3 Compact Horizontal Hero Selector Pills (exact v3.0.3 style)
+        val heroGap = 6f * dp
+        val heroW = (stackW - heroGap * 2f) / 3f
         val heroActions = listOf(
             HeroId.STRIDE to UiAction.SELECT_HERO_STRIDE,
             HeroId.LILY to UiAction.SELECT_HERO_LILY,
@@ -459,18 +507,26 @@ class GameRenderer(
         )
         for (i in heroActions.indices) {
             val (hId, action) = heroActions[i]
-            val rx = cx - stackW / 2f + i * (cardW + cardGap)
-            val rect = RectF(rx, cardY, rx + cardW, cardY + cardH)
+            val rx = cx - stackW / 2f + i * (heroW + heroGap)
+            val rect = RectF(rx, heroY, rx + heroW, heroY + heroH)
             val selected = engine.hero == hId
-            drawHeroCard(c, rect, hId, selected, engine.elapsed, dp)
+            drawHeroPill(c, rect, hId, selected, engine.elapsed, dp)
             buttons.add(HitButton(action, rect))
         }
 
+        // Active Hero PERK badge (exact v3.0.3 green pill)
+        val perkText = "PERK: ${engine.hero.perk}"
+        val perkW = 196f * dp
+        paint.color = 0xC0111324.toInt()
+        c.drawRect(cx - perkW / 2f, perkY, cx + perkW / 2f, perkY + perkH, paint)
+        uiPaint.textAlign = Paint.Align.CENTER
+        uiPaint.textSize = 9.5f * dp
+        uiPaint.color = 0xFF78F0A8.toInt()
+        c.drawText(perkText, cx, perkY + 15f * dp, uiPaint)
+
         // 4 Game Mode Selector Pills
-        val modeY = cardY + cardH + 14f * dp
-        val modeGap = 6f * dp
+        val modeGap = 5f * dp
         val modeW = (stackW - modeGap * 3f) / 4f
-        val modeH = 36f * dp
         val modeActions = listOf(
             GameMode.ENDLESS to UiAction.SELECT_MODE_ENDLESS,
             GameMode.HARDCORE to UiAction.SELECT_MODE_HARDCORE,
@@ -481,24 +537,84 @@ class GameRenderer(
             val (m, action) = modeActions[i]
             val rx = cx - stackW / 2f + i * (modeW + modeGap)
             val rect = RectF(rx, modeY, rx + modeW, modeY + modeH)
-            val selected = engine.mode == m
-            drawModePill(c, rect, m.shortLabel, selected, dp)
+            drawModePill(c, rect, m.shortLabel, engine.mode == m, dp)
             buttons.add(HitButton(action, rect))
         }
 
-        // Primary Golden Pixel CTA Button (exact v3.0.3 .pixel-btn-primary!)
-        val startY = modeY + modeH + 18f * dp
-        val startRect = RectF(cx - stackW / 2f, startY, cx + stackW / 2f, startY + 54f * dp)
-        drawPixelButtonPrimary(c, startRect, "▶ START RUN", 15f * dp, dp)
+        // Golden Pixel START RUN button (exact v3.0.3 .pixel-btn-primary)
+        val startRect = RectF(cx - stackW / 2f, startY, cx + stackW / 2f, startY + startH)
+        drawPixelButtonPrimary(c, startRect, "START RUN", 14f * dp, dp)
         buttons.add(HitButton(UiAction.START_RUN, startRect))
-
-        uiPaint.textAlign = Paint.Align.CENTER
-        uiPaint.textSize = 10f * dp
-        uiPaint.color = 0xFFB8C4E4.toInt()
-        c.drawText("TAP JUMP (DOUBLE JUMP!) · HOLD DUCK TO SLIDE / FAST-FALL", cx, vh - bottomSafe - 8f * dp, uiPaint)
     }
 
-    private fun drawHeroCard(
+    /**
+     * Coordinate-for-coordinate native port of PixelStrideTitleLogo (420x116 viewBox) from PixelIcons.tsx.
+     */
+    private fun drawTitleLogo(c: Canvas, x: Float, y: Float, w: Float, h: Float) {
+        val sx = w / 420f
+        val sy = h / 116f
+        c.save()
+        c.translate(x, y)
+        c.scale(sx, sy)
+
+        // Stepped 8-bit dark border crest
+        paint.color = 0xFF121324.toInt()
+        c.drawRect(52f, 10f, 368f, 18f, paint)
+        c.drawRect(44f, 18f, 376f, 104f, paint)
+        c.drawRect(52f, 104f, 368f, 112f, paint)
+
+        // Inner navy cartridge plaque
+        paint.color = 0xFF1A2246.toInt()
+        c.drawRect(56f, 16f, 364f, 100f, paint)
+        c.drawRect(50f, 22f, 370f, 94f, paint)
+        // Bevel top highlight & bottom shade
+        paint.color = 0xFF465C9E.toInt()
+        c.drawRect(56f, 16f, 364f, 20f, paint)
+        paint.color = 0xFF0F142C.toInt()
+        c.drawRect(56f, 96f, 364f, 100f, paint)
+
+        // Flowing crimson scarf tails on left & right
+        paint.color = 0xFF121324.toInt()
+        c.drawRect(18f, 42f, 46f, 52f, paint)
+        c.drawRect(8f, 50f, 30f, 60f, paint)
+        paint.color = 0xFFE83B48.toInt()
+        c.drawRect(20f, 44f, 48f, 50f, paint)
+        paint.color = 0xFFC42438.toInt()
+        c.drawRect(10f, 52f, 32f, 58f, paint)
+
+        paint.color = 0xFF121324.toInt()
+        c.drawRect(374f, 42f, 402f, 52f, paint)
+        c.drawRect(390f, 50f, 412f, 60f, paint)
+        paint.color = 0xFFE83B48.toInt()
+        c.drawRect(372f, 44f, 400f, 50f, paint)
+        paint.color = 0xFFC42438.toInt()
+        c.drawRect(388f, 52f, 410f, 58f, paint)
+
+        // Golden corner pixel rivets
+        paint.color = 0xFFFFD872.toInt()
+        c.drawRect(58f, 24f, 63f, 29f, paint)
+        c.drawRect(357f, 24f, 362f, 29f, paint)
+        c.drawRect(58f, 87f, 63f, 92f, paint)
+        c.drawRect(357f, 87f, 362f, 92f, paint)
+
+        // PIXEL (gold) + STRIDE (cream) with hard 4px stepped shadow
+        displayPaint.textAlign = Paint.Align.CENTER
+        displayPaint.textSize = 30f
+        displayPaint.color = 0xFF0B0D1A.toInt()
+        c.drawText("PIXEL", 214f, 60f, displayPaint)
+        displayPaint.color = 0xFFFFE05C.toInt()
+        c.drawText("PIXEL", 210f, 56f, displayPaint)
+
+        displayPaint.textSize = 28f
+        displayPaint.color = 0xFF0B0D1A.toInt()
+        c.drawText("STRIDE", 214f, 94f, displayPaint)
+        displayPaint.color = 0xFFF8F6EE.toInt()
+        c.drawText("STRIDE", 210f, 90f, displayPaint)
+
+        c.restore()
+    }
+
+    private fun drawHeroPill(
         c: Canvas,
         rect: RectF,
         hero: HeroId,
@@ -507,29 +623,23 @@ class GameRenderer(
         dp: Float,
     ) {
         paint.color = 0xFF0A0C18.toInt()
-        c.drawRect(rect.left + 3f * dp, rect.top + 4f * dp, rect.right + 3f * dp, rect.bottom + 4f * dp, paint)
-        paint.color = if (selected) 0xFF293568.toInt() else 0xFF151933.toInt()
+        c.drawRect(rect.left, rect.top + 3.5f * dp, rect.right, rect.bottom + 3.5f * dp, paint)
+        paint.color = if (selected) 0xFF1F2952.toInt() else 0xE6141830.toInt()
         c.drawRect(rect, paint)
-        strokePaint.color = if (selected) 0xFFFFE05C.toInt() else 0xFF485888.toInt()
+        strokePaint.color = if (selected) 0xFFFFE05C.toInt() else 0xFF6B79A8.toInt()
         strokePaint.strokeWidth = (if (selected) 3f else 2f) * dp
         c.drawRect(rect, strokePaint)
 
-        // Live pixel-art hero sprite centered inside card!
-        val spScale = 2.6f * dp
-        val spW = 16f * spScale
-        val spX = rect.centerX() - spW / 2f
-        val spY = rect.top + 10f * dp
+        val spScale = 1.45f * dp
+        val spX = rect.left + 7f * dp
+        val spY = rect.centerY() - (19f * spScale) / 2f
         PixelSprites.drawHero(c, hero, spX, spY, spScale, onGround = true, ducking = false, animTime = if (selected) animTime else 0f)
 
-        displayPaint.textAlign = Paint.Align.CENTER
+        displayPaint.textAlign = Paint.Align.LEFT
         displayPaint.textSize = 8.5f * dp
-        displayPaint.color = if (selected) 0xFFFFF4A8.toInt() else 0xFFE4EAF8.toInt()
-        c.drawText(hero.displayName, rect.centerX(), rect.bottom - 24f * dp, displayPaint)
-
-        uiPaint.textAlign = Paint.Align.CENTER
-        uiPaint.textSize = 8.5f * dp
-        uiPaint.color = hero.accentColor
-        c.drawText(hero.perk, rect.centerX(), rect.bottom - 10f * dp, uiPaint)
+        displayPaint.color = if (selected) 0xFFFFF4A8.toInt() else 0xFFC8D2EE.toInt()
+        val baseline = rect.centerY() - (displayPaint.descent() + displayPaint.ascent()) / 2f
+        c.drawText(hero.displayName, spX + 26f * dp, baseline, displayPaint)
     }
 
     private fun drawModePill(c: Canvas, rect: RectF, label: String, selected: Boolean, dp: Float) {

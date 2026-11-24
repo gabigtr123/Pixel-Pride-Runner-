@@ -80,11 +80,11 @@ jobs:
               "### Downloads" \
               "- **Native Android 17 Signed APK (Alpha):** \`${APK}\` (Package ID: \`com.gabigtr123.pixelstride.nativealpha\` — installs side-by-side alongside v3.0.3 without overwriting your saves!)" \
               "" \
-              "### What's New in v4.0.0-alpha.2 (Milestone 1: Graphics, Fonts & UI Parity)" \
-              "- **Real Bundled Pixel Fonts (\`Press Start 2P\` + \`Silkscreen\`):** Bundled both authentic Pixel Stride TTF fonts natively in \`res/font/\` for crisp 8-bit headings, HUD, modals, and Run Card PNGs." \
-              "- **100% Exact \`v3.0.3\` Pixel-Art Sprites:** Ported every hand-crafted 16×19 Hero sprite (Stride, Lily with ponytail & blossom, Pixel Knight), animated Shell Hopper & Sky Swooper, Spike Totem, 4-frame spinning Gold Coins, all 6 Power-Up sprites, and all 4 Mini-Bosses (Iron Beetle, Sand Golem, Neon Drone, Crystal Wyrm)." \
-              "- **Exact Beveled 8-Bit UI & Hero Selector Cards:** Authentic \`.pixel-panel\`, golden \`.pixel-btn-primary\`, navy \`.pixel-btn-secondary\`, Title Screen with 3 live animated Hero Cards + perks (+25% Stomp for Stride, Coin Aura for Lily, 4 HP for Knight), pixel Heart & Shield HUD sprites, and a **live Run Card Trading Card Preview Modal** (with holographic EPIC/LEGENDARY sparkles)." \
-              "- **4 Looping Landscape Levels & Winter Icicles:** Highland Meadows -> Pyramid Canyon (stepped pyramids) -> Starlight City (lit pixel skyscrapers) -> Crystal Peaks (glowing crystal spires), plus frosted Winter ledges with hanging pixel icicles & 2-layer snowfall." \
+              "### What's New in v4.0.0-alpha.3 (1:1 Visual & Layout Parity Pass)" \
+              "- **Full-Bleed Edge-to-Edge Viewport (Zero Letterboxing):** Extended sky bands upward & underground pixel masonry downward to fill 100% of tall Android 17 screens, matching \`v3.0.3\` portrait framing (\`groundY = 340\`) so the horizon & running hero stay 100% bright and unobstructed." \
+              "- **Exact \`PixelStrideTitleLogo\` Cartridge Plaque:** Coordinate-for-coordinate native port of the beveled navy cartridge plaque with flowing crimson scarf tails, golden corner rivets, gold \`PIXEL\` and cream \`STRIDE\`." \
+              "- **Exact \`TitleOverlay\` Layout (Zero Dark Scrim):** Logo anchored cleanly in the upper sky, live running hero across the sunlit middle horizon, and compact Hero selector pills + PERK badge + 4-Mode pills + golden \`START RUN\` button cleanly on the lower underground masonry deck." \
+              "- **Authentic Stepped 8-Bit Sky Bands + Dither Seams:** Replaced smooth gradient with \`v3.0.3\`'s 3-band NES sky + 2px pixel dither seams, golden-coral sunset/dawn glow, twinkling stars, and pixel crescent moon." \
               > release-notes-alpha.md
             gh release create "$RELEASE_TAG" "$APK" \
               --title "Pixel Stride Native ${RELEASE_TAG} (Zero WebView Alpha)" \
