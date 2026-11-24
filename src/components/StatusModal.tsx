@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { AchievementDef } from '../game/achievements';
 import type { ColorOption } from '../game/creator';
 import type { DailyMission } from '../game/daily';
-import { renderRunCardToCanvas, runCardCanvasToBlob } from '../game/runCard';
+import { renderRunCardToCanvas, saveRunCardPng, shareRunCardPng } from '../game/runCard';
 import type { CapeId, CustomCharacterConfig, HatId, HudSnapshot, PetId } from '../game/types';
 import { CoinIcon } from './PixelIcons';
 
@@ -43,7 +43,9 @@ export function StatusModal({
 }: StatusModalProps) {
   const [showCard, setShowCard] = useState(false);
   const [cardStatus, setCardStatus] = useState<string | null>(null);
+  const [cardBusy, setCardBusy] = useState(false);
   const cardCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const statusTimerRef = useRef<number | null>(null);
 
   const isGameOver = hud.phase === 'gameover';
   const summary = hud.finalRun ?? {
@@ -64,8 +66,17 @@ export function StatusModal({
     if (!isGameOver) {
       setShowCard(false);
       setCardStatus(null);
+      setCardBusy(false);
     }
   }, [isGameOver]);
+
+  useEffect(() => {
+    return () => {
+      if (statusTimerRef.current !== null) {
+        window.clearTimeout(statusTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!showCard || !cardCanvasRef.current) return;
@@ -83,46 +94,36 @@ export function StatusModal({
     return null;
   }
 
-  const triggerDownload = (blob: Blob) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `pixel-stride-card-${summary.score}.png`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    setCardStatus('SAVED PNG!');
-    window.setTimeout(() => setCardStatus(null), 2200);
+  const flashCardStatus = (message: string) => {
+    if (statusTimerRef.current !== null) {
+      window.clearTimeout(statusTimerRef.current);
+    }
+    setCardStatus(message);
+    statusTimerRef.current = window.setTimeout(() => {
+      setCardStatus(null);
+      statusTimerRef.current = null;
+    }, 2400);
   };
 
   const handleSaveCardPng = async () => {
-    if (!cardCanvasRef.current) return;
-    const blob = await runCardCanvasToBlob(cardCanvasRef.current);
-    if (blob) triggerDownload(blob);
+    if (!cardCanvasRef.current || cardBusy) return;
+    setCardBusy(true);
+    try {
+      const result = await saveRunCardPng(cardCanvasRef.current, summary);
+      if (result.status) flashCardStatus(result.status);
+    } finally {
+      setCardBusy(false);
+    }
   };
 
   const handleShareCardPng = async () => {
-    if (!cardCanvasRef.current) return;
-    const blob = await runCardCanvasToBlob(cardCanvasRef.current);
-    if (!blob) return;
-    const file = new File([blob], `pixel-stride-card-${summary.score}.png`, {
-      type: 'image/png',
-    });
-    const text = `🏃 Pixel Stride — Score ${summary.score.toLocaleString()} · LV ${summary.level} (${summary.distance}m)!`;
+    if (!cardCanvasRef.current || cardBusy) return;
+    setCardBusy(true);
     try {
-      if (
-        typeof navigator !== 'undefined' &&
-        typeof navigator.canShare === 'function' &&
-        navigator.canShare({ files: [file] })
-      ) {
-        await navigator.share({ title: 'Pixel Stride Run Card', text, files: [file] });
-        return;
-      }
-      // Fallback: download PNG card directly so user can attach it to X / Discord
-      triggerDownload(blob);
-    } catch {
-      // User dismissed share sheet
+      const result = await shareRunCardPng(cardCanvasRef.current, summary);
+      if (result.status) flashCardStatus(result.status);
+    } finally {
+      setCardBusy(false);
     }
   };
 
@@ -142,26 +143,28 @@ export function StatusModal({
             style={{ imageRendering: 'pixelated' }}
           />
           {cardStatus && (
-            <span className="font-pixel-display text-[9px] text-[#78F0A8]">{cardStatus}</span>
+            <span className="font-pixel-display text-[9px] text-[#78F0A8] text-center">{cardStatus}</span>
           )}
           <div className="w-full grid grid-cols-2 gap-2">
             <button
               type="button"
+              disabled={cardBusy}
               onClick={(e) => {
                 e.currentTarget.blur();
                 void handleShareCardPng();
               }}
-              className="pixel-btn-primary py-2.5 px-2 font-pixel-display text-[9px] sm:text-[10px] cursor-pointer"
+              className="pixel-btn-primary py-2.5 px-2 font-pixel-display text-[9px] sm:text-[10px] cursor-pointer disabled:opacity-60"
             >
               📤 SHARE PNG
             </button>
             <button
               type="button"
+              disabled={cardBusy}
               onClick={(e) => {
                 e.currentTarget.blur();
                 void handleSaveCardPng();
               }}
-              className="pixel-btn-secondary py-2.5 px-2 font-pixel-display text-[9px] sm:text-[10px] text-[#FFE05C] cursor-pointer"
+              className="pixel-btn-secondary py-2.5 px-2 font-pixel-display text-[9px] sm:text-[10px] text-[#FFE05C] cursor-pointer disabled:opacity-60"
             >
               ⬇ SAVE PNG
             </button>

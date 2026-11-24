@@ -1,3 +1,6 @@
+import { Capacitor } from '@capacitor/core';
+import { Directory, Filesystem } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 import { BIOMES, LEVEL_NAMES } from './constants';
 import { buildCustomSpriteSet } from './creator';
 import {
@@ -455,15 +458,154 @@ export function renderRunCardToCanvas(
   ctx.font = 'bold 10px "Press Start 2P", monospace';
   ctx.textAlign = 'left';
   ctx.fillStyle = '#8898C8';
-  ctx.fillText(`PIXEL STRIDE v3.0 · ${dateStr}`, 52, H - 50);
+  ctx.fillText(`PIXEL STRIDE v3.0.1 · ${dateStr}`, 52, H - 50);
 
   ctx.textAlign = 'right';
   ctx.fillStyle = rarityInfo.accent;
   ctx.fillText('PLAY FREE ON WEB & ANDROID', W - 52, H - 50);
 }
 
+export interface RunCardActionResult {
+  ok: boolean;
+  status?: string;
+  canceled?: boolean;
+}
+
+export function buildRunCardFilename(score: number): string {
+  return `pixel-stride-card-${Math.max(0, Math.floor(score))}.png`;
+}
+
+export function buildRunCardShareText(summary: RunSnapshot): string {
+  return `🏃 Pixel Stride — Score ${summary.score.toLocaleString()} · LV ${summary.level} (${summary.distance}m)!`;
+}
+
+export function extractPngBase64(dataUrl: string): string {
+  const prefix = 'data:image/png;base64,';
+  return dataUrl.startsWith(prefix) ? dataUrl.slice(prefix.length) : dataUrl;
+}
+
+export function runCardCanvasToBase64(canvas: HTMLCanvasElement): string {
+  return extractPngBase64(canvas.toDataURL('image/png'));
+}
+
 export function runCardCanvasToBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
   return new Promise((resolve) => {
     canvas.toBlob((blob) => resolve(blob), 'image/png');
   });
+}
+
+function triggerBrowserDownload(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function isShareCanceledError(err: unknown): boolean {
+  if (!err) return false;
+  const msg = err instanceof Error ? err.message : String(err);
+  return /cancel|abort|dismiss/i.test(msg);
+}
+
+export async function saveRunCardPng(
+  canvas: HTMLCanvasElement,
+  summary: RunSnapshot,
+): Promise<RunCardActionResult> {
+  const fileName = buildRunCardFilename(summary.score);
+
+  if (Capacitor.isNativePlatform()) {
+    const base64 = runCardCanvasToBase64(canvas);
+    try {
+      await Filesystem.writeFile({
+        path: `PixelStride/${fileName}`,
+        data: base64,
+        directory: Directory.Documents,
+        recursive: true,
+      });
+      return { ok: true, status: 'SAVED TO DOCUMENTS/PIXELSTRIDE!' };
+    } catch {
+      // Fallback for restricted storage / denied legacy permission on Android 8-10:
+      // write to app cache and let user save via Android Share / Files sheet
+      try {
+        const cached = await Filesystem.writeFile({
+          path: fileName,
+          data: base64,
+          directory: Directory.Cache,
+        });
+        await Share.share({
+          title: 'Pixel Stride Run Card',
+          files: [cached.uri],
+          dialogTitle: 'Save Run Card PNG',
+        });
+        return { ok: true, status: 'SAVED PNG!' };
+      } catch (fallbackErr) {
+        if (isShareCanceledError(fallbackErr)) {
+          return { ok: false, canceled: true };
+        }
+        return { ok: false, status: 'SAVE FAILED' };
+      }
+    }
+  }
+
+  const blob = await runCardCanvasToBlob(canvas);
+  if (!blob) return { ok: false, status: 'SAVE FAILED' };
+  triggerBrowserDownload(blob, fileName);
+  return { ok: true, status: 'SAVED PNG!' };
+}
+
+export async function shareRunCardPng(
+  canvas: HTMLCanvasElement,
+  summary: RunSnapshot,
+): Promise<RunCardActionResult> {
+  const fileName = buildRunCardFilename(summary.score);
+  const text = buildRunCardShareText(summary);
+
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const base64 = runCardCanvasToBase64(canvas);
+      const cached = await Filesystem.writeFile({
+        path: fileName,
+        data: base64,
+        directory: Directory.Cache,
+      });
+      await Share.share({
+        title: 'Pixel Stride Run Card',
+        text,
+        files: [cached.uri],
+        dialogTitle: 'Share Run Card',
+      });
+      return { ok: true, status: 'SHARED!' };
+    } catch (err) {
+      if (isShareCanceledError(err)) {
+        return { ok: false, canceled: true };
+      }
+      return { ok: false, status: 'SHARE FAILED' };
+    }
+  }
+
+  const blob = await runCardCanvasToBlob(canvas);
+  if (!blob) return { ok: false, status: 'SHARE FAILED' };
+  const file = new File([blob], fileName, { type: 'image/png' });
+  try {
+    if (
+      typeof navigator !== 'undefined' &&
+      typeof navigator.canShare === 'function' &&
+      navigator.canShare({ files: [file] })
+    ) {
+      await navigator.share({ title: 'Pixel Stride Run Card', text, files: [file] });
+      return { ok: true, status: 'SHARED!' };
+    }
+    // Fallback on desktop browsers without Web Share file support
+    triggerBrowserDownload(blob, fileName);
+    return { ok: true, status: 'SAVED PNG!' };
+  } catch (err) {
+    if (isShareCanceledError(err)) {
+      return { ok: false, canceled: true };
+    }
+    return { ok: false };
+  }
 }

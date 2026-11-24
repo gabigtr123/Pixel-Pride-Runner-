@@ -1,7 +1,7 @@
 {
   "name": "pixel-stride",
   "private": true,
-  "version": "3.0.0",
+  "version": "3.0.1",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
@@ -10,10 +10,12 @@
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "test": "tsx --test src/game/engine.test.ts",
-    "android:sync": "npm run build && npx cap sync android && node scripts/apply-android-icons.mjs"
+    "android:sync": "npm run build && npx cap sync android && node scripts/apply-android-icons.mjs && node scripts/configure-android-manifest.mjs"
   },
   "dependencies": {
     "@capacitor/core": "9.0.0-rc.0",
+    "@capacitor/filesystem": "8.2.0-next.9",
+    "@capacitor/share": "9.0.0-alpha.2",
     "react": "^19.0.1",
     "react-dom": "^19.0.1"
   },

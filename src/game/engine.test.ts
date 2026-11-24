@@ -718,3 +718,53 @@ test('v3.0 Run Card assigns COMMON, RARE, EPIC, and LEGENDARY trading card rarit
   assert.equal(getCardRarity({ ...base, score: 4500, bossesDefeated: 1 }).rarity, 'EPIC');
   assert.equal(getCardRarity({ ...base, score: 12000, bossesDefeated: 2 }).rarity, 'LEGENDARY');
 });
+
+test('v3.0.1 Run Card PNG helpers format filename, share text, and base64 payload', async () => {
+  const { buildRunCardFilename, buildRunCardShareText, extractPngBase64 } = await import('./runCard');
+  assert.equal(buildRunCardFilename(4280.9), 'pixel-stride-card-4280.png');
+  assert.equal(buildRunCardFilename(-5), 'pixel-stride-card-0.png');
+  assert.equal(extractPngBase64('data:image/png;base64,iVBORw0KGgo='), 'iVBORw0KGgo=');
+  assert.equal(extractPngBase64('iVBORw0KGgo='), 'iVBORw0KGgo=');
+  const text = buildRunCardShareText({
+    score: 4280,
+    bestScore: 5000,
+    distance: 310,
+    coins: 45,
+    stomps: 8,
+    zoneName: 'AMBER CANYON',
+    zoneIndex: 1,
+    level: 2,
+    bossesDefeated: 1,
+    gameMode: 'endless',
+    isNewBest: false,
+  });
+  assert.ok(text.includes('4,280') || text.includes('4280'));
+  assert.ok(text.includes('LV 2'));
+  assert.ok(text.includes('310m'));
+});
+
+test('v3.0.1 Android manifest script verifies FileProvider and idempotently adds SDK-capped storage permissions', async () => {
+  const { patchAndroidManifest, verifyFilePathsXml } = await import('../../scripts/configure-android-manifest.mjs');
+  const sampleManifest = `<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:allowBackup="true">
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="\${applicationId}.fileprovider" />
+    </application>
+    <uses-permission android:name="android.permission.INTERNET" />
+</manifest>
+`;
+  const once = patchAndroidManifest(sampleManifest);
+  assert.ok(once.includes('android:requestLegacyExternalStorage="true"'));
+  assert.ok(once.includes('android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"'));
+  assert.ok(once.includes('android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"'));
+
+  // Idempotent on second run
+  const twice = patchAndroidManifest(once);
+  assert.equal(twice, once);
+
+  // Fails fast if FileProvider or <cache-path> is missing
+  assert.throws(() => patchAndroidManifest('<manifest><application></application></manifest>'));
+  verifyFilePathsXml('<paths><cache-path name="my_cache_images" path="." /></paths>');
+  assert.throws(() => verifyFilePathsXml('<paths><external-path name="ext" path="." /></paths>'));
+});
+
