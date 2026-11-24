@@ -6,12 +6,40 @@ enum class GamePhase {
     PAUSED,
     GAME_OVER,
     RUN_CARD,
+    WEATHER,
 }
 
 enum class HeroId(val displayName: String, val perk: String, val maxHp: Int, val accentColor: Int) {
     STRIDE("STRIDE", "+25% STOMP", 3, 0xFFFFE05C.toInt()),
     LILY("LILY", "COIN AURA", 3, 0xFFFF78B4.toInt()),
     KNIGHT("KNIGHT", "4 MAX HP", 4, 0xFF78E8FF.toInt()),
+}
+
+enum class PetId(val displayName: String, val perk: String, val accentColor: Int) {
+    NONE("NO PET", "NONE", 0xFF98ACDC.toInt()),
+    FOX("FOX", "95PX COIN FETCH", 0xFFFFB858.toInt()),
+    OWL("OWL", "+10% ALL SCORE", 0xFFA8DCFF.toInt()),
+    DRAGON("DRAGON", "ZAPS HAZARD 20S", 0xFFFF6878.toInt()),
+}
+
+enum class WeatherCondition(val label: String, val badge: String) {
+    CLEAR("CLEAR", "SUN"),
+    RAIN("RAIN", "RAIN"),
+    STORM("STORM", "STRM"),
+    SNOW("SNOW", "SNOW"),
+    FOG("FOG", "FOG"),
+}
+
+enum class WeatherSource {
+    AUTO,
+    LIVE,
+    MANUAL,
+}
+
+enum class TimeOfDayMode(val label: String) {
+    AUTO("AUTO"),
+    DAY("DAY"),
+    NIGHT("NIGHT"),
 }
 
 enum class GameMode(val label: String, val shortLabel: String) {
@@ -207,6 +235,7 @@ data class RunSnapshot(
     val zoneIndex: Int,
     val zoneName: String,
     val hero: HeroId,
+    val pet: PetId = PetId.NONE,
     val mode: GameMode,
     val isNewBest: Boolean,
 )

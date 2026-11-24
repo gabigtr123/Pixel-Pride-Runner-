@@ -145,19 +145,34 @@ object RunCardExporter {
             gx += 36f
         }
 
-        // Exact 16x19 Hero sprite at crisp 7x pixel scale
+        // Exact 16x19 Hero sprite at crisp 7x pixel scale + equipped Pet Companion!
+        val heroCenterX = w / 2f + (if (snapshot.pet != PetId.NONE) 28f else 0f)
         paint.color = 0x730A0C18
-        c.drawRect(w / 2f - 44f, groundTop - 4f, w / 2f + 44f, groundTop + 6f, paint)
+        c.drawRect(heroCenterX - 44f, groundTop - 4f, heroCenterX + 44f, groundTop + 6f, paint)
         PixelSprites.drawHero(
             canvas = c,
             hero = snapshot.hero,
-            x = w / 2f - 56f,
+            x = heroCenterX - 56f,
             y = groundTop - 131f,
             scale = 7f,
             onGround = true,
             ducking = false,
             animTime = 0f,
         )
+        if (snapshot.pet != PetId.NONE) {
+            val petX = heroCenterX - 134f
+            val petY = when (snapshot.pet) {
+                PetId.FOX -> groundTop - 54f
+                PetId.OWL -> groundTop - 132f
+                PetId.DRAGON -> groundTop - 122f
+                PetId.NONE -> groundTop - 54f
+            }
+            if (snapshot.pet == PetId.FOX) {
+                paint.color = 0x590A0C18
+                c.drawRect(petX + 6f, groundTop - 4f, petX + 54f, groundTop + 4f, paint)
+            }
+            PixelSprites.drawPet(c, snapshot.pet, petX, petY, 6f)
+        }
 
         // Hero nameplate
         paint.color = 0xE00C1024.toInt()
@@ -244,7 +259,7 @@ object RunCardExporter {
         textPaint.textSize = 9f
         textPaint.textAlign = Paint.Align.LEFT
         textPaint.color = 0xFF8898C8.toInt()
-        c.drawText("PIXEL STRIDE v4.0-ALPHA.3 · $dateStr", 52f, h - 50f, textPaint)
+        c.drawText("PIXEL STRIDE v4.0-ALPHA.4 · $dateStr", 52f, h - 50f, textPaint)
         textPaint.textAlign = Paint.Align.RIGHT
         textPaint.color = accent
         c.drawText("100% NATIVE ANDROID 17", w - 52f, h - 50f, textPaint)

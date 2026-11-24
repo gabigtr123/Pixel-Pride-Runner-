@@ -12,8 +12,11 @@ interface EngineFeedback {
     fun onCoin()
     fun onStomp()
     fun onPowerUp()
+    fun onZap()
     fun onHit()
     fun onBossKo()
+    fun onBiomeChanged(zoneIndex: Int)
+    fun onBossActiveChanged(active: Boolean)
     fun onGameOver(snapshot: RunSnapshot)
 }
 
@@ -23,15 +26,32 @@ class GameEngine(private val feedback: EngineFeedback) {
         private set
     var worldHeight: Float = 520f
         private set
-    var groundY: Float = 420f
+    var groundY: Float = 340f
         private set
 
     var phase: GamePhase = GamePhase.TITLE
     var hero: HeroId = HeroId.STRIDE
+    var pet: PetId = PetId.NONE
     var mode: GameMode = GameMode.ENDLESS
 
+    // Weather & Time-of-Day state
+    var weatherSource: WeatherSource = WeatherSource.AUTO
+    var manualWeather: WeatherCondition = WeatherCondition.RAIN
+    var liveWeather: WeatherCondition? = null
+    var liveIsDay: Boolean? = null
+    var liveLocationName: String = ""
+    var liveTemperatureC: Int? = null
+    var timeOfDayMode: TimeOfDayMode = TimeOfDayMode.AUTO
+    var weatherStatusMsg: String? = null
+
+    // Mini Dragon zap beam state
+    var dragonZapTimer: Float = 20f
+    var dragonBeamTimer: Float = 0f
+    var dragonBeamTargetX: Float = 0f
+    var dragonBeamTargetY: Float = 0f
+
     // Player state
-    var playerX: Float = 54f
+    var playerX: Float = 48f
     var playerY: Float = 0f
     var playerVy: Float = 0f
     val playerWidth: Float = 22f
@@ -113,13 +133,39 @@ class GameEngine(private val feedback: EngineFeedback) {
     fun currentPlayerHeight(): Float = if (ducking && onGround) playerDuckHeight else playerStandHeight
 
     fun currentBiome(): BiomePalette {
-        if (mode == GameMode.WINTER) return BIOMES[4]
+        if (mode == GameMode.WINTER || effectiveWeather() == WeatherCondition.SNOW) return BIOMES[4]
         return BIOMES[zoneIndex % BIOMES.size]
     }
 
+    fun effectiveWeather(): WeatherCondition {
+        return when (weatherSource) {
+            WeatherSource.MANUAL -> manualWeather
+            WeatherSource.LIVE -> liveWeather ?: WeatherCondition.CLEAR
+            WeatherSource.AUTO -> if (mode == GameMode.WINTER || zoneIndex % BIOMES.size == 4) WeatherCondition.SNOW else WeatherCondition.CLEAR
+        }
+    }
+
+    fun weatherBadgeLabel(): String {
+        val cond = effectiveWeather()
+        return if (weatherSource == WeatherSource.LIVE && liveTemperatureC != null) {
+            "${cond.badge} ${liveTemperatureC}C"
+        } else {
+            cond.badge
+        }
+    }
+
     fun nightFactor(): Float {
-        // Smooth 30s day/night cycle
-        return 0.5f - 0.5f * cos((elapsed / 30f) * Math.PI.toFloat() * 2f)
+        return when (timeOfDayMode) {
+            TimeOfDayMode.DAY -> 0f
+            TimeOfDayMode.NIGHT -> 1f
+            TimeOfDayMode.AUTO -> {
+                if (weatherSource == WeatherSource.LIVE && liveIsDay != null) {
+                    if (liveIsDay == true) 0f else 1f
+                } else {
+                    0.5f - 0.5f * cos((elapsed / 30f) * Math.PI.toFloat() * 2f)
+                }
+            }
+        }
     }
 
     fun startNewRun() {
@@ -160,6 +206,10 @@ class GameEngine(private val feedback: EngineFeedback) {
         hazardSpawnTimer = 1.8f
         collectibleSpawnTimer = 0.7f
         nextBossTime = if (mode == GameMode.BOSS_RUSH) 5f else 90f
+        dragonZapTimer = 12f
+        dragonBeamTimer = 0f
+        feedback.onBiomeChanged(zoneIndex)
+        feedback.onBossActiveChanged(false)
     }
 
     fun pressJump() {
@@ -200,6 +250,7 @@ class GameEngine(private val feedback: EngineFeedback) {
         hazards.clear()
         collectibles.clear()
         activeBoss = null
+        feedback.onBossActiveChanged(false)
         ducking = false
         onGround = true
         playerY = groundY - playerStandHeight
@@ -228,7 +279,7 @@ class GameEngine(private val feedback: EngineFeedback) {
 
     fun update(rawDt: Float) {
         val dt = rawDt.coerceIn(0f, 0.05f)
-        if (phase == GamePhase.TITLE) {
+        if (phase == GamePhase.TITLE || phase == GamePhase.WEATHER) {
             elapsed += dt
             scrollX += 65f * dt
             return
@@ -242,6 +293,7 @@ class GameEngine(private val feedback: EngineFeedback) {
         if (doubleScoreTimer > 0f) doubleScoreTimer = max(0f, doubleScoreTimer - dt)
         if (slowMoTimer > 0f) slowMoTimer = max(0f, slowMoTimer - dt)
         if (turboTimer > 0f) turboTimer = max(0f, turboTimer - dt)
+        if (dragonBeamTimer > 0f) dragonBeamTimer = max(0f, dragonBeamTimer - dt)
 
         // Speed ramp & modifiers
         val baseSpeed = (165f + elapsed * 2.2f).coerceAtMost(310f) *
@@ -255,19 +307,45 @@ class GameEngine(private val feedback: EngineFeedback) {
         scrollX += currentSpeed * dt
         distance += (currentSpeed * dt) / 14f
 
+        val owlMult = if (pet == PetId.OWL) 1.10f else 1f
         val scoreMult = (if (doubleScoreTimer > 0f) 2f else 1f) *
-            (if (mode == GameMode.HARDCORE) 2f else 1f)
+            (if (mode == GameMode.HARDCORE) 2f else 1f) * owlMult
         score += (currentSpeed * dt * 0.14f) * scoreMult
 
         // Level & biome progression
         val newLevel = (elapsed / 90f).toInt() + 1
         if (newLevel > level) {
             level = newLevel
-            score += 250f
+            score += 250f * owlMult
             floatingTexts.add(FloatingText(playerX + 20f, playerY - 18f, "LEVEL $level! +250", 0xFF78F0A8.toInt()))
         }
         if (mode != GameMode.WINTER) {
-            zoneIndex = (distance / 400f).toInt() % BIOMES.size
+            val nextZone = (distance / 400f).toInt() % BIOMES.size
+            if (nextZone != zoneIndex) {
+                zoneIndex = nextZone
+                feedback.onBiomeChanged(zoneIndex)
+            }
+        }
+
+        // Mini Dragon Pet: zaps 1 visible hazard ahead every 20s for +75 ZAP!
+        if (pet == PetId.DRAGON) {
+            dragonZapTimer -= dt
+            if (dragonZapTimer <= 0f) {
+                val target = hazards.firstOrNull { !it.defeated && it.x > playerX + 24f && it.x < worldWidth - 10f }
+                if (target != null) {
+                    target.defeated = true
+                    target.vy = -190f
+                    dragonZapTimer = 20f
+                    dragonBeamTimer = 0.28f
+                    dragonBeamTargetX = target.x + target.width / 2f
+                    dragonBeamTargetY = target.y + target.height / 2f
+                    val zapPts = (75f * scoreMult).toInt()
+                    score += zapPts
+                    spawnDust(dragonBeamTargetX, dragonBeamTargetY, 12, 0xFFFF9828.toInt())
+                    floatingTexts.add(FloatingText(dragonBeamTargetX, target.y - 10f, "+$zapPts ZAP!", 0xFFFF9828.toInt()))
+                    feedback.onZap()
+                }
+            }
         }
 
         // Player vertical physics
@@ -306,6 +384,7 @@ class GameEngine(private val feedback: EngineFeedback) {
                 y = groundY - 32f,
                 anchorX = anchor,
             )
+            feedback.onBossActiveChanged(true)
             floatingTexts.add(FloatingText(worldWidth * 0.35f, 110f, "BOSS: ${kind.displayName}!", 0xFFFF6880.toInt(), 1.5f))
         }
         updateBoss(dt, scoreMult)
@@ -510,6 +589,7 @@ class GameEngine(private val feedback: EngineFeedback) {
                     floatingTexts.add(FloatingText(boss.x - 10f, boss.y - 16f, "+500 BOSS KO! +25C", 0xFFFFE05C.toInt(), 1.4f))
                     spawnDust(boss.x + boss.width / 2f, boss.y + boss.height / 2f, 22, boss.kind.accentColor)
                     activeBoss = null
+                    feedback.onBossActiveChanged(false)
                     nextBossTime = elapsed + (if (mode == GameMode.BOSS_RUSH) 4.5f else 90f)
                     feedback.onBossKo()
                 } else {
@@ -534,7 +614,8 @@ class GameEngine(private val feedback: EngineFeedback) {
 
             if (c.type == CollectibleType.COIN) {
                 val pullRadius = when {
-                    magnetTimer > 0f -> 115f
+                    magnetTimer > 0f -> 125f
+                    pet == PetId.FOX -> 95f
                     hero == HeroId.LILY -> 58f
                     else -> 0f
                 }
@@ -632,11 +713,13 @@ class GameEngine(private val feedback: EngineFeedback) {
                 zoneIndex = zoneIndex,
                 zoneName = currentBiome().name,
                 hero = hero,
+                pet = pet,
                 mode = mode,
                 isNewBest = isNewBest,
             )
             lastRun = snap
             phase = GamePhase.GAME_OVER
+            feedback.onBossActiveChanged(false)
             feedback.onGameOver(snap)
         }
     }

@@ -15,6 +15,24 @@ enum class UiAction {
     SELECT_HERO_STRIDE,
     SELECT_HERO_LILY,
     SELECT_HERO_KNIGHT,
+    CYCLE_PET,
+    OPEN_WEATHER,
+    CLOSE_WEATHER,
+    SET_TOD_AUTO,
+    SET_TOD_DAY,
+    SET_TOD_NIGHT,
+    SET_WX_AUTO,
+    SET_WX_CLEAR,
+    SET_WX_RAIN,
+    SET_WX_STORM,
+    SET_WX_SNOW,
+    SET_WX_FOG,
+    DETECT_GPS_WEATHER,
+    CITY_0,
+    CITY_1,
+    CITY_2,
+    CITY_3,
+    CITY_4,
     SELECT_MODE_ENDLESS,
     SELECT_MODE_HARDCORE,
     SELECT_MODE_BOSS_RUSH,
@@ -108,6 +126,7 @@ class GameRenderer(
         val bottomSafe = insetBottomPx + 12f
         when (engine.phase) {
             GamePhase.TITLE -> drawTitleOverlay(canvas, vw, vh, topSafe, bottomSafe, engine, muted)
+            GamePhase.WEATHER -> drawWeatherModal(canvas, vw, vh, topSafe, bottomSafe, engine)
             GamePhase.PLAYING -> drawPlayingHud(canvas, vw, vh, topSafe, bottomSafe, engine, muted)
             GamePhase.PAUSED -> {
                 drawPlayingHud(canvas, vw, vh, topSafe, bottomSafe, engine, muted)
@@ -337,8 +356,9 @@ class GameRenderer(
             rowIdx++
         }
 
-        // 7. Two-layer Winter snowfall
-        if (isWinter) {
+        // 7. Weather-Reactive Terrain & Atmosphere (Snow, Rain/Storm puddles & splashes, Fog)
+        val wx = engine.effectiveWeather()
+        if (isWinter || wx == WeatherCondition.SNOW) {
             paint.color = 0xE6FFFFFF.toInt()
             for (i in 0 until 32) {
                 val speedX = 20f + (i % 3) * 10f
@@ -348,6 +368,41 @@ class GameRenderer(
                 val sz = if (i % 3 == 0) 2.5f else 1.5f
                 c.drawRect(fx, fy, fx + sz, fy + sz, paint)
             }
+        } else if (wx == WeatherCondition.RAIN || wx == WeatherCondition.STORM) {
+            val isStorm = wx == WeatherCondition.STORM
+            // Glistening ground puddles + surface splashes
+            val puddleStep = 64f
+            val puddleOff = engine.scrollX % puddleStep
+            var px = -puddleOff
+            while (px < w + puddleStep) {
+                paint.color = 0x9948A8F8.toInt()
+                c.drawRect(px + 8f, groundY + 1f, px + 34f, groundY + 4f, paint)
+                paint.color = 0xCCB8ECFF.toInt()
+                c.drawRect(px + 12f, groundY + 1f, px + 24f, groundY + 2.5f, paint)
+                // Animated splash pixel
+                if (((engine.elapsed * 12f + px * 0.1f).toInt() % 3) == 0) {
+                    c.drawRect(px + 18f, groundY - 3f, px + 20f, groundY - 1f, paint)
+                }
+                px += puddleStep
+            }
+            // Diagonal pixel raindrops
+            paint.color = if (isStorm) 0xCCA8DCFF.toInt() else 0xAA88C8FF.toInt()
+            val dropCount = if (isStorm) 44 else 28
+            for (i in 0 until dropCount) {
+                val rx = ((i * 41f - engine.elapsed * 90f) % w + w) % w
+                val ry = ((i * 67f + engine.elapsed * 240f) % groundY)
+                c.drawRect(rx, ry, rx + 1.5f, ry + 7f, paint)
+            }
+            // Occasional storm lightning flash
+            if (isStorm && ((engine.elapsed * 2.2f).toInt() % 11 == 0) && ((engine.elapsed * 22f).toInt() % 3 == 0)) {
+                paint.color = 0x44E8F4FF
+                c.drawRect(worldLeft, worldTop, worldRight, groundY, paint)
+            }
+        } else if (wx == WeatherCondition.FOG) {
+            paint.color = 0x55D8E4F4
+            c.drawRect(worldLeft, groundY - 46f, worldRight, groundY - 16f, paint)
+            paint.color = 0x44E8F0FC
+            c.drawRect(worldLeft, groundY - 24f, worldRight, groundY, paint)
         }
 
         // 8. Collectibles (exact v3.0.3 pixel sprites)
@@ -366,12 +421,11 @@ class GameRenderer(
             }
         }
 
-        // 10. Active Mini-Boss (exact 18x12 sprites at 2.1x scale!)
+        // 10. Active Mini-Boss (exact 18x12 sprites at 2.2x scale!)
         engine.activeBoss?.let { boss ->
             val flash = boss.hurtFlash > 0f || (boss.telegraphing && ((engine.elapsed * 16f).toInt() % 2 == 0))
             PixelSprites.drawBoss(c, boss.kind, boss.x - 2f, boss.y + 2f, 2.2f, flash)
 
-            // Boss HP bar above head
             val barW = boss.width + 8f
             val barX = boss.x - 4f
             val barY = boss.y - 11f
@@ -389,7 +443,28 @@ class GameRenderer(
             }
         }
 
-        // 11. Hero + Shadow + Shield / Turbo aura (exact 16x19 pixel sprite!)
+        // 11. Equipped Pet Companion (Fox hops on ground, Owl/Dragon hover overhead + Dragon Zap beam!)
+        if (engine.pet != PetId.NONE) {
+            val petScale = 1.4f
+            val petX = engine.playerX - 20f
+            val petY = when (engine.pet) {
+                PetId.FOX -> groundY - 12.5f - abs(sin(engine.elapsed * 9f)) * 5f
+                PetId.OWL -> engine.playerY - 14f + sin(engine.elapsed * 5f) * 3f
+                PetId.DRAGON -> engine.playerY - 12f + sin(engine.elapsed * 6f) * 3.5f
+                PetId.NONE -> groundY
+            }
+            PixelSprites.drawPet(c, engine.pet, petX, petY, petScale)
+            if (engine.pet == PetId.DRAGON && engine.dragonBeamTimer > 0f) {
+                strokePaint.color = 0xFFFFE858.toInt()
+                strokePaint.strokeWidth = 3f
+                c.drawLine(petX + 12f, petY + 6f, engine.dragonBeamTargetX, engine.dragonBeamTargetY, strokePaint)
+                strokePaint.color = 0xFFFF5838.toInt()
+                strokePaint.strokeWidth = 1.5f
+                c.drawLine(petX + 12f, petY + 6f, engine.dragonBeamTargetX, engine.dragonBeamTargetY, strokePaint)
+            }
+        }
+
+        // 12. Hero + Shadow + Shield / Turbo aura (exact 16x19 pixel sprite!)
         val blink = engine.invulnTimer > 0f && ((engine.elapsed * 18f).toInt() % 2 == 0)
         if (!blink) {
             paint.color = 0x550A0C18
@@ -439,13 +514,13 @@ class GameRenderer(
             }
         }
 
-        // 12. Particles
+        // 13. Particles
         for (p in engine.particles) {
             paint.color = p.color
             c.drawRect(p.x, p.y, p.x + p.size, p.y + p.size, paint)
         }
 
-        // 13. Floating score popups (Press Start 2P)
+        // 14. Floating score popups (Press Start 2P)
         displayPaint.textAlign = Paint.Align.CENTER
         displayPaint.textSize = 6.5f
         for (ft in engine.floatingTexts) {
@@ -469,21 +544,26 @@ class GameRenderer(
         val dp = minOf(vw, vh) / 360f
         val cx = vw / 2f
 
-        // Top HUD bar: Coins + Best left, Sound right (exact pixel-icon-btn style)
-        val coinRect = RectF(12f * dp, topSafe, 118f * dp, topSafe + 38f * dp)
-        drawPixelButtonSecondary(c, coinRect, "${engine.totalCoins} C", 10f * dp, dp, textColor = 0xFFFFF4A8.toInt())
+        // Top HUD bar: Coins, Pet selector, Weather button on left; Sound toggle on right
+        val coinRect = RectF(10f * dp, topSafe, 92f * dp, topSafe + 36f * dp)
+        drawPixelButtonSecondary(c, coinRect, "${engine.totalCoins}C", 9f * dp, dp, textColor = 0xFFFFF4A8.toInt())
 
-        val bestRect = RectF(126f * dp, topSafe, 250f * dp, topSafe + 38f * dp)
-        drawPixelButtonSecondary(c, bestRect, "BEST ${engine.bestScore}", 9f * dp, dp, textColor = 0xFF78E8FF.toInt())
+        val petRect = RectF(98f * dp, topSafe, 200f * dp, topSafe + 36f * dp)
+        drawPixelButtonSecondary(c, petRect, "PET:${engine.pet.displayName}", 7.5f * dp, dp, textColor = engine.pet.accentColor)
+        buttons.add(HitButton(UiAction.CYCLE_PET, petRect))
 
-        val muteRect = RectF(vw - 54f * dp, topSafe, vw - 12f * dp, topSafe + 38f * dp)
-        drawPixelButtonSecondary(c, muteRect, if (muted) "OFF" else "SFX", 9f * dp, dp)
+        val wxRect = RectF(206f * dp, topSafe, 294f * dp, topSafe + 36f * dp)
+        drawPixelButtonSecondary(c, wxRect, engine.weatherBadgeLabel(), 8f * dp, dp, textColor = 0xFF78E8FF.toInt())
+        buttons.add(HitButton(UiAction.OPEN_WEATHER, wxRect))
+
+        val muteRect = RectF(vw - 52f * dp, topSafe, vw - 10f * dp, topSafe + 36f * dp)
+        drawPixelButtonSecondary(c, muteRect, if (muted) "OFF" else "SFX", 8.5f * dp, dp)
         buttons.add(HitButton(UiAction.TOGGLE_MUTE, muteRect))
 
         // Exact v3.0.3 PixelStrideTitleLogo cartridge plaque in the upper sky!
         val logoW = minOf(vw - 24f * dp, 326f * dp)
         val logoH = logoW * (116f / 420f)
-        val logoY = topSafe + 50f * dp
+        val logoY = topSafe + 48f * dp
         drawTitleLogo(c, cx - logoW / 2f, logoY, logoW, logoH)
 
         // Lower underground masonry deck: Hero selector pills + PERK + Mode pills + START RUN
@@ -514,15 +594,19 @@ class GameRenderer(
             buttons.add(HitButton(action, rect))
         }
 
-        // Active Hero PERK badge (exact v3.0.3 green pill)
-        val perkText = "PERK: ${engine.hero.perk}"
-        val perkW = 196f * dp
+        // Active Hero & Pet PERK badge
+        val perkText = if (engine.pet != PetId.NONE) {
+            "PERK: ${engine.hero.perk} · PET: ${engine.pet.perk}"
+        } else {
+            "PERK: ${engine.hero.perk} · BEST: ${engine.bestScore}"
+        }
+        val perkW = minOf(stackW, 290f * dp)
         paint.color = 0xC0111324.toInt()
         c.drawRect(cx - perkW / 2f, perkY, cx + perkW / 2f, perkY + perkH, paint)
         uiPaint.textAlign = Paint.Align.CENTER
-        uiPaint.textSize = 9.5f * dp
+        uiPaint.textSize = 8.5f * dp
         uiPaint.color = 0xFF78F0A8.toInt()
-        c.drawText(perkText, cx, perkY + 15f * dp, uiPaint)
+        c.drawText(perkText, cx, perkY + 14.5f * dp, uiPaint)
 
         // 4 Game Mode Selector Pills
         val modeGap = 5f * dp
@@ -545,6 +629,119 @@ class GameRenderer(
         val startRect = RectF(cx - stackW / 2f, startY, cx + stackW / 2f, startY + startH)
         drawPixelButtonPrimary(c, startRect, "START RUN", 14f * dp, dp)
         buttons.add(HitButton(UiAction.START_RUN, startRect))
+    }
+
+    private fun drawWeatherModal(
+        c: Canvas,
+        vw: Float,
+        vh: Float,
+        topSafe: Float,
+        bottomSafe: Float,
+        engine: GameEngine,
+    ) {
+        paint.color = 0xC80B0D1A.toInt()
+        c.drawRect(0f, 0f, vw, vh, paint)
+        val dp = minOf(vw, vh) / 360f
+        val cx = vw / 2f
+        val panelW = minOf(vw - 24f * dp, 336f * dp)
+        val panelH = minOf(vh - topSafe - bottomSafe - 20f * dp, 430f * dp)
+        val topY = (vh - panelH) / 2f
+        val panelRect = RectF(cx - panelW / 2f, topY, cx + panelW / 2f, topY + panelH)
+        drawPixelPanel(c, panelRect, dp)
+
+        // Header + X close
+        drawShadowDisplayText(c, "LIVE WEATHER", panelRect.left + 18f * dp, topY + 34f * dp, 13f * dp, 0xFF78E8FF.toInt(), dp, Paint.Align.LEFT)
+        val closeRect = RectF(panelRect.right - 46f * dp, topY + 12f * dp, panelRect.right - 14f * dp, topY + 42f * dp)
+        drawPixelButtonSecondary(c, closeRect, "X", 10f * dp, dp)
+        buttons.add(HitButton(UiAction.CLOSE_WEATHER, closeRect))
+
+        val innerW = panelW - 32f * dp
+        val leftX = cx - innerW / 2f
+
+        // Section 1: Day / Night Cycle
+        var curY = topY + 62f * dp
+        displayPaint.textAlign = Paint.Align.LEFT
+        displayPaint.textSize = 8.5f * dp
+        displayPaint.color = 0xFFFFE05C.toInt()
+        c.drawText("DAY / NIGHT CYCLE", leftX, curY, displayPaint)
+        curY += 10f * dp
+        val todW = (innerW - 12f * dp) / 3f
+        val todOpts = listOf(
+            TimeOfDayMode.AUTO to UiAction.SET_TOD_AUTO,
+            TimeOfDayMode.DAY to UiAction.SET_TOD_DAY,
+            TimeOfDayMode.NIGHT to UiAction.SET_TOD_NIGHT,
+        )
+        for (i in todOpts.indices) {
+            val (tod, act) = todOpts[i]
+            val r = RectF(leftX + i * (todW + 6f * dp), curY, leftX + i * (todW + 6f * dp) + todW, curY + 32f * dp)
+            drawModePill(c, r, tod.label, engine.timeOfDayMode == tod, dp)
+            buttons.add(HitButton(act, r))
+        }
+
+        // Section 2: Weather Condition (AUTO + 5 Manual presets)
+        curY += 50f * dp
+        displayPaint.textAlign = Paint.Align.LEFT
+        displayPaint.textSize = 8.5f * dp
+        displayPaint.color = 0xFFFFE05C.toInt()
+        c.drawText("WEATHER ENGINE", leftX, curY, displayPaint)
+        curY += 10f * dp
+        val wxBtns = listOf(
+            Triple("AUTO", engine.weatherSource == WeatherSource.AUTO, UiAction.SET_WX_AUTO),
+            Triple("SUN", engine.weatherSource == WeatherSource.MANUAL && engine.manualWeather == WeatherCondition.CLEAR, UiAction.SET_WX_CLEAR),
+            Triple("RAIN", engine.weatherSource == WeatherSource.MANUAL && engine.manualWeather == WeatherCondition.RAIN, UiAction.SET_WX_RAIN),
+            Triple("STORM", engine.weatherSource == WeatherSource.MANUAL && engine.manualWeather == WeatherCondition.STORM, UiAction.SET_WX_STORM),
+            Triple("SNOW", engine.weatherSource == WeatherSource.MANUAL && engine.manualWeather == WeatherCondition.SNOW, UiAction.SET_WX_SNOW),
+            Triple("FOG", engine.weatherSource == WeatherSource.MANUAL && engine.manualWeather == WeatherCondition.FOG, UiAction.SET_WX_FOG),
+        )
+        val wxColW = (innerW - 10f * dp) / 3f
+        for (i in wxBtns.indices) {
+            val col = i % 3
+            val row = i / 3
+            val rx = leftX + col * (wxColW + 5f * dp)
+            val ry = curY + row * 36f * dp
+            val r = RectF(rx, ry, rx + wxColW, ry + 30f * dp)
+            drawModePill(c, r, wxBtns[i].first, wxBtns[i].second, dp)
+            buttons.add(HitButton(wxBtns[i].third, r))
+        }
+
+        // Section 3: Live Open-Meteo GPS Sync + Preset Cities
+        curY += 86f * dp
+        displayPaint.textAlign = Paint.Align.LEFT
+        displayPaint.textSize = 8.5f * dp
+        displayPaint.color = 0xFFFFE05C.toInt()
+        c.drawText("LIVE SYNC (OPEN-METEO)", leftX, curY, displayPaint)
+        curY += 10f * dp
+
+        val gpsRect = RectF(leftX, curY, leftX + innerW, curY + 42f * dp)
+        drawPixelButtonPrimary(c, gpsRect, "DETECT DEVICE GPS", 10f * dp, dp)
+        buttons.add(HitButton(UiAction.DETECT_GPS_WEATHER, gpsRect))
+
+        // Preset Cities row
+        curY += 52f * dp
+        val cityActions = listOf(UiAction.CITY_0, UiAction.CITY_1, UiAction.CITY_2, UiAction.CITY_3, UiAction.CITY_4)
+        val cityW = (innerW - 8f * dp) / 3f
+        for (i in WeatherService.PRESET_CITIES.indices) {
+            val col = i % 3
+            val row = i / 3
+            val rx = leftX + col * (cityW + 4f * dp)
+            val ry = curY + row * 34f * dp
+            val r = RectF(rx, ry, rx + cityW, ry + 28f * dp)
+            val city = WeatherService.PRESET_CITIES[i]
+            val active = engine.weatherSource == WeatherSource.LIVE && engine.liveLocationName == city.label
+            drawModePill(c, r, city.name.uppercase(), active, dp)
+            buttons.add(HitButton(cityActions[i], r))
+        }
+
+        // Status line
+        val status = engine.weatherStatusMsg ?: if (engine.weatherSource == WeatherSource.LIVE && engine.liveWeather != null) {
+            "${engine.liveLocationName}: ${engine.liveWeather!!.label} ${engine.liveTemperatureC ?: ""}C"
+        } else {
+            "Tap GPS or pick a city for real-time weather!"
+        }
+        uiPaint.textAlign = Paint.Align.CENTER
+        uiPaint.textSize = 9.5f * dp
+        uiPaint.color = 0xFF78F0A8.toInt()
+        c.drawText(status, cx, panelRect.bottom - 18f * dp, uiPaint)
     }
 
     /**

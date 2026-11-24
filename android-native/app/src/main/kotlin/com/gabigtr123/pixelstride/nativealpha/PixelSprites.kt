@@ -707,6 +707,71 @@ object PixelSprites {
         }
     }
 
+    private val PET_FOX_PALETTE = mapOf(
+        'K' to 0xFF141224.toInt(),
+        'O' to 0xFFF07824.toInt(),
+        'L' to 0xFFFFB858.toInt(),
+        'W' to 0xFFFFFDF5.toInt(),
+    )
+    private val PET_FOX_SPRITE = listOf(
+        ".KK....KK.",
+        "KOWK..KOWK",
+        "KOOOKKOOOK",
+        "KOLLLLLLOK",
+        "KOWKLLKWOK",
+        ".KOOOOOOK.",
+        "KKOOWWOOK.",
+        "KWWK..K.K.",
+        ".KK.......",
+    )
+
+    private val PET_OWL_PALETTE = mapOf(
+        'K' to 0xFF141224.toInt(),
+        'C' to 0xFFA8DCFF.toInt(),
+        'W' to 0xFFF4FAFF.toInt(),
+        'Y' to 0xFFFFE048.toInt(),
+        'B' to 0xFF4878B8.toInt(),
+    )
+    private val PET_OWL_SPRITE = listOf(
+        "..KK..KK..",
+        ".KCCKKCCK.",
+        "KCCWWWWCCK",
+        "KCWYKKYWCK",
+        "KCWWYYWWCK",
+        "KBCWWWWCBK",
+        ".KBWWWWBK.",
+        "..KYYYYK..",
+        "...KKKK...",
+    )
+
+    private val PET_DRAGON_PALETTE = mapOf(
+        'K' to 0xFF141224.toInt(),
+        'R' to 0xFFE83848.toInt(),
+        'O' to 0xFFFF9828.toInt(),
+        'Y' to 0xFFFFE858.toInt(),
+        'W' to 0xFFFFFFFF.toInt(),
+    )
+    private val PET_DRAGON_SPRITE = listOf(
+        ".KK....KK.",
+        "KYYK..KRRK",
+        ".KRRKKRRWK",
+        "KRRRRRRKRY",
+        "KROORRRRRK",
+        ".KROOORRK.",
+        "..KRRRRK..",
+        "..K.KK.K..",
+        "..........",
+    )
+
+    fun drawPet(canvas: Canvas, pet: PetId, x: Float, y: Float, scale: Float) {
+        when (pet) {
+            PetId.FOX -> drawPixelGrid(canvas, PET_FOX_SPRITE, PET_FOX_PALETTE, x, y, scale)
+            PetId.OWL -> drawPixelGrid(canvas, PET_OWL_SPRITE, PET_OWL_PALETTE, x, y, scale)
+            PetId.DRAGON -> drawPixelGrid(canvas, PET_DRAGON_SPRITE, PET_DRAGON_PALETTE, x, y, scale)
+            PetId.NONE -> Unit
+        }
+    }
+
     fun drawBoss(canvas: Canvas, kind: BossKind, x: Float, y: Float, scale: Float, whiteFlash: Boolean) {
         val (grid, pal) = when (kind) {
             BossKind.IRON_BEETLE -> BOSS_BEETLE_SPRITE to BOSS_BEETLE_PALETTE

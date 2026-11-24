@@ -80,11 +80,13 @@ jobs:
               "### Downloads" \
               "- **Native Android 17 Signed APK (Alpha):** \`${APK}\` (Package ID: \`com.gabigtr123.pixelstride.nativealpha\` — installs side-by-side alongside v3.0.3 without overwriting your saves!)" \
               "" \
-              "### What's New in v4.0.0-alpha.3 (1:1 Visual & Layout Parity Pass)" \
-              "- **Full-Bleed Edge-to-Edge Viewport (Zero Letterboxing):** Extended sky bands upward & underground pixel masonry downward to fill 100% of tall Android 17 screens, matching \`v3.0.3\` portrait framing (\`groundY = 340\`) so the horizon & running hero stay 100% bright and unobstructed." \
-              "- **Exact \`PixelStrideTitleLogo\` Cartridge Plaque:** Coordinate-for-coordinate native port of the beveled navy cartridge plaque with flowing crimson scarf tails, golden corner rivets, gold \`PIXEL\` and cream \`STRIDE\`." \
-              "- **Exact \`TitleOverlay\` Layout (Zero Dark Scrim):** Logo anchored cleanly in the upper sky, live running hero across the sunlit middle horizon, and compact Hero selector pills + PERK badge + 4-Mode pills + golden \`START RUN\` button cleanly on the lower underground masonry deck." \
-              "- **Authentic Stepped 8-Bit Sky Bands + Dither Seams:** Replaced smooth gradient with \`v3.0.3\`'s 3-band NES sky + 2px pixel dither seams, golden-coral sunset/dawn glow, twinkling stars, and pixel crescent moon." \
+              "### What's New in v4.0.0-alpha.4 (Milestone 2: Audio, Pets & Live Weather Parity)" \
+              "- **6 Biome Chiptune Music Loops + Boss Battle Theme (\`AudioTrack\`):** Ported all 6 exact 16-step chiptune lead + bass loops (Sunlit Highlands, Amber Canyon, Starlight Citadel, Dawn Peaks, Frost Tundra, Volcanic Forge) plus the Boss Battle theme, streaming natively with zero audio files." \
+              "- **3 Pet Companions (Live Gameplay + Run Card PNG):**" \
+              "  - **Pixel Fox** — Hops beside you and fetches nearby coins (\`95px\` pull radius)." \
+              "  - **Frost Owl** — Hovers overhead and grants \`+10%\` bonus score on everything." \
+              "  - **Mini Dragon** — Hovers overhead and zaps 1 visible hazard ahead every \`20s\` with a lightning beam for \`+75 ZAP!\`." \
+              "- **Live Weather Sync (Open-Meteo + Native Android GPS):** Tap the Weather pill on the Title Screen to toggle Day/Night (\`AUTO / DAY / NIGHT\`), pick manual weather (\`SUN / RAIN / STORM / SNOW / FOG\`), pick a preset city, or tap **DETECT DEVICE GPS** (native Android runtime Location permission) — with weather-reactive ground puddles, rain splashes, storm lightning, fog mist, and snow icicles!" \
               > release-notes-alpha.md
             gh release create "$RELEASE_TAG" "$APK" \
               --title "Pixel Stride Native ${RELEASE_TAG} (Zero WebView Alpha)" \

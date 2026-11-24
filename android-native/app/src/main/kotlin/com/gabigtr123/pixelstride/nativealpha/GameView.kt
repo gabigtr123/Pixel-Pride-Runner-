@@ -29,6 +29,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
     var insetTopPx: Float = 48f
     var insetBottomPx: Float = 32f
+    var onRequestGpsLocation: (() -> Unit)? = null
 
     private var duckPointerId: Int = MotionEvent.INVALID_POINTER_ID
     private var jumpPointerId: Int = MotionEvent.INVALID_POINTER_ID
@@ -43,7 +44,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         engine.bestScore = prefs.getInt("best_score", 0)
         engine.totalCoins = prefs.getInt("total_coins", 0)
         engine.hero = HeroId.entries.getOrElse(prefs.getInt("hero_ordinal", 0)) { HeroId.STRIDE }
+        engine.pet = PetId.entries.getOrElse(prefs.getInt("pet_ordinal", 0)) { PetId.NONE }
         engine.mode = GameMode.entries.getOrElse(prefs.getInt("mode_ordinal", 0)) { GameMode.ENDLESS }
+        engine.timeOfDayMode = TimeOfDayMode.entries.getOrElse(prefs.getInt("tod_ordinal", 0)) { TimeOfDayMode.AUTO }
+        engine.weatherSource = WeatherSource.entries.getOrElse(prefs.getInt("wx_src_ordinal", 0)) { WeatherSource.AUTO }
+        engine.manualWeather = WeatherCondition.entries.getOrElse(prefs.getInt("wx_man_ordinal", 1)) { WeatherCondition.RAIN }
         synth.muted = prefs.getBoolean("muted", false)
     }
 
@@ -52,7 +57,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             .putInt("best_score", engine.bestScore)
             .putInt("total_coins", engine.totalCoins)
             .putInt("hero_ordinal", engine.hero.ordinal)
+            .putInt("pet_ordinal", engine.pet.ordinal)
             .putInt("mode_ordinal", engine.mode.ordinal)
+            .putInt("tod_ordinal", engine.timeOfDayMode.ordinal)
+            .putInt("wx_src_ordinal", engine.weatherSource.ordinal)
+            .putInt("wx_man_ordinal", engine.manualWeather.ordinal)
             .putBoolean("muted", synth.muted)
             .apply()
     }
@@ -67,7 +76,6 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             }
             vib?.vibrate(VibrationEffect.createOneShot(ms, amplitude))
         } catch (_: Throwable) {
-            // Ignore devices without vibrator
         }
     }
 
@@ -88,6 +96,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         if (engine.phase == GamePhase.PLAYING) {
             engine.phase = GamePhase.PAUSED
         }
+        synth.stopMusic()
         persistSave()
     }
 
@@ -96,6 +105,50 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         runCardPreview?.recycle()
         runCardPreview = null
         synth.release()
+    }
+
+    fun onLocationPermissionResult(granted: Boolean) {
+        if (!granted) {
+            synchronized(engine) {
+                engine.weatherStatusMsg = "Location denied. Pick a city below!"
+            }
+            return
+        }
+        val loc = WeatherService.getLastKnownLocation(context)
+        if (loc == null) {
+            synchronized(engine) {
+                engine.weatherStatusMsg = "GPS fix unavailable. Enable Location or pick a city!"
+            }
+            return
+        }
+        syncWeatherForCoords(loc.latitude, loc.longitude, "MY LOCATION")
+    }
+
+    private fun syncWeatherForCoords(lat: Double, lon: Double, label: String) {
+        synchronized(engine) {
+            engine.weatherStatusMsg = "Syncing $label..."
+        }
+        WeatherService.fetchAsync(
+            lat = lat,
+            lon = lon,
+            label = label,
+            onSuccess = { res ->
+                synchronized(engine) {
+                    engine.weatherSource = WeatherSource.LIVE
+                    engine.liveWeather = res.condition
+                    engine.liveIsDay = res.isDay
+                    engine.liveTemperatureC = res.temperatureC
+                    engine.liveLocationName = res.locationLabel
+                    engine.weatherStatusMsg = "${res.locationLabel}: ${res.condition.label} ${res.temperatureC}C (${if (res.isDay) "DAY" else "NIGHT"})"
+                    persistSave()
+                }
+            },
+            onError = { errMsg ->
+                synchronized(engine) {
+                    engine.weatherStatusMsg = errMsg
+                }
+            },
+        )
     }
 
     private fun startLoop() {
@@ -201,24 +254,70 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                 runCardPreview?.recycle()
                 runCardPreview = null
                 engine.startNewRun()
+                synth.startMusic()
                 vibrate(14, 70)
             }
             UiAction.SELECT_HERO_STRIDE -> selectHero(HeroId.STRIDE)
             UiAction.SELECT_HERO_LILY -> selectHero(HeroId.LILY)
             UiAction.SELECT_HERO_KNIGHT -> selectHero(HeroId.KNIGHT)
+            UiAction.CYCLE_PET -> {
+                val next = (engine.pet.ordinal + 1) % PetId.entries.size
+                engine.pet = PetId.entries[next]
+                persistSave()
+                vibrate(10, 50)
+            }
+            UiAction.OPEN_WEATHER -> {
+                engine.phase = GamePhase.WEATHER
+                vibrate(10, 50)
+            }
+            UiAction.CLOSE_WEATHER -> {
+                engine.phase = GamePhase.TITLE
+            }
+            UiAction.SET_TOD_AUTO -> setTimeOfDay(TimeOfDayMode.AUTO)
+            UiAction.SET_TOD_DAY -> setTimeOfDay(TimeOfDayMode.DAY)
+            UiAction.SET_TOD_NIGHT -> setTimeOfDay(TimeOfDayMode.NIGHT)
+            UiAction.SET_WX_AUTO -> {
+                engine.weatherSource = WeatherSource.AUTO
+                engine.weatherStatusMsg = "Weather follows biome automatically."
+                persistSave()
+            }
+            UiAction.SET_WX_CLEAR -> setManualWeather(WeatherCondition.CLEAR)
+            UiAction.SET_WX_RAIN -> setManualWeather(WeatherCondition.RAIN)
+            UiAction.SET_WX_STORM -> setManualWeather(WeatherCondition.STORM)
+            UiAction.SET_WX_SNOW -> setManualWeather(WeatherCondition.SNOW)
+            UiAction.SET_WX_FOG -> setManualWeather(WeatherCondition.FOG)
+            UiAction.DETECT_GPS_WEATHER -> {
+                engine.weatherStatusMsg = "Requesting GPS permission..."
+                post { onRequestGpsLocation?.invoke() }
+            }
+            UiAction.CITY_0 -> syncPresetCity(0)
+            UiAction.CITY_1 -> syncPresetCity(1)
+            UiAction.CITY_2 -> syncPresetCity(2)
+            UiAction.CITY_3 -> syncPresetCity(3)
+            UiAction.CITY_4 -> syncPresetCity(4)
             UiAction.SELECT_MODE_ENDLESS -> selectMode(GameMode.ENDLESS)
             UiAction.SELECT_MODE_HARDCORE -> selectMode(GameMode.HARDCORE)
             UiAction.SELECT_MODE_BOSS_RUSH -> selectMode(GameMode.BOSS_RUSH)
             UiAction.SELECT_MODE_WINTER -> selectMode(GameMode.WINTER)
-            UiAction.TOGGLE_PAUSE -> engine.togglePause()
-            UiAction.RESUME -> engine.phase = GamePhase.PLAYING
+            UiAction.TOGGLE_PAUSE -> {
+                engine.togglePause()
+                if (engine.phase == GamePhase.PAUSED) synth.stopMusic() else synth.startMusic()
+            }
+            UiAction.RESUME -> {
+                engine.phase = GamePhase.PLAYING
+                synth.startMusic()
+            }
             UiAction.TITLE -> {
                 runCardPreview?.recycle()
                 runCardPreview = null
+                synth.stopMusic()
                 engine.returnToTitle()
             }
             UiAction.TOGGLE_MUTE -> {
                 synth.muted = !synth.muted
+                if (!synth.muted && engine.phase == GamePhase.PLAYING) {
+                    synth.startMusic()
+                }
                 persistSave()
             }
             UiAction.JUMP_BTN -> {
@@ -268,6 +367,23 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         vibrate(10, 50)
     }
 
+    private fun setTimeOfDay(tod: TimeOfDayMode) {
+        engine.timeOfDayMode = tod
+        persistSave()
+    }
+
+    private fun setManualWeather(cond: WeatherCondition) {
+        engine.weatherSource = WeatherSource.MANUAL
+        engine.manualWeather = cond
+        engine.weatherStatusMsg = "Manual weather: ${cond.label}"
+        persistSave()
+    }
+
+    private fun syncPresetCity(index: Int) {
+        val city = WeatherService.PRESET_CITIES.getOrNull(index) ?: return
+        syncWeatherForCoords(city.lat, city.lon, city.label)
+    }
+
     private fun showToast(msg: String) {
         synchronized(engine) {
             renderer.toastMessage = msg
@@ -294,6 +410,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         vibrate(18, 95)
     }
 
+    override fun onZap() {
+        synth.playZap()
+        vibrate(16, 100)
+    }
+
     override fun onHit() {
         synth.playHit()
         vibrate(45, 180)
@@ -304,7 +425,16 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         vibrate(65, 220)
     }
 
+    override fun onBiomeChanged(zoneIndex: Int) {
+        synth.setBiome(zoneIndex)
+    }
+
+    override fun onBossActiveChanged(active: Boolean) {
+        synth.setBossMode(active)
+    }
+
     override fun onGameOver(snapshot: RunSnapshot) {
+        synth.stopMusic()
         synth.playGameOver()
         vibrate(80, 200)
         persistSave()
