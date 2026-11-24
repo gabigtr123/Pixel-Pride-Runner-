@@ -98,7 +98,34 @@ jobs:
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" "$APK" "$ZIP" --clobber
           else
+            cat <<EOF > release-notes.md
+Unified **Android 17** & **Web/PWA** release of **Pixel Stride ${RELEASE_TAG}**.
+
+### Downloads
+- **Android 17 Signed APK:** \`${APK}\` (API 37 / Capacitor 9, persistent release keystore for seamless in-place updates)
+- **Web & PWA Bundle:** \`${ZIP}\` (static bundle ready for any host)
+- **Play / Install PWA (0 warnings):** https://gabigtr123.github.io/Pixel-Pride-Runner-/
+
+### What's New in v3.0
+- **4 Retro Mini-Boss Encounters (Every 90s + Boss Rush):** Battle **Iron Beetle** (LV 2), **Sand Golem** (LV 3), **Neon Drone** (LV 4), and **Crystal Wyrm** (LV 5+) with a live Boss HP bar, charge-and-recoil attacks, dedicated chiptune boss battle music, and **+500 BOSS KO! +25 COINS** + free Heart/Shield drop!
+- **3 Pet Companions (Pixel Shop Wardrobe):**
+  - **Pixel Fox (300 C)** — Hops alongside you and fetches nearby coins (\`95px\` pull radius).
+  - **Frost Owl (380 C)** — Hovers overhead and grants \`+10%\` bonus score on everything.
+  - **Mini Dragon (550 C)** — Zaps 1 visible hazard ahead every \`20s\` for \`+75 ZAP!\`.
+- **4 Game Modes:**
+  - **ENDLESS** — Classic run with a Mini-Boss every 90 seconds (3 Day/Night cycles).
+  - **DAILY** — Deterministic date-seeded run so everyone plays the exact same layout each day.
+  - **HARDCORE** — \`1 HP\`, \`1.25×\` speed, and **2× Coins & Score** payout.
+  - **BOSS RUSH** — Back-to-back Mini-Boss gauntlets!
+- **Trophy Room (12 Achievements + Career Stats):** Unlock 12 milestones with claimable \`+50 C\` to \`+200 C\` coin rewards plus a full Career Stats board.
+- **Graphical Trading-Card Run Card (PNG):** Tap **VIEW & SHARE RUN CARD** on Game Over to generate a crisp \`640×900\` 8-bit collector's trading card PNG (\`COMMON\` / \`RARE\` / \`EPIC\` / \`LEGENDARY\` rarity border, your hero + equipped Hat, Cape/Wings & Pet in the biome, final score & Boss KO stats) with 1-tap **Share PNG** or **Save PNG**.
+
+### Core Highlights
+- **Pixel Shop 2.0:** Wardrobe (5 Hats + Cape/Jetpack/Angel Wings), 5 Equippable Gadgets (2 slots + unlockable Slot #3), 3 Consumable Boosters & **Turbo Dash** power-up.
+- **4 Looping Landscape Levels** (Highland Meadows -> Pyramid Canyon -> Starlight City -> Crystal Peaks), **Winter Theme**, **Day/Night Cycle**, and **Live Weather Sync** with weather-reactive terrain.
+- **4 Playable Heroes:** **Stride**, **Lily**, **Pixel Knight**, and **Custom Hero** (8-bit Hero Creator).
+EOF
             gh release create "$RELEASE_TAG" "$APK" "$ZIP" \
               --title "Pixel Stride ${RELEASE_TAG}" \
-              --notes "$(printf 'Unified **Android 17** & **Web/PWA** release of **Pixel Stride**.\n\n### Downloads\n- **Android 17 Signed APK:** `%s` (API 37 / Capacitor 9, persistent release keystore for seamless in-place updates)\n- **Web & PWA Bundle:** `%s` (static bundle ready for any host)\n- **Play / Install PWA (0 warnings):** https://gabigtr123.github.io/Pixel-Pride-Runner-/\n\n### Highlights\n- **Pixel Shop 2.0:** Wardrobe (5 Hats + Cape/Jetpack/Angel Wings), 5 Equippable Gadgets (2 slots + unlockable Slot #3), 3 Consumable Boosters & **Turbo Dash** power-up\n- **4 Looping Landscape Levels** (Highland Meadows -> Pyramid Canyon -> Starlight City -> Crystal Peaks) advancing every 3 Day/Night cycles\n- **Winter Theme, Day/Night Cycle & Live Weather Sync (Alpha)** with weather-reactive terrain (rain puddles, trickling water, snow icicles)\n- Playable heroes: **Stride**, **Lily**, **Pixel Knight**, & **Custom Hero** (8-bit Hero Creator)' "$APK" "$ZIP")"
+              --notes-file release-notes.md
           fi
