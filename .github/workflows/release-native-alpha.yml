@@ -1,0 +1,97 @@
+name: Release Native Alpha (Android 17 Kotlin / Zero WebView)
+
+on:
+  push:
+    tags:
+      - "v*-alpha*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Alpha release tag (e.g. v4.0.0-alpha.1)"
+        required: true
+        default: "v4.0.0-alpha.1"
+
+permissions:
+  contents: write
+
+jobs:
+  build-native-alpha:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
+      - name: Setup Gradle 9.8.2
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.8.2"
+
+      - name: Accept Android SDK licenses
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+
+      - name: Build Signed Native Android 17 Alpha APK
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          KEYSTORE_FILE="$PWD/android-native/app/release.keystore"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_FILE"
+          cd android-native
+          gradle assembleRelease \
+            -Pandroid.injected.signing.store.file="$KEYSTORE_FILE" \
+            -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD"
+          rm -f "$KEYSTORE_FILE"
+          cp app/build/outputs/apk/release/app-release.apk "../pixel-stride-${RELEASE_TAG}-native-android.apk"
+
+      - name: Verify APK signature & Android 17 metadata
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          BUILD_TOOLS=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
+          APK="pixel-stride-${RELEASE_TAG}-native-android.apk"
+          ls -lh "$APK"
+          "$BUILD_TOOLS/apksigner" verify --print-certs "$APK"
+          "$BUILD_TOOLS/aapt2" dump badging "$APK" | grep -E "^(package:|sdkVersion:|targetSdkVersion:|uses-permission:|application-label:)"
+
+      - name: Publish GitHub Pre-Release (Native Alpha)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          APK="pixel-stride-${RELEASE_TAG}-native-android.apk"
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$APK" --clobber
+          else
+            printf '%s\n' \
+              "First **100% Native Kotlin / Android 17 (API 37)** Alpha release of **Pixel Stride** — **Zero WebView, Zero Capacitor, Zero JavaScript**." \
+              "" \
+              "### Downloads" \
+              "- **Native Android 17 Signed APK (Alpha):** \`${APK}\` (Package ID: \`com.gabigtr123.pixelstride.nativealpha\` — installs side-by-side alongside v3.0.3 without overwriting your saves!)" \
+              "" \
+              "### What's Inside v4.0.0-alpha.1 (Pure Native Kotlin)" \
+              "- **Zero WebView / Zero Capacitor:** Built purely with **Kotlin + Android \`SurfaceView\` + \`Canvas\` + \`AudioTrack\`** targeting **Android 17 (API 37)**." \
+              "- **3 Playable Heroes:** **Stride**, **Lily**, and **Pixel Knight** (4 HP) with pixel-art run/jump/duck sprites." \
+              "- **4 Game Modes:** **ENDLESS**, **HARDCORE 2X** (1 HP, 1.25× speed, 2× score & coins), **BOSS RUSH**, and **WINTER** (live snowfall)." \
+              "- **6 Parallax Biomes + Day/Night Cycle:** Sunlit Highlands, Amber Canyon, Starlight Citadel, Dawn Peaks, Frost Tundra, Volcanic Forge." \
+              "- **Full Platformer Physics & Combat:** Variable jump, Double Jump, coyote time, jump buffering, Duck/Slide/Fast-Fall, stompable Hoppers, Spikes, Swoopers, Flames, 4 Mini-Bosses (Iron Beetle, Sand Golem, Neon Drone, Crystal Wyrm), and 6 Power-Ups (Shield, Heart, Magnet, 2X, Slow-Mo, Turbo Dash)." \
+              "- **Procedural 8-bit Chiptune Synth (\`AudioTrack\`):** Zero audio asset files — real-time square/noise PCM synthesis + native Android haptics." \
+              "- **Native Run Card PNG Export (\`Bitmap\` + \`MediaStore\` + \`FileProvider\`):** Share PNG via native Android Share Sheet or Save PNG straight to **Gallery (\`Pictures/PixelStride\`)** with **zero storage permissions**." \
+              "- **Android 17 Ready:** Game Mode (\`appCategory=\"game\"\`), Predictive Back, Dark \`#111324\` Material SplashScreen, Edge-to-Edge Cutout, Material You Monochrome Icon." \
+              > release-notes-alpha.md
+            gh release create "$RELEASE_TAG" "$APK" \
+              --title "Pixel Stride Native ${RELEASE_TAG} (Zero WebView Alpha)" \
+              --notes-file release-notes-alpha.md \
+              --prerelease
+          fi
