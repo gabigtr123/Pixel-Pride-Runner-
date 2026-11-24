@@ -1,7 +1,7 @@
 {
   "name": "Pixel Stride — 8-Bit Endless Runner",
   "short_name": "Pixel Stride",
-  "description": "An 8-bit retro endless runner with playable characters, daily missions, parallax biomes, and chiptune audio.",
+  "description": "An 8-bit retro endless runner with Mini-Bosses, Pet Companions, 4 Game Modes, Pixel Shop, Hero Creator, Trophy Room, and Live Weather Sync.",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",

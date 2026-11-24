@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ColorOption } from '../game/creator';
 import type { DailyMission } from '../game/daily';
 import { renderRunCardToCanvas, runCardCanvasToBlob } from '../game/runCard';

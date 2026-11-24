@@ -1,4 +1,3 @@
-import React from 'react';
 import { CYCLES_PER_LEVEL, LEVEL_NAMES } from '../game/constants';
 import type { HudSnapshot, OrientationMode } from '../game/types';
 import {

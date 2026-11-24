@@ -1,4 +1,3 @@
-import React from 'react';
 import { buildCustomSpriteSet } from '../game/creator';
 import { CHARACTER_SPRITES } from '../game/sprites';
 import type { CharacterId, CustomCharacterConfig, GameMode, OrientationMode } from '../game/types';

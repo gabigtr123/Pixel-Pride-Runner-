@@ -28,31 +28,36 @@ export function TrophyModal({
 
   return (
     <div
-      className="modal-safe-area absolute inset-0 z-30 flex items-center justify-center bg-black/75 p-3 backdrop-blur-[2px]"
+      className="fixed inset-0 z-40 flex items-center justify-center modal-safe-area bg-[#0B0D1A]/75"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Trophy Room"
+      data-testid="trophy-modal"
       onPointerDown={(e) => e.stopPropagation()}
     >
-      <div className="pixel-panel flex max-h-[92%] w-full max-w-[460px] flex-col gap-2.5 overflow-hidden px-4 py-3.5 text-[#F6F4E8]">
+      <div className="pixel-panel flex max-h-full w-full max-w-[460px] flex-col gap-2.5 overflow-hidden px-4 py-3.5 text-[#F6F4E8]">
         {/* Header */}
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2 border-b-2 border-[#303A68] pb-2">
           <div>
-            <h2 className="pixel-text-shadow text-xs text-[#FFE05C] sm:text-sm">
+            <h2 className="font-pixel-display pixel-text-shadow text-xs text-[#FFE05C] sm:text-sm">
               🏆 TROPHY ROOM
             </h2>
-            <p className="mt-1 text-[8px] text-[#98D8FF]">
+            <p className="mt-1 font-pixel-ui text-[9px] text-[#98D8FF]">
               {unlockedCount}/{ACHIEVEMENTS_CATALOG.length} UNLOCKED
               {unclaimedCount > 0 ? ` • ${unclaimedCount} READY!` : ''}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="border-2 border-[#121324] bg-[#241A08] px-2 py-1 text-[9px] text-[#FFE05C]">
+            <span className="border-2 border-[#121324] bg-[#241A08] px-2 py-1 font-pixel-display text-[9px] text-[#FFE05C]">
               ● {coinsBank} C
             </span>
             <button
               type="button"
               onClick={onClose}
-              className="pixel-btn px-2.5 py-1.5 text-[9px]"
+              aria-label="Close Trophy Room"
+              className="pixel-icon-btn px-2.5 py-1.5 font-pixel-display text-[10px] cursor-pointer"
             >
-              ✕
+              X
             </button>
           </div>
         </div>
@@ -62,8 +67,10 @@ export function TrophyModal({
           <button
             type="button"
             onClick={() => setTab('trophies')}
-            className={`pixel-btn px-2 py-2 text-[8px] ${
-              tab === 'trophies' ? 'pixel-btn-primary' : ''
+            className={`py-2 px-2 font-pixel-display text-[8px] sm:text-[9px] border-2 cursor-pointer ${
+              tab === 'trophies'
+                ? 'bg-[#293568] border-[#FFE05C] text-[#FFF4A8]'
+                : 'bg-[#141830] border-[#3A467A] text-[#A2B0D8]'
             }`}
           >
             TROPHIES ({unlockedCount}/{ACHIEVEMENTS_CATALOG.length})
@@ -71,8 +78,10 @@ export function TrophyModal({
           <button
             type="button"
             onClick={() => setTab('stats')}
-            className={`pixel-btn px-2 py-2 text-[8px] ${
-              tab === 'stats' ? 'pixel-btn-primary' : ''
+            className={`py-2 px-2 font-pixel-display text-[8px] sm:text-[9px] border-2 cursor-pointer ${
+              tab === 'stats'
+                ? 'bg-[#293568] border-[#FFE05C] text-[#FFF4A8]'
+                : 'bg-[#141830] border-[#3A467A] text-[#A2B0D8]'
             }`}
           >
             CAREER STATS
@@ -96,32 +105,32 @@ export function TrophyModal({
                     <span className="text-base leading-none">{ach.icon}</span>
                     <div className="min-w-0">
                       <p
-                        className={`truncate text-[9px] ${
+                        className={`truncate font-pixel-display text-[9px] ${
                           unlocked ? 'text-[#FFE05C]' : 'text-[#90A0C4]'
                         }`}
                       >
                         {ach.title}
                       </p>
-                      <p className="mt-0.5 text-[7px] leading-relaxed text-[#C2D0F0]">
+                      <p className="mt-0.5 font-pixel-ui text-[9px] leading-relaxed text-[#C2D0F0]">
                         {ach.desc}
                       </p>
                     </div>
                   </div>
                   <div className="shrink-0">
                     {claimed ? (
-                      <span className="border-2 border-[#121324] bg-[#163826] px-2 py-1 text-[7px] text-[#78F0A8]">
+                      <span className="border-2 border-[#121324] bg-[#163826] px-2 py-1 font-pixel-display text-[7px] text-[#78F0A8]">
                         ✓ CLAIMED
                       </span>
                     ) : unlocked ? (
                       <button
                         type="button"
                         onClick={() => onClaim(ach.id)}
-                        className="pixel-btn pixel-btn-primary px-2 py-1 text-[8px]"
+                        className="pixel-btn-primary px-2.5 py-1 font-pixel-display text-[8px] cursor-pointer"
                       >
                         +{ach.rewardCoins} C
                       </button>
                     ) : (
-                      <span className="border-2 border-[#121324] bg-[#1A2038] px-2 py-1 text-[7px] text-[#8090B8]">
+                      <span className="border-2 border-[#121324] bg-[#1A2038] px-2 py-1 font-pixel-display text-[7px] text-[#8090B8]">
                         +{ach.rewardCoins} C
                       </span>
                     )}

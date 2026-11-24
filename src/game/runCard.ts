@@ -281,12 +281,12 @@ export function renderRunCardToCanvas(
   // Distant pixel mountains
   ctx.fillStyle = biome.farMountain;
   const peaks = [
-    [artX, artY + 230, 130, 90],
-    [artX + 95, artY + 210, 160, 110],
-    [artX + 230, artY + 225, 150, 95],
-    [artX + 360, artY + 200, 180, 120],
+    [artX, artY + 230, 130],
+    [artX + 95, artY + 210, 160],
+    [artX + 230, artY + 225, 150],
+    [artX + 360, artY + 200, 180],
   ];
-  for (const [px, py, pw, ph] of peaks) {
+  for (const [px, py, pw] of peaks) {
     ctx.beginPath();
     ctx.moveTo(px, artY + artH - 60);
     ctx.lineTo(px + pw / 2, py);
