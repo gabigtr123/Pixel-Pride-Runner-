@@ -9,6 +9,14 @@ import {
 } from './constants';
 import { buildCustomSpriteSet } from './creator';
 import {
+  BOSS_BEETLE_PALETTE,
+  BOSS_BEETLE_SPRITE,
+  BOSS_DRONE_PALETTE,
+  BOSS_DRONE_SPRITE,
+  BOSS_GOLEM_PALETTE,
+  BOSS_GOLEM_SPRITE,
+  BOSS_WYRM_PALETTE,
+  BOSS_WYRM_SPRITE,
   CHARACTER_SPRITES,
   COIN_FRAMES,
   COIN_PALETTE,
@@ -22,6 +30,12 @@ import {
   HOPPER_PALETTE,
   MAGNET_PALETTE,
   MAGNET_SPRITE,
+  PET_DRAGON_PALETTE,
+  PET_DRAGON_SPRITE,
+  PET_FOX_PALETTE,
+  PET_FOX_SPRITE,
+  PET_OWL_PALETTE,
+  PET_OWL_SPRITE,
   SHIELD_PALETTE,
   SHIELD_SPRITE,
   SLOWMO_PALETTE,
@@ -986,6 +1000,61 @@ function drawPlayer(ctx: CanvasRenderingContext2D, state: GameState): void {
   }
 }
 
+function drawPet(ctx: CanvasRenderingContext2D, state: GameState): void {
+  if (state.petId === 'none' || state.player.koActive) return;
+  const p = state.player;
+  if (state.petId === 'fox') {
+    const hop = Math.abs(Math.sin(state.elapsed * 11)) * 4;
+    const fx = Math.round(p.x - 16);
+    const fy = Math.round(GROUND_Y - 9 - hop);
+    ctx.fillStyle = 'rgba(12, 14, 30, 0.35)';
+    ctx.fillRect(fx + 1, GROUND_Y - 1, 8, 2);
+    drawPixelGrid(ctx, PET_FOX_SPRITE, PET_FOX_PALETTE, fx, fy, 1, false);
+  } else if (state.petId === 'owl') {
+    const hover = Math.sin(state.elapsed * 6.5) * 3.5;
+    const ox = Math.round(p.x - 15);
+    const oy = Math.round(p.y - p.height - 10 + hover);
+    drawPixelGrid(ctx, PET_OWL_SPRITE, PET_OWL_PALETTE, ox, oy, 1, false);
+  } else if (state.petId === 'dragon') {
+    const hover = Math.sin(state.elapsed * 7.5) * 4;
+    const dx = Math.round(p.x - 17);
+    const dy = Math.round(p.y - p.height - 7 + hover);
+    if (state.petActionTimer < 2.2) {
+      ctx.fillStyle = 'rgba(255, 168, 48, 0.45)';
+      ctx.fillRect(dx + 8, dy + 2, 4, 4);
+    }
+    drawPixelGrid(ctx, PET_DRAGON_SPRITE, PET_DRAGON_PALETTE, dx, dy, 1, false);
+  }
+}
+
+function drawBoss(ctx: CanvasRenderingContext2D, state: GameState): void {
+  const boss = state.boss;
+  if (!boss) return;
+
+  const spriteMap = {
+    beetle: { grid: BOSS_BEETLE_SPRITE, palette: BOSS_BEETLE_PALETTE },
+    golem: { grid: BOSS_GOLEM_SPRITE, palette: BOSS_GOLEM_PALETTE },
+    drone: { grid: BOSS_DRONE_SPRITE, palette: BOSS_DRONE_PALETTE },
+    wyrm: { grid: BOSS_WYRM_SPRITE, palette: BOSS_WYRM_PALETTE },
+  } as const;
+
+  const { grid, palette } = spriteMap[boss.kind];
+  const bx = Math.round(boss.x);
+  const by = Math.round(boss.y);
+
+  // Boss ground shadow
+  ctx.fillStyle = 'rgba(12, 14, 30, 0.45)';
+  ctx.fillRect(bx + 4, GROUND_Y - 2, boss.width - 8, 4);
+
+  // Subtle telegraph aura right before boss attacks
+  if (boss.attackTimer < 0.45 && boss.x <= boss.targetX + 20) {
+    ctx.fillStyle = 'rgba(255, 72, 104, 0.3)';
+    ctx.fillRect(bx - 3, by - 3, boss.width + 6, boss.height + 6);
+  }
+
+  drawPixelGrid(ctx, grid, palette, bx, by, 2, boss.hitFlash > 0);
+}
+
 function drawParticlesAndPopups(
   ctx: CanvasRenderingContext2D,
   state: GameState,
@@ -1051,6 +1120,8 @@ export function renderGameWorld(
   drawPlatforms(ctx, state, biome, activeWeather);
   drawPickups(ctx, state);
   drawHazards(ctx, state, view);
+  drawBoss(ctx, state);
+  drawPet(ctx, state);
   drawPlayer(ctx, state);
   drawParticlesAndPopups(ctx, state, view);
   drawBiomeWeather(ctx, state, biome, view, env?.weatherOverride ?? null);

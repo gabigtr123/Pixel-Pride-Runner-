@@ -233,8 +233,27 @@ export function GameHud({
         </div>
       </div>
 
-      {/* Transient level-up or biome arrival callout — unboxed typography in upper sky */}
-      {hud.levelBannerTimer > 0 ? (
+      {/* Active Mini-Boss HP Bar OR transient level/biome banner */}
+      {hud.bossName ? (
+        <div
+          className="self-center mt-1.5 flex flex-col items-center gap-1 px-3 py-1.5 bg-[#141224]/85 border-2 border-[#FF5874]"
+          data-testid="boss-hp-bar"
+        >
+          <span className="font-pixel-display text-[9px] sm:text-[10px] text-[#FFE05C] tracking-wider">
+            🐉 {hud.bossName} ({hud.bossHp}/{hud.bossMaxHp})
+          </span>
+          <div className="flex items-center gap-1">
+            {Array.from({ length: hud.bossMaxHp }, (_, idx) => (
+              <span
+                key={idx}
+                className={`h-2.5 w-6 sm:w-8 border border-[#121324] ${
+                  idx < hud.bossHp ? 'bg-[#FF4858]' : 'bg-[#2A2238]'
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+      ) : hud.levelBannerTimer > 0 ? (
         <div className="self-center mt-2 text-center">
           <p className="font-pixel-display text-xs sm:text-sm text-[#78F0A8] pixel-text-shadow tracking-widest">
             LEVEL {hud.level} — {LEVEL_NAMES[(hud.level - 1) % LEVEL_NAMES.length]}
@@ -248,6 +267,18 @@ export function GameHud({
             </p>
           </div>
         )
+      )}
+
+      {hud.gameMode !== 'endless' && !hud.bossName && (
+        <div className="self-center mt-1">
+          <span className="font-pixel-display text-[8px] px-2 py-0.5 bg-[#141224]/75 border border-[#FFE05C] text-[#FFE05C] tracking-wider">
+            {hud.gameMode === 'hardcore'
+              ? 'HARDCORE 2X'
+              : hud.gameMode === 'bossRush'
+                ? 'BOSS RUSH'
+                : 'DAILY SEED'}
+          </span>
+        </div>
       )}
 
       {/* Dedicated touch controls: Portrait = full-width underground deck; Landscape = bottom-right cluster away from runner */}

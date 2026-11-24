@@ -146,19 +146,31 @@ export class ChiptuneAudio {
     src.stop(now + duration + 0.02);
   }
 
+  private bossMode = false;
+  private readonly bossTheme = {
+    lead: [440, 466.16, 523.25, 0, 587.33, 523.25, 466.16, 440, 659.25, 0, 587.33, 523.25, 466.16, 440, 392, 0],
+    bass: [110, 110, 146.83, 110, 130.81, 130.81, 164.81, 130.81, 116.54, 116.54, 146.83, 116.54, 110, 130.81, 146.83, 164.81],
+  };
+
+  public setBossMode(active: boolean): void {
+    this.bossMode = active;
+  }
+
   public startMusic(): void {
     if (this.muted || this.musicPlaying || typeof window === 'undefined') return;
     this.musicPlaying = true;
     this.musicTimer = window.setInterval(() => {
       if (this.muted || !this.musicPlaying) return;
-      const theme = this.biomeThemes[this.biomeIndex] ?? this.biomeThemes[0];
+      const theme = this.bossMode
+        ? this.bossTheme
+        : (this.biomeThemes[this.biomeIndex] ?? this.biomeThemes[0]);
       const lead = theme.lead[this.musicStep % theme.lead.length];
       const bass = theme.bass[this.musicStep % theme.bass.length];
       if (lead > 0) {
-        this.playTone('square', lead, lead, 0.095, 0.022);
+        this.playTone(this.bossMode ? 'sawtooth' : 'square', lead, lead, 0.09, this.bossMode ? 0.028 : 0.022);
       }
       if (bass > 0) {
-        this.playTone('triangle', bass, bass, 0.12, 0.04);
+        this.playTone('triangle', bass, bass, 0.12, this.bossMode ? 0.048 : 0.04);
       }
       this.musicStep += 1;
     }, 145);

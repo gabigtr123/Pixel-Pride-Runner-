@@ -6,10 +6,16 @@ import {
   computeDifficulty,
   createInitialState,
   getPlayerHitbox,
+  makeDateSeededRng,
   returnToTitle,
   startNewRun,
   stepSimulation,
 } from './engine';
+import {
+  claimAchievementReward,
+  createDefaultAchievementsState,
+  evaluateAchievements,
+} from './achievements';
 import { GROUND_Y, PLAYER_DUCK_HEIGHT, PLAYER_STAND_HEIGHT, PLAYER_X } from './constants';
 import {
   buildCustomSpriteSet,
@@ -36,6 +42,7 @@ import {
   buyKnightCharacter,
   buyOrEquipCape,
   buyOrEquipHat,
+  buyOrEquipPet,
   buyOrEquipTrail,
   buyOrToggleGadget,
   buyUpgrade,
@@ -471,32 +478,31 @@ test('v2.3 Level system advances every 3 Day/Night cycles (90s), awards bonus, a
   assert.equal(st.dayCycleCount, 2);
   assert.equal(st.level, 1);
 
-  // Cross 3 cycles (90s) -> Level 2 + bonus points + banner
+  // Cross 3 cycles (90s) -> spawns Mini-Boss #1 (Iron Beetle); defeating it advances to Level 2!
   const bonusBefore = st.bonusScore;
   st.runTime = 90.05;
   stepSimulation(st, 1 / 60, IDLE_INPUT, rng);
   assert.equal(st.dayCycleCount, 3);
-  assert.equal(st.level, 2);
-  assert.ok(st.bonusScore >= bonusBefore + 250, 'level up awards +250 bonus');
+  assert.ok(st.boss, 'crossing 90s spawns a Mini-Boss');
+  assert.equal(st.boss?.kind, 'beetle');
+
+  // Defeat Boss #1 by stomping from above with Turbo Dash
+  st.boss!.hp = 1;
+  st.boss!.x = st.player.x;
+  st.boss!.y = st.player.y - 16;
+  st.player.turboDashTimer = 2;
+  stepSimulation(st, 1 / 60, IDLE_INPUT, rng);
+  assert.equal(st.boss, null, 'boss clears after KO');
+  assert.equal(st.bossesDefeated, 1);
+  assert.equal(st.level, 2, 'defeating Boss #1 advances to Level 2');
+  assert.ok(st.bonusScore >= bonusBefore + 750, 'boss KO + level up awards bonus points');
   assert.ok(st.levelBannerTimer > 2, 'level up shows banner');
-
-  // Cross 6, 9, and 12 cycles -> Levels 3, 4, and 5 (looping back to landscape 0)
-  st.runTime = 180.1;
-  stepSimulation(st, 1 / 60, IDLE_INPUT, rng);
-  assert.equal(st.level, 3);
-
-  st.runTime = 270.1;
-  stepSimulation(st, 1 / 60, IDLE_INPUT, rng);
-  assert.equal(st.level, 4);
-
-  st.runTime = 360.1;
-  stepSimulation(st, 1 / 60, IDLE_INPUT, rng);
-  assert.equal(st.level, 5, 'levels continue looping past Level 4');
 
   // New run resets cleanly back to Level 1
   const reset = startNewRun(st);
   assert.equal(reset.level, 1);
   assert.equal(reset.dayCycleCount, 0);
+  assert.equal(reset.boss, null);
 });
 
 test('v2.4 Shop 2.0 handles Wardrobe, 2-slot + unlockable 3rd Gadget slot, and consumable Boosters', () => {
@@ -576,4 +582,118 @@ test('v2.4 Gadgets & Turbo Dash grant Triple Jump, Second Wind revive, and invin
   assert.equal(st.player.koActive, false, 'Second Wind prevents KO');
   assert.equal(st.player.hp, 2, 'Second Wind restores 2 HP');
   assert.equal(st.player.secondWindUsed, true);
+});
+
+test('v3.0 Boss Rush spawns back-to-back Mini-Bosses and awards +25 coins + Heart/Shield drop on KO', () => {
+  const rng = makeSeededRng(301);
+  const st = startNewRun(createInitialState(0, 'title'), { gameMode: 'bossRush' });
+  assert.equal(st.gameMode, 'bossRush');
+
+  // Step 4 seconds -> Boss #1 (Iron Beetle) spawns
+  for (let i = 0; i < 240; i++) {
+    stepSimulation(st, 1 / 60, IDLE_INPUT, rng);
+  }
+  assert.ok(st.boss, 'Boss Rush spawns first boss after cooldown');
+  assert.equal(st.boss?.name, 'IRON BEETLE');
+
+  // Stomp Boss #1 from above to deal final hit
+  st.boss!.hp = 1;
+  st.boss!.x = st.player.x;
+  st.boss!.y = st.player.y - 14;
+  st.player.y = st.boss!.y + 2;
+  st.player.vy = 180;
+  st.player.onGround = false;
+  const coinsBefore = st.coins;
+  stepSimulation(st, 1 / 60, IDLE_INPUT, rng);
+  assert.equal(st.boss, null);
+  assert.equal(st.bossesDefeated, 1);
+  assert.equal(st.coins, coinsBefore + 25, 'Boss KO awards +25 coins');
+  assert.ok(
+    st.player.shieldActive || st.pickups.some((pk) => pk.kind === 'heart' || pk.kind === 'shield'),
+    'Boss KO grants or drops Heart/Shield pickup',
+  );
+});
+
+test('v3.0 Game Modes (Daily Seed determinism, Hardcore 1 HP/1.25x) & Pet Companions work properly', () => {
+  // Daily Seed determinism
+  const rngA = makeDateSeededRng('2026-11-24');
+  const rngB = makeDateSeededRng('2026-11-24');
+  for (let i = 0; i < 10; i++) {
+    assert.equal(rngA(), rngB(), 'same date key must produce identical sequence');
+  }
+
+  // Hardcore mode: 1 HP & 1.25x speed
+  const endless = startNewRun(createInitialState(0, 'title'), { gameMode: 'endless' });
+  const hardcore = startNewRun(createInitialState(0, 'title'), { gameMode: 'hardcore' });
+  assert.equal(hardcore.player.maxHp, 1);
+  assert.equal(hardcore.player.hp, 1);
+  stepSimulation(endless, 1 / 60, IDLE_INPUT, makeSeededRng(10));
+  stepSimulation(hardcore, 1 / 60, IDLE_INPUT, makeSeededRng(10));
+  assert.ok(hardcore.speed > endless.speed * 1.2, 'Hardcore runs 1.25x faster');
+
+  // Pet Shop + Mini Dragon zap
+  let shop = addCoinsToBank(createDefaultShopState(), 1000);
+  shop = buyOrEquipPet(shop, 'dragon');
+  assert.equal(shop.activePet, 'dragon');
+
+  const dragonRun = startNewRun(createInitialState(0, 'title'), { petId: 'dragon' });
+  dragonRun.petActionTimer = 0.01;
+  dragonRun.hazards.push({
+    id: 777,
+    kind: 'spike',
+    x: dragonRun.player.x + 60,
+    y: GROUND_Y - 18,
+    width: 14,
+    height: 18,
+    baseY: GROUND_Y - 18,
+    vx: 0,
+    vy: 0,
+    phaseTimer: 0,
+    telegraphTimer: 0,
+    telegraphSounded: true,
+    isActive: true,
+    stomped: false,
+    koTimer: 0,
+    koVx: 0,
+    koVy: 0,
+    hitFlash: 0,
+  });
+  stepSimulation(dragonRun, 1 / 60, IDLE_INPUT, makeSeededRng(11));
+  assert.equal(dragonRun.hazards.length, 0, 'Mini Dragon zaps nearest visible hazard');
+  assert.ok(dragonRun.bonusScore >= 75, 'Mini Dragon zap awards +75 bonus');
+});
+
+test('v3.0 Trophy Room unlocks achievements and pays claimable coin rewards once', () => {
+  let shop = addCoinsToBank(createDefaultShopState(), 2000);
+  shop = buyOrEquipHat(shop, 'crown');
+  shop = buyOrEquipCape(shop, 'wings');
+  shop = buyOrEquipPet(shop, 'fox');
+  shop = buyExtraGadgetSlot(shop);
+
+  const initial = createDefaultAchievementsState();
+  const { next: afterRun, newlyUnlocked } = evaluateAchievements(initial, shop, {
+    score: 12000,
+    distance: 3200,
+    coins: 120,
+    stomps: 35,
+    level: 4,
+    bossesDefeated: 1,
+    isHardcore: true,
+    isStormOrRain: true,
+    isWinter: true,
+  });
+
+  assert.ok(newlyUnlocked.length >= 9, 'unlocks multiple achievements on milestone run');
+  assert.ok(afterRun.unlockedIds.includes('first_boss'));
+  assert.ok(afterRun.unlockedIds.includes('fashion_icon'));
+  assert.ok(afterRun.unlockedIds.includes('pet_lover'));
+  assert.ok(afterRun.unlockedIds.includes('gadget_master'));
+
+  const claim1 = claimAchievementReward(afterRun, 'first_boss');
+  assert.equal(claim1.rewardCoins, 80);
+  assert.ok(claim1.next.claimedIds.includes('first_boss'));
+
+  // Double-claiming yields 0 coins
+  const claim2 = claimAchievementReward(claim1.next, 'first_boss');
+  assert.equal(claim2.rewardCoins, 0);
 });

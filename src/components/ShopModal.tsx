@@ -7,6 +7,7 @@ import {
   getMaxGadgetSlots,
   HAT_CATALOG,
   KNIGHT_PRICE,
+  PET_CATALOG,
   TRAIL_CATALOG,
   UPGRADE_COSTS,
   type ShopState,
@@ -17,6 +18,7 @@ import type {
   CustomCharacterConfig,
   GadgetId,
   HatId,
+  PetId,
   TrailId,
 } from '../game/types';
 import { CharacterPreviewIcon, CoinIcon } from './PixelIcons';
@@ -30,6 +32,7 @@ interface ShopModalProps {
   onSelectTrail: (id: TrailId) => void;
   onSelectHat: (id: HatId) => void;
   onSelectCape: (id: CapeId) => void;
+  onSelectPet: (id: PetId) => void;
   onBuyOrToggleGadget: (id: GadgetId) => void;
   onBuyExtraGadgetSlot: () => void;
   onBuyBooster: (id: BoosterId) => void;
@@ -58,6 +61,7 @@ export function ShopModal({
   onSelectTrail,
   onSelectHat,
   onSelectCape,
+  onSelectPet,
   onBuyOrToggleGadget,
   onBuyExtraGadgetSlot,
   onBuyBooster,
@@ -329,6 +333,47 @@ export function ShopModal({
                       </span>
                       <span className="font-pixel-ui text-[10px] shrink-0">
                         {equipped ? 'ON' : unlocked ? 'USE' : `${c.price}C`}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Pet Companions */}
+            <div className="flex flex-col gap-2">
+              <span className="font-pixel-display text-[10px] text-[#78F0A8]">PET COMPANIONS</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {PET_CATALOG.map((pet) => {
+                  const unlocked = shop.unlockedPets.includes(pet.id);
+                  const equipped = shop.activePet === pet.id;
+                  const canAfford = shop.coinsBank >= pet.price;
+                  return (
+                    <button
+                      key={pet.id}
+                      type="button"
+                      disabled={!unlocked && !canAfford}
+                      onClick={() => onSelectPet(pet.id)}
+                      className={`p-2 border-2 flex items-center justify-between gap-2 text-left cursor-pointer ${
+                        equipped
+                          ? 'bg-[#1F2952] border-[#78F0A8] text-[#E8FFF2]'
+                          : unlocked
+                            ? 'bg-[#12162D] border-[#4C5C96] text-[#E4EAF8] hover:border-[#F8F6EE]'
+                            : canAfford
+                              ? 'bg-[#12162D] border-[#3A467A] text-[#FFE05C]'
+                              : 'bg-[#12162D] border-[#262E52] text-[#6E7BA6] cursor-not-allowed'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="font-pixel-display text-[8px] sm:text-[9px] truncate">
+                          {pet.icon} {pet.name}
+                        </div>
+                        <div className="font-pixel-ui text-[9px] text-[#A2B0D8] truncate">
+                          {pet.desc}
+                        </div>
+                      </div>
+                      <span className="font-pixel-ui text-[10px] shrink-0">
+                        {equipped ? 'ON' : unlocked ? 'USE' : `${pet.price}C`}
                       </span>
                     </button>
                   );

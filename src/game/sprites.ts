@@ -583,3 +583,152 @@ export const TURBO_DASH_SPRITE: PixelGrid = [
   '.KOOOK....',
   '..KKK.....',
 ];
+
+// v3 Pet Companion Sprites (10x9)
+export const PET_FOX_PALETTE: Record<string, string> = {
+  K: '#141224',
+  O: '#F07824',
+  L: '#FFB858',
+  W: '#FFFDF5',
+};
+
+export const PET_FOX_SPRITE: PixelGrid = [
+  '.KK....KK.',
+  'KOWK..KOWK',
+  'KOOOKKOOOK',
+  'KOLLLLLLOK',
+  'KOWKLLKWOK',
+  '.KOOOOOOK.',
+  'KKOOWWOOK.',
+  'KWWK..K.K.',
+  '.KK.......',
+];
+
+export const PET_OWL_PALETTE: Record<string, string> = {
+  K: '#141224',
+  C: '#A8DCFF',
+  W: '#F4FAFF',
+  Y: '#FFE048',
+  B: '#4878B8',
+};
+
+export const PET_OWL_SPRITE: PixelGrid = [
+  '..KK..KK..',
+  '.KCCKKCCK.',
+  'KCCWWWWCCK',
+  'KCWYKKYWCK',
+  'KCWWYYWWCK',
+  'KBCWWWWCBK',
+  '.KBWWWWBK.',
+  '..KYYYYK..',
+  '...KKKK...',
+];
+
+export const PET_DRAGON_PALETTE: Record<string, string> = {
+  K: '#141224',
+  R: '#E83848',
+  O: '#FF9828',
+  Y: '#FFE858',
+  W: '#FFFFFF',
+};
+
+export const PET_DRAGON_SPRITE: PixelGrid = [
+  '.KK....KK.',
+  'KYYK..KRRK',
+  '.KRRKKRRWK',
+  'KRRRRRRKRY',
+  'KROORRRRRK',
+  '.KROOORRK.',
+  '..KRRRRK..',
+  '..K.KK.K..',
+  '..........',
+];
+
+// v3 Mini-Boss Sprites (18x14, rendered at 2x scale -> 36x28px!)
+export const BOSS_BEETLE_PALETTE: Record<string, string> = {
+  K: '#121324',
+  M: '#586888',
+  L: '#98B0D8',
+  R: '#FF4858',
+  Y: '#FFE048',
+};
+
+export const BOSS_BEETLE_SPRITE: PixelGrid = [
+  '.....KKKKKKKK.....',
+  '...KKLLLLLLMMKK...',
+  '..KLLLYYLLLLMMMK..',
+  '.KLLMYYYYLLMMMMMK.',
+  'KLLMMMMMMMMMMMMMMK',
+  'KMRRMMLLMMLLMMMMMK',
+  'KMRRMMMMMMMMMMMMMK',
+  'KMMMMMMMMMMMMMMMMK',
+  '.KKKKKKKKKKKKKKKK.',
+  '..KMMK..KMMK..KMK.',
+  '.KMMK..KMMK..KMMK.',
+];
+
+export const BOSS_GOLEM_PALETTE: Record<string, string> = {
+  K: '#141224',
+  S: '#C87838',
+  L: '#F4B868',
+  D: '#783C1C',
+  G: '#FFE848',
+};
+
+export const BOSS_GOLEM_SPRITE: PixelGrid = [
+  '....KKKKKKKKKK....',
+  '...KLLLLLLLLSSK...',
+  '..KLSSSSSSSSSSDK..',
+  '.KLSSGGSSSSGGSSDK.',
+  '.KSSSSSSSSSSSSSDK.',
+  'KKLSSDDDDDDDDSSDK.',
+  'KLSLLSSGGGGSSLLSDK',
+  'KLSSSSSGGGGSSSSSDK',
+  'KDDSSSSSSSSSSSSDDK',
+  '.KKDDSSSDDDSSSDKK.',
+  '..KDDDK....KDDDK..',
+  '..KKKKK....KKKKK..',
+];
+
+export const BOSS_DRONE_PALETTE: Record<string, string> = {
+  K: '#101428',
+  B: '#384C78',
+  L: '#88A8E0',
+  C: '#48F4FF',
+  R: '#FF4878',
+};
+
+export const BOSS_DRONE_SPRITE: PixelGrid = [
+  '......KKKKKK......',
+  '...KKKLLLLLLKKK...',
+  '..KLLBBBBBBBBLLK..',
+  '.KLBBCCCCCCCCBBLK.',
+  'KLBBCCCRRRRCCCBBKK',
+  'KBBBCCCRRRRCCCBBBK',
+  'KLBBCCCCCCCCBBLKK.',
+  '..KLLBBBBBBBBLLK..',
+  '...KKKBBBBBBKKK...',
+  '....KC......CK....',
+  '....KK......KK....',
+];
+
+export const BOSS_WYRM_PALETTE: Record<string, string> = {
+  K: '#121028',
+  P: '#9848E8',
+  L: '#E898FF',
+  C: '#58F0FF',
+  W: '#FFFFFF',
+};
+
+export const BOSS_WYRM_SPRITE: PixelGrid = [
+  '..KK..........KK..',
+  '.KCCK..KKKK..KCCK.',
+  'KCCPKKPLLLLPKKPCCK',
+  'KCPPPPPLLLPPPPPPPK',
+  '.KPPWWPPPPWWPPPPK.',
+  '..KPPPPCCPPPPPPK..',
+  '...KPPCCCCPPPPK...',
+  '..KLLPPPPPPPPLLK..',
+  '.KCCK..KKKK..KCCK.',
+  '..KK..........KK..',
+];

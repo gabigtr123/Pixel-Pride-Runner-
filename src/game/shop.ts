@@ -3,7 +3,9 @@ import type {
   CapeId,
   CharacterId,
   GadgetId,
+  GameMode,
   HatId,
+  PetId,
   TrailId,
 } from './types';
 
@@ -16,6 +18,8 @@ export interface ShopState {
   activeHat: HatId;
   unlockedCapes: CapeId[];
   activeCape: CapeId;
+  unlockedPets: PetId[];
+  activePet: PetId;
   unlockedGadgets: GadgetId[];
   equippedGadgets: GadgetId[];
   extraGadgetSlot: boolean;
@@ -48,7 +52,9 @@ export interface RunModifiers {
   trailId: TrailId;
   hatId?: HatId;
   capeId?: CapeId;
+  petId?: PetId;
   gadgets?: GadgetId[];
+  gameMode?: GameMode;
 }
 
 export const SHOP_STORAGE_KEY = 'pixel_stride_shop_v1';
@@ -77,6 +83,19 @@ export const CAPE_CATALOG: { id: CapeId; name: string; icon: string; price: numb
   { id: 'hero', name: 'HERO CAPE', icon: '🦸', price: 200 },
   { id: 'jetpack', name: 'JETPACK', icon: '🚀', price: 320 },
   { id: 'wings', name: 'ANGEL WINGS', icon: '🪽', price: 400 },
+];
+
+export const PET_CATALOG: {
+  id: PetId;
+  name: string;
+  icon: string;
+  desc: string;
+  price: number;
+}[] = [
+  { id: 'none', name: 'NO PET', icon: '✖', desc: 'Run solo', price: 0 },
+  { id: 'fox', name: 'PIXEL FOX', icon: '🦊', desc: 'Fetches nearby coins automatically', price: 300 },
+  { id: 'owl', name: 'FROST OWL', icon: '🦉', desc: '+10% bonus score on all points', price: 380 },
+  { id: 'dragon', name: 'MINI DRAGON', icon: '🐉', desc: 'Zaps 1 hazard every 20s (+75)', price: 550 },
 ];
 
 export const GADGET_CATALOG: {
@@ -173,6 +192,8 @@ export function createDefaultShopState(): ShopState {
     activeHat: 'none',
     unlockedCapes: ['none'],
     activeCape: 'none',
+    unlockedPets: ['none'],
+    activePet: 'none',
     unlockedGadgets: [],
     equippedGadgets: [],
     extraGadgetSlot: false,
@@ -257,6 +278,20 @@ export function buyOrEquipCape(shop: ShopState, capeId: CapeId): ShopState {
     coinsBank: shop.coinsBank - item.price,
     unlockedCapes: [...shop.unlockedCapes, capeId],
     activeCape: capeId,
+  };
+}
+
+export function buyOrEquipPet(shop: ShopState, petId: PetId): ShopState {
+  if (shop.unlockedPets.includes(petId)) {
+    return { ...shop, activePet: petId };
+  }
+  const item = PET_CATALOG.find((p) => p.id === petId);
+  if (!item || shop.coinsBank < item.price) return shop;
+  return {
+    ...shop,
+    coinsBank: shop.coinsBank - item.price,
+    unlockedPets: [...shop.unlockedPets, petId],
+    activePet: petId,
   };
 }
 
@@ -399,6 +434,7 @@ export function loadShopState(): ShopState {
     const maxSlots = extraGadgetSlot ? 3 : 2;
     const validHatIds = new Set(HAT_CATALOG.map((h) => h.id));
     const validCapeIds = new Set(CAPE_CATALOG.map((c) => c.id));
+    const validPetIds = new Set(PET_CATALOG.map((p) => p.id));
     const validGadgetIds = new Set(GADGET_CATALOG.map((g) => g.id));
     const validBoosterIds = new Set(BOOSTER_CATALOG.map((b) => b.id));
 
@@ -412,6 +448,11 @@ export function loadShopState(): ShopState {
           new Set<CapeId>(['none', ...parsed.unlockedCapes.filter((c): c is CapeId => validCapeIds.has(c))]),
         )
       : def.unlockedCapes;
+    const unlockedPets = Array.isArray(parsed.unlockedPets)
+      ? Array.from(
+          new Set<PetId>(['none', ...parsed.unlockedPets.filter((p): p is PetId => validPetIds.has(p))]),
+        )
+      : def.unlockedPets;
     const unlockedGadgets = Array.isArray(parsed.unlockedGadgets)
       ? Array.from(
           new Set<GadgetId>(parsed.unlockedGadgets.filter((g): g is GadgetId => validGadgetIds.has(g))),
@@ -468,6 +509,9 @@ export function loadShopState(): ShopState {
       unlockedCapes,
       activeCape:
         parsed.activeCape && unlockedCapes.includes(parsed.activeCape) ? parsed.activeCape : 'none',
+      unlockedPets,
+      activePet:
+        parsed.activePet && unlockedPets.includes(parsed.activePet) ? parsed.activePet : 'none',
       unlockedGadgets,
       equippedGadgets,
       extraGadgetSlot,

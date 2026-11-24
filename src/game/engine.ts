@@ -28,6 +28,8 @@ import {
 } from './constants';
 import { getTrailColors, type RunModifiers } from './shop';
 import type {
+  BossEntity,
+  BossKind,
   CharacterId,
   FloatingText,
   GamePhase,
@@ -38,6 +40,21 @@ import type {
   Particle,
   PlayerState,
 } from './types';
+
+export function makeDateSeededRng(dateKey: string): () => number {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < dateKey.length; i++) {
+    h ^= dateKey.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  let s = h >>> 0;
+  return () => {
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 export interface Rect {
   x: number;
@@ -174,10 +191,13 @@ export function createInitialState(
 ): GameState {
   return {
     phase,
+    gameMode: 'endless',
     characterId,
     trailId: 'classic',
     hatId: 'none',
     capeId: 'none',
+    petId: 'none',
+    petActionTimer: 16,
     gadgets: [],
     magnetDurationBonus: 0,
     coinBonusPoints: 0,
@@ -200,6 +220,9 @@ export function createInitialState(
     level: 1,
     dayCycleCount: 0,
     levelBannerTimer: 0,
+    boss: null,
+    bossesDefeated: 0,
+    bossRushCooldown: 4,
     hitstopTimer: 0,
     shakeTrauma: 0,
     gameOverDelayTimer: 0,
@@ -230,6 +253,8 @@ export function startNewRun(
   next.customCharacter = state.customCharacter;
   next.hatId = state.hatId;
   next.capeId = state.capeId;
+  next.petId = state.petId;
+  next.gameMode = state.gameMode;
   next.gadgets = [...state.gadgets];
   if (modifiers) {
     if (modifiers.trailId) {
@@ -240,6 +265,12 @@ export function startNewRun(
     }
     if (modifiers.capeId) {
       next.capeId = modifiers.capeId;
+    }
+    if (modifiers.petId) {
+      next.petId = modifiers.petId;
+    }
+    if (modifiers.gameMode) {
+      next.gameMode = modifiers.gameMode;
     }
     if (modifiers.gadgets) {
       next.gadgets = [...modifiers.gadgets];
@@ -292,6 +323,35 @@ export function startNewRun(
     next.player.maxJumps = 3;
     next.player.jumpsRemaining = 3;
   }
+  if (next.gameMode === 'hardcore') {
+    next.player.maxHp = 1;
+    next.player.hp = 1;
+    spawnFloatingText(
+      next,
+      VIRTUAL_WIDTH * 0.5,
+      64,
+      'HARDCORE 2X!',
+      '#FF5874',
+    );
+  } else if (next.gameMode === 'bossRush') {
+    next.bossRushCooldown = 3.5;
+    next.hazardCooldown = 999;
+    spawnFloatingText(
+      next,
+      VIRTUAL_WIDTH * 0.5,
+      64,
+      'BOSS RUSH!',
+      '#FFE05C',
+    );
+  } else if (next.gameMode === 'daily') {
+    spawnFloatingText(
+      next,
+      VIRTUAL_WIDTH * 0.5,
+      64,
+      'DAILY SEED!',
+      '#78E8FF',
+    );
+  }
   next.audioQueue.push({ type: 'start' });
   return next;
 }
@@ -300,7 +360,46 @@ export function returnToTitle(state: GameState): GameState {
   const best = Math.max(state.bestScore, state.score);
   const next = createInitialState(best, 'title', state.characterId);
   next.customCharacter = state.customCharacter;
+  next.hatId = state.hatId;
+  next.capeId = state.capeId;
+  next.petId = state.petId;
+  next.gameMode = state.gameMode;
+  next.gadgets = [...state.gadgets];
   return next;
+}
+
+const BOSS_ROSTER: { kind: BossKind; name: string; hp: number; baseY: number }[] = [
+  { kind: 'beetle', name: 'IRON BEETLE', hp: 3, baseY: GROUND_Y - 28 },
+  { kind: 'golem', name: 'SAND GOLEM', hp: 4, baseY: GROUND_Y - 28 },
+  { kind: 'drone', name: 'NEON DRONE', hp: 4, baseY: GROUND_Y - 54 },
+  { kind: 'wyrm', name: 'CRYSTAL WYRM', hp: 5, baseY: GROUND_Y - 48 },
+];
+
+export function spawnBoss(state: GameState, pendingLevel: number): BossEntity {
+  const idx = (((pendingLevel - 2) % BOSS_ROSTER.length) + BOSS_ROSTER.length) % BOSS_ROSTER.length;
+  const def = BOSS_ROSTER[idx];
+  const boss: BossEntity = {
+    id: state.nextEntityId++,
+    kind: def.kind,
+    name: def.name,
+    x: VIRTUAL_WIDTH + 38,
+    y: def.baseY,
+    targetX: VIRTUAL_WIDTH - 72,
+    baseY: def.baseY,
+    width: 36,
+    height: 28,
+    hp: def.hp,
+    maxHp: def.hp,
+    phaseTimer: 0,
+    attackTimer: 1.9,
+    hitFlash: 0,
+    stompCooldown: 0,
+    pendingLevel,
+  };
+  state.boss = boss;
+  state.audioQueue.push({ type: 'telegraph' });
+  spawnFloatingText(state, VIRTUAL_WIDTH * 0.5, 68, `BOSS: ${def.name}!`, '#FF5874');
+  return boss;
 }
 
 export function spawnParticles(
@@ -732,6 +831,8 @@ export function stepSimulation(
         distance: Math.round(state.distance),
         coins: state.coins,
         stomps: state.stomps,
+        bossesDefeated: state.bossesDefeated,
+        gameMode: state.gameMode,
         zoneName: BIOMES[state.zoneIndex].name,
         zoneIndex: state.zoneIndex,
         level: state.level,
@@ -747,7 +848,10 @@ export function stepSimulation(
   const diff = computeDifficulty(state.runTime, state.distance);
   const dashMult = p.turboDashTimer > 0 ? 1.45 : 1;
   const slowMult = p.slowMoTimer > 0 ? 0.65 : 1;
-  state.speed = diff.speed * slowMult * dashMult;
+  const hardcoreSpeedMult = state.gameMode === 'hardcore' ? 1.25 : 1;
+  const hardcoreScoreMult = state.gameMode === 'hardcore' ? 2 : 1;
+  const owlScoreMult = state.petId === 'owl' ? 1.1 : 1;
+  state.speed = diff.speed * slowMult * dashMult * hardcoreSpeedMult;
   const scrollDx = state.speed * dt;
   state.worldScroll += scrollDx;
   const distDelta = scrollDx * 0.085; // ~12-25m per second
@@ -755,38 +859,30 @@ export function stepSimulation(
   if (p.doubleScoreTimer > 0) {
     state.bonusScore += distDelta * 10;
   }
+  if (state.gameMode === 'hardcore') {
+    state.bonusScore += distDelta * 10;
+  }
+  if (state.petId === 'owl') {
+    state.bonusScore += distDelta * 1;
+  }
 
-  // 3 Day/Night cycles (90s) -> Level Up & Landscape transformation (loops through 4 landscapes)
+  // 3 Day/Night cycles (90s) -> Mini-Boss Encounter (defeating Boss advances Level & Landscape!)
   const completedCycles = Math.floor(state.runTime / DAY_NIGHT_CYCLE_SECONDS);
   if (completedCycles !== state.dayCycleCount) {
     state.dayCycleCount = completedCycles;
   }
-  const targetLevel = 1 + Math.floor(completedCycles / CYCLES_PER_LEVEL);
-  if (targetLevel > state.level) {
-    state.level = targetLevel;
-    state.bonusScore += LEVEL_BONUS_POINTS;
-    state.levelBannerTimer = 2.8;
-    state.audioQueue.push({ type: 'zoneUp' });
-    const levelTitle = LEVEL_NAMES[(state.level - 1) % LEVEL_NAMES.length];
-    spawnFloatingText(
-      state,
-      VIRTUAL_WIDTH * 0.5,
-      72,
-      `LV ${state.level} ${levelTitle} +${LEVEL_BONUS_POINTS}`,
-      '#78F0A8',
-    );
-    spawnParticles(
-      state,
-      p.x + p.width * 0.5,
-      p.y - p.height * 0.5,
-      16,
-      ['#FFE05C', '#78F0A8', '#78E8FF'],
-      60,
-      140,
-      260,
-      rng,
-      -70,
-    );
+  if (state.gameMode === 'bossRush') {
+    if (!state.boss) {
+      state.bossRushCooldown -= dt;
+      if (state.bossRushCooldown <= 0) {
+        spawnBoss(state, state.level + 1);
+      }
+    }
+  } else {
+    const targetLevel = 1 + Math.floor(completedCycles / CYCLES_PER_LEVEL);
+    if (targetLevel > state.level && !state.boss) {
+      spawnBoss(state, targetLevel);
+    }
   }
   if (state.levelBannerTimer > 0) {
     state.levelBannerTimer = Math.max(0, state.levelBannerTimer - dt);
@@ -952,10 +1048,12 @@ export function stepSimulation(
     p.runCycleDist += scrollDx;
   }
 
-  // Spawners
-  state.hazardCooldown -= dt;
-  if (state.hazardCooldown <= 0) {
-    spawnHazardPattern(state, rng);
+  // Spawners (pause normal hazards during Boss fights & Boss Rush)
+  if (!state.boss && state.gameMode !== 'bossRush') {
+    state.hazardCooldown -= dt;
+    if (state.hazardCooldown <= 0) {
+      spawnHazardPattern(state, rng);
+    }
   }
 
   state.platformCooldown -= dt;
@@ -973,6 +1071,46 @@ export function stepSimulation(
     spawnPowerup(state, rng);
   }
 
+  // Mini Dragon pet companion: zaps 1 visible hazard ahead every 20s
+  if (state.petId === 'dragon') {
+    state.petActionTimer -= dt;
+    if (state.petActionTimer <= 0) {
+      let targetIdx = -1;
+      let bestX = Infinity;
+      for (let i = 0; i < state.hazards.length; i++) {
+        const h = state.hazards[i];
+        if (!h.stomped && h.x > p.x + 10 && h.x < VIRTUAL_WIDTH - 4 && h.x < bestX) {
+          bestX = h.x;
+          targetIdx = i;
+        }
+      }
+      if (targetIdx >= 0) {
+        const victim = state.hazards[targetIdx];
+        const pts = Math.round(75 * (p.doubleScoreTimer > 0 ? 2 : 1) * hardcoreScoreMult * owlScoreMult);
+        state.bonusScore += pts;
+        state.stomps += 1;
+        spawnParticles(
+          state,
+          victim.x + victim.width * 0.5,
+          victim.y + victim.height * 0.5,
+          16,
+          ['#FF6828', '#FFE048', '#FFFFFF'],
+          55,
+          155,
+          190,
+          rng,
+          -45,
+        );
+        spawnFloatingText(state, victim.x, victim.y - 8, `+${pts} ZAP!`, '#FF9838');
+        state.audioQueue.push({ type: 'stomp' });
+        state.hazards.splice(targetIdx, 1);
+        state.petActionTimer = 20;
+      } else {
+        state.petActionTimer = 0.4;
+      }
+    }
+  }
+
   // Update platforms
   for (let i = state.platforms.length - 1; i >= 0; i--) {
     const plat = state.platforms[i];
@@ -984,6 +1122,186 @@ export function stepSimulation(
 
   // Update hazards + collisions
   const playerBox = getPlayerHitbox(p);
+
+  // Update active Mini-Boss encounter
+  if (state.boss) {
+    const boss = state.boss;
+    if (boss.hitFlash > 0) boss.hitFlash = Math.max(0, boss.hitFlash - dt);
+    if (boss.stompCooldown > 0) boss.stompCooldown = Math.max(0, boss.stompCooldown - dt);
+
+    if (boss.phaseTimer === 0 && boss.x > boss.targetX) {
+      boss.x = Math.max(boss.targetX, boss.x - 115 * dt);
+      if (boss.x <= boss.targetX) {
+        boss.phaseTimer = 0.01;
+      }
+    } else {
+      boss.phaseTimer += dt;
+      const cycle = boss.phaseTimer % 4.6;
+
+      if (boss.kind === 'drone' || boss.kind === 'wyrm') {
+        boss.y = boss.baseY + Math.sin(boss.phaseTimer * 3.1) * 16;
+      }
+
+      if (cycle >= 2.2 && cycle < 3.6) {
+        // Charge across PLAYER_X so player can jump & stomp the boss!
+        boss.x = Math.max(PLAYER_X - 16, boss.x - 235 * dt);
+      } else if (cycle >= 3.6) {
+        // Recoil smoothly back to arena perch
+        boss.x = Math.min(boss.targetX, boss.x + 225 * dt);
+      }
+
+      boss.attackTimer -= dt;
+      if (boss.attackTimer <= 0 && cycle < 2.0) {
+        boss.attackTimer = Math.max(1.6, 2.5 - state.level * 0.1);
+        const isAirBoss = boss.kind === 'drone' || boss.kind === 'wyrm';
+        if (isAirBoss) {
+          const laneY = rng() < 0.55 ? GROUND_Y - 31 : GROUND_Y - 54;
+          state.hazards.push({
+            id: state.nextEntityId++,
+            kind: 'swooper',
+            x: boss.x - 8,
+            y: laneY,
+            width: 20,
+            height: 14,
+            baseY: laneY,
+            vx: -48,
+            vy: 0,
+            phaseTimer: rng() * Math.PI * 2,
+            telegraphTimer: 0.25,
+            telegraphSounded: false,
+            isActive: true,
+            stomped: false,
+            koTimer: 0,
+            koVx: 0,
+            koVy: 0,
+            hitFlash: 0,
+          });
+        } else {
+          state.hazards.push({
+            id: state.nextEntityId++,
+            kind: 'hopper',
+            x: boss.x - 10,
+            y: GROUND_Y - 16,
+            width: 18,
+            height: 16,
+            baseY: GROUND_Y - 16,
+            vx: -34,
+            vy: 0,
+            phaseTimer: 0.3,
+            telegraphTimer: 0,
+            telegraphSounded: false,
+            isActive: false,
+            stomped: false,
+            koTimer: 0,
+            koVx: 0,
+            koVy: 0,
+            hitFlash: 0,
+          });
+        }
+      }
+    }
+
+    const bossBox: Rect = {
+      x: boss.x + 2,
+      y: boss.y + 2,
+      width: boss.width - 4,
+      height: boss.height - 4,
+    };
+
+    if (checkAABB(playerBox, bossBox)) {
+      const playerFallingFromAbove = p.vy > 0 && prevY <= boss.y + boss.height * 0.78;
+      if (boss.stompCooldown <= 0 && (p.turboDashTimer > 0 || playerFallingFromAbove)) {
+        boss.hp -= 1;
+        boss.hitFlash = 0.2;
+        boss.stompCooldown = 0.65;
+        // Recoil boss back toward right side after taking a hit
+        boss.phaseTimer = 3.6;
+        p.vy = STOMP_BOUNCE_VELOCITY * 1.1;
+        p.jumpsRemaining = p.maxJumps - 1;
+        p.scaleX = 1.24;
+        p.scaleY = 0.78;
+        state.hitstopTimer = 0.05;
+        state.shakeTrauma = Math.min(1, state.shakeTrauma + 0.45);
+        state.audioQueue.push({ type: 'stomp' });
+        spawnParticles(
+          state,
+          boss.x + boss.width * 0.5,
+          boss.y + 8,
+          16,
+          ['#FFE05C', '#FF6848', '#FFFFFF'],
+          55,
+          155,
+          230,
+          rng,
+          -55,
+        );
+
+        if (boss.hp <= 0) {
+          state.bossesDefeated += 1;
+          const bossScoreMult = (p.doubleScoreTimer > 0 ? 2 : 1) * hardcoreScoreMult * owlScoreMult;
+          const bossPts = Math.round(500 * bossScoreMult);
+          state.bonusScore += bossPts + LEVEL_BONUS_POINTS;
+          state.coins += 25;
+          state.level = Math.max(state.level + 1, boss.pendingLevel);
+          state.levelBannerTimer = 2.8;
+          const dropKind = p.hp < p.maxHp ? 'heart' : 'shield';
+          state.pickups.push({
+            id: state.nextEntityId++,
+            kind: dropKind,
+            x: Math.min(VIRTUAL_WIDTH - 48, boss.x),
+            y: GROUND_Y - 42,
+            width: 14,
+            height: 14,
+            bobOffset: 0,
+            collected: false,
+          });
+          spawnParticles(
+            state,
+            boss.x + boss.width * 0.5,
+            boss.y + boss.height * 0.5,
+            28,
+            ['#FFE05C', '#78F0A8', '#FF5874', '#FFFFFF'],
+            70,
+            195,
+            240,
+            rng,
+            -75,
+          );
+          const levelTitle = LEVEL_NAMES[(state.level - 1) % LEVEL_NAMES.length];
+          spawnFloatingText(
+            state,
+            VIRTUAL_WIDTH * 0.5,
+            62,
+            `BOSS KO! +${bossPts} +25C`,
+            '#FFE05C',
+          );
+          spawnFloatingText(
+            state,
+            VIRTUAL_WIDTH * 0.5,
+            78,
+            `LV ${state.level} ${levelTitle}`,
+            '#78F0A8',
+          );
+          state.audioQueue.push({ type: 'zoneUp' });
+          state.boss = null;
+          if (state.gameMode === 'bossRush') {
+            state.bossRushCooldown = 4.0;
+          }
+        } else {
+          spawnFloatingText(
+            state,
+            boss.x + 6,
+            boss.y - 8,
+            `HIT! ${boss.hp}/${boss.maxHp}`,
+            '#FFE05C',
+          );
+        }
+      } else if (boss.stompCooldown <= 0) {
+        applyDamageToPlayer(state, rng);
+      }
+    }
+  }
+
   for (let i = state.hazards.length - 1; i >= 0; i--) {
     const h = state.hazards[i];
     if (h.hitFlash > 0) h.hitFlash = Math.max(0, h.hitFlash - dt);
@@ -1087,8 +1405,8 @@ export function stepSimulation(
 
       if (p.turboDashTimer > 0) {
         // Invincible Turbo Dash smashes straight through any hazard!
-        const scoreMult = p.doubleScoreTimer > 0 ? 2 : 1;
-        const pts = 100 * scoreMult;
+        const scoreMult = (p.doubleScoreTimer > 0 ? 2 : 1) * hardcoreScoreMult * owlScoreMult;
+        const pts = Math.round(100 * scoreMult);
         state.bonusScore += pts;
         state.stomps += 1;
         state.shakeTrauma = Math.min(1, state.shakeTrauma + 0.3);
@@ -1116,7 +1434,7 @@ export function stepSimulation(
             : state.characterId === 'custom'
               ? 173
               : 150;
-        const scoreMult = p.doubleScoreTimer > 0 ? 2 : 1;
+        const scoreMult = (p.doubleScoreTimer > 0 ? 2 : 1) * hardcoreScoreMult * owlScoreMult;
         const pts = Math.round(stompBase * state.combo * scoreMult);
         state.bonusScore += pts;
         state.hitstopTimer = 0.04;
@@ -1136,15 +1454,17 @@ export function stepSimulation(
     item.x -= scrollDx;
     item.bobOffset += dt * 4.5;
 
-    // Coin magnet attraction (Magnet powerup > Mega Magnet gadget > Lily passive aura)
+    // Coin magnet attraction (Magnet powerup > Pixel Fox pet > Mega Magnet gadget > Lily passive aura)
     const pullRadius =
       p.magnetTimer > 0
         ? 115
-        : state.gadgets.includes('megaMagnet')
-          ? 68
-          : state.characterId === 'lily'
-            ? 48
-            : 0;
+        : state.petId === 'fox'
+          ? 95
+          : state.gadgets.includes('megaMagnet')
+            ? 68
+            : state.characterId === 'lily'
+              ? 48
+              : 0;
     if (item.kind === 'coin' && pullRadius > 0) {
       const cx = p.x + p.width * 0.5;
       const cy = p.y - p.height * 0.5;
@@ -1152,7 +1472,7 @@ export function stepSimulation(
       const dy = cy - (item.y + item.height * 0.5);
       const dist = Math.hypot(dx, dy);
       if (dist < pullRadius && dist > 1) {
-        const pull = (p.magnetTimer > 0 ? 280 : 195) * dt;
+        const pull = (p.magnetTimer > 0 ? 280 : state.petId === 'fox' ? 235 : 195) * dt;
         item.x += (dx / dist) * pull;
         item.y += (dy / dist) * pull;
       }
@@ -1171,14 +1491,16 @@ export function stepSimulation(
     };
 
     if (checkAABB(playerBox, itemBox)) {
-      const scoreMult = p.doubleScoreTimer > 0 ? 2 : 1;
+      const scoreMult = (p.doubleScoreTimer > 0 ? 2 : 1) * hardcoreScoreMult * owlScoreMult;
       if (item.kind === 'coin') {
         state.coins += 1;
         state.combo = Math.min(5, state.comboTimer > 0 ? state.combo + (state.coins % 3 === 0 ? 1 : 0) : 1);
         state.comboTimer = COMBO_DURATION;
         const customMult = state.characterId === 'custom' ? 1.15 : 1;
         const gemBonus =
-          state.gadgets.includes('goldenTouch') && state.coins % 5 === 0 ? 50 * scoreMult : 0;
+          state.gadgets.includes('goldenTouch') && state.coins % 5 === 0
+            ? Math.round(50 * scoreMult)
+            : 0;
         const pts =
           Math.round((50 + state.coinBonusPoints) * state.combo * scoreMult * customMult) +
           gemBonus;
@@ -1205,7 +1527,7 @@ export function stepSimulation(
         state.audioQueue.push({ type: 'coin', combo: state.combo });
       } else if (item.kind === 'shield') {
         p.shieldActive = true;
-        state.bonusScore += 100 * scoreMult;
+        state.bonusScore += Math.round(100 * scoreMult);
         spawnParticles(state, item.x + 7, item.y + 7, 12, ['#78E8FF', '#FFFFFF', '#48A0FF'], 35, 105, 80, rng, -20);
         spawnFloatingText(state, item.x, item.y - 6, 'STAR SHIELD!', '#78E8FF');
         state.audioQueue.push({ type: 'powerup', kind: 'shield' });
@@ -1214,14 +1536,15 @@ export function stepSimulation(
           p.hp += 1;
           spawnFloatingText(state, item.x, item.y - 6, '+1 HEART', '#FF7088');
         } else {
-          state.bonusScore += 250 * scoreMult;
-          spawnFloatingText(state, item.x, item.y - 6, `+${250 * scoreMult}`, '#FF7088');
+          const heartPts = Math.round(250 * scoreMult);
+          state.bonusScore += heartPts;
+          spawnFloatingText(state, item.x, item.y - 6, `+${heartPts}`, '#FF7088');
         }
         spawnParticles(state, item.x + 7, item.y + 7, 12, ['#FF5874', '#FFB8C4', '#FFFFFF'], 35, 105, 90, rng, -25);
         state.audioQueue.push({ type: 'powerup', kind: 'heart' });
       } else if (item.kind === 'magnet') {
         p.magnetTimer = Math.max(p.magnetTimer, 6.5 + state.magnetDurationBonus);
-        state.bonusScore += 100 * scoreMult;
+        state.bonusScore += Math.round(100 * scoreMult);
         spawnParticles(state, item.x + 7, item.y + 7, 12, ['#FF90D0', '#FFE868', '#FFFFFF'], 35, 105, 80, rng, -20);
         spawnFloatingText(state, item.x, item.y - 6, 'COIN MAGNET!', '#FF98E0');
         state.audioQueue.push({ type: 'powerup', kind: 'magnet' });
@@ -1233,13 +1556,13 @@ export function stepSimulation(
         state.audioQueue.push({ type: 'powerup', kind: 'doubleScore' });
       } else if (item.kind === 'slowMo') {
         p.slowMoTimer = Math.max(p.slowMoTimer, 4.5);
-        state.bonusScore += 100 * scoreMult;
+        state.bonusScore += Math.round(100 * scoreMult);
         spawnParticles(state, item.x + 7, item.y + 7, 14, ['#78F0FF', '#FFFFFF', '#3888E8'], 35, 105, 60, rng, -20);
         spawnFloatingText(state, item.x, item.y - 6, 'SLOW-MO!', '#78F0FF');
         state.audioQueue.push({ type: 'powerup', kind: 'slowMo' });
       } else if (item.kind === 'turboDash') {
         p.turboDashTimer = Math.max(p.turboDashTimer, 4.0);
-        state.bonusScore += 150 * scoreMult;
+        state.bonusScore += Math.round(150 * scoreMult);
         spawnParticles(state, item.x + 7, item.y + 7, 18, ['#FFFFFF', '#FFE848', '#FF9820'], 50, 140, 80, rng, -30);
         spawnFloatingText(state, item.x, item.y - 6, 'TURBO DASH!', '#FFE848');
         state.audioQueue.push({ type: 'powerup', kind: 'turboDash' });
@@ -1259,6 +1582,7 @@ export function stepSimulation(
 export function extractHudSnapshot(state: GameState): HudSnapshot {
   return {
     phase: state.phase,
+    gameMode: state.gameMode,
     characterId: state.characterId,
     score: Math.round(state.score),
     bestScore: Math.round(state.bestScore),
@@ -1279,6 +1603,9 @@ export function extractHudSnapshot(state: GameState): HudSnapshot {
     level: state.level,
     dayCycleCount: state.dayCycleCount,
     levelBannerTimer: state.levelBannerTimer,
+    bossName: state.boss ? state.boss.name : null,
+    bossHp: state.boss ? state.boss.hp : 0,
+    bossMaxHp: state.boss ? state.boss.maxHp : 0,
     finalRun: state.finalRun,
   };
 }

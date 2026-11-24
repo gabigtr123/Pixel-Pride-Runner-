@@ -5,7 +5,16 @@ import { GameHud } from './components/GameHud';
 import { ShopModal } from './components/ShopModal';
 import { StatusModal } from './components/StatusModal';
 import { TitleOverlay } from './components/TitleOverlay';
+import { TrophyModal } from './components/TrophyModal';
 import { WeatherModal } from './components/WeatherModal';
+import {
+  claimAchievementReward,
+  createDefaultAchievementsState,
+  evaluateAchievements,
+  loadAchievementsState,
+  saveAchievementsState,
+  type AchievementsStorageState,
+} from './game/achievements';
 import { ChiptuneAudio } from './game/audio';
 import {
   computeNightFactor,
@@ -45,6 +54,7 @@ import {
 import {
   createInitialState,
   extractHudSnapshot,
+  makeDateSeededRng,
   returnToTitle,
   startNewRun,
   stepSimulation,
@@ -58,6 +68,7 @@ import {
   buyKnightCharacter,
   buyOrEquipCape,
   buyOrEquipHat,
+  buyOrEquipPet,
   buyOrEquipTrail,
   buyOrToggleGadget,
   buyUpgrade,
@@ -75,11 +86,13 @@ import type {
   CharacterId,
   CustomCharacterConfig,
   GadgetId,
+  GameMode,
   GameState,
   HatId,
   HudSnapshot,
   InputFrame,
   OrientationMode,
+  PetId,
   TrailId,
 } from './game/types';
 
@@ -153,6 +166,7 @@ function shouldAutostart(): boolean {
 function hudChanged(a: HudSnapshot, b: HudSnapshot): boolean {
   return (
     a.phase !== b.phase ||
+    a.gameMode !== b.gameMode ||
     a.characterId !== b.characterId ||
     a.score !== b.score ||
     a.bestScore !== b.bestScore ||
@@ -172,6 +186,9 @@ function hudChanged(a: HudSnapshot, b: HudSnapshot): boolean {
     a.level !== b.level ||
     a.dayCycleCount !== b.dayCycleCount ||
     (a.levelBannerTimer > 0) !== (b.levelBannerTimer > 0) ||
+    a.bossName !== b.bossName ||
+    a.bossHp !== b.bossHp ||
+    a.bossMaxHp !== b.bossMaxHp ||
     a.finalRun !== b.finalRun
   );
 }
@@ -180,6 +197,7 @@ export default function App() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const audioRef = useRef<ChiptuneAudio | null>(null);
   const stateRef = useRef<GameState | null>(null);
+  const runRngRef = useRef<() => number>(Math.random);
 
   // Unified input hub tracking continuous held intents and single-frame edge triggers
   const inputRef = useRef<{
@@ -212,6 +230,11 @@ export default function App() {
   );
   const shopRef = useRef<ShopState>(shop);
   shopRef.current = shop;
+  const [achievements, setAchievements] = useState<AchievementsStorageState>(() =>
+    typeof window !== 'undefined' ? loadAchievementsState() : createDefaultAchievementsState(),
+  );
+  const achievementsRef = useRef<AchievementsStorageState>(achievements);
+  achievementsRef.current = achievements;
   const [creator, setCreator] = useState<CreatorStorageState>(() =>
     typeof window !== 'undefined' ? loadCreatorState() : createDefaultCreatorState(),
   );
@@ -222,12 +245,16 @@ export default function App() {
   );
   const weatherRef = useRef<WeatherSettings>(weather);
   weatherRef.current = weather;
+  const [gameMode, setGameMode] = useState<GameMode>('endless');
+  const gameModeRef = useRef<GameMode>(gameMode);
+  gameModeRef.current = gameMode;
   const [dailyOpen, setDailyOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
+  const [trophyOpen, setTrophyOpen] = useState(false);
   const [creatorOpen, setCreatorOpen] = useState(false);
   const [weatherOpen, setWeatherOpen] = useState(false);
   const modalOpenRef = useRef(false);
-  modalOpenRef.current = dailyOpen || shopOpen || creatorOpen || weatherOpen;
+  modalOpenRef.current = dailyOpen || shopOpen || trophyOpen || creatorOpen || weatherOpen;
   const [newlyCompletedMissions, setNewlyCompletedMissions] = useState<DailyMission[]>([]);
   const [newlyUnlockedCosmetics, setNewlyUnlockedCosmetics] = useState<ColorOption[]>([]);
   const lastRecordedRunRef = useRef<GameState['finalRun']>(null);
@@ -290,10 +317,10 @@ export default function App() {
       saveCreatorState(nextCreator);
       setNewlyUnlockedCosmetics(unlockedNow);
 
-      // Bank run coins (+25% with Golden Touch gadget) + update Top-5 local leaderboard
-      const bankedCoins = nextState.gadgets.includes('goldenTouch')
-        ? Math.ceil(nextState.finalRun.coins * 1.25)
-        : nextState.finalRun.coins;
+      // Bank run coins (2x in Hardcore, +25% with Golden Touch gadget) + update Top-5 local leaderboard
+      const hardcoreCoinMult = nextState.finalRun.gameMode === 'hardcore' ? 2 : 1;
+      const goldenMult = nextState.gadgets.includes('goldenTouch') ? 1.25 : 1;
+      const bankedCoins = Math.ceil(nextState.finalRun.coins * hardcoreCoinMult * goldenMult);
       let nextShop = addCoinsToBank(shopRef.current, bankedCoins);
       nextShop = recordLeaderboardRun(nextShop, {
         score: nextState.finalRun.score,
@@ -305,7 +332,32 @@ export default function App() {
       setShop(nextShop);
       saveShopState(nextShop);
 
-      if (newlyCompleted.length > 0 || unlockedNow.length > 0) {
+      // Evaluate v3 Trophy Room achievements
+      const effWeather = getEffectiveWeather(weatherRef.current);
+      const { next: nextAch, newlyUnlocked: newlyUnlockedTrophies } = evaluateAchievements(
+        achievementsRef.current,
+        nextShop,
+        {
+          score: nextState.finalRun.score,
+          distance: nextState.finalRun.distance,
+          coins: bankedCoins,
+          stomps: nextState.finalRun.stomps,
+          level: nextState.finalRun.level,
+          bossesDefeated: nextState.finalRun.bossesDefeated,
+          isHardcore: nextState.finalRun.gameMode === 'hardcore',
+          isStormOrRain: effWeather === 'rain' || effWeather === 'storm',
+          isWinter: weatherRef.current.theme === 'winter',
+        },
+      );
+      achievementsRef.current = nextAch;
+      setAchievements(nextAch);
+      saveAchievementsState(nextAch);
+
+      if (
+        newlyCompleted.length > 0 ||
+        unlockedNow.length > 0 ||
+        newlyUnlockedTrophies.length > 0
+      ) {
         audioRef.current?.playEvents([{ type: 'powerup', kind: 'shield' }]);
         triggerHaptic('mission');
       }
@@ -314,6 +366,18 @@ export default function App() {
     if (force || hudChanged(hudRef.current, nextHud)) {
       hudRef.current = nextHud;
       setHud(nextHud);
+    }
+  }, []);
+
+  const syncShopAchievements = useCallback((nextShop: ShopState) => {
+    const { next: nextAch, newlyUnlocked } = evaluateAchievements(achievementsRef.current, nextShop);
+    if (nextAch !== achievementsRef.current) {
+      achievementsRef.current = nextAch;
+      setAchievements(nextAch);
+      saveAchievementsState(nextAch);
+      if (newlyUnlocked.length > 0) {
+        triggerHaptic('mission');
+      }
     }
   }, []);
 
@@ -333,6 +397,7 @@ export default function App() {
     clearHeldInputs();
     setDailyOpen(false);
     setShopOpen(false);
+    setTrophyOpen(false);
     setCreatorOpen(false);
     setWeatherOpen(false);
     setNewlyCompletedMissions([]);
@@ -340,7 +405,8 @@ export default function App() {
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
-    const syncedDaily = syncDailyStateForDate(dailyRef.current, getLocalDateKey());
+    const todayKey = getLocalDateKey();
+    const syncedDaily = syncDailyStateForDate(dailyRef.current, todayKey);
     if (syncedDaily !== dailyRef.current) {
       dailyRef.current = syncedDaily;
       setDaily(syncedDaily);
@@ -354,6 +420,8 @@ export default function App() {
       saveShopState(postBoosterShop);
     }
     const currentShop = shopRef.current;
+    const mode = gameModeRef.current;
+    runRngRef.current = mode === 'daily' ? makeDateSeededRng(todayKey) : Math.random;
     curr.customCharacter = creatorRef.current.config;
     const next = startNewRun(curr, {
       ...dailyBonus,
@@ -366,10 +434,13 @@ export default function App() {
       trailId: currentShop.activeTrail,
       hatId: currentShop.activeHat,
       capeId: currentShop.activeCape,
+      petId: currentShop.activePet,
+      gameMode: mode,
       gadgets: currentShop.equippedGadgets,
     });
     stateRef.current = next;
     saveBestScore(next.bestScore);
+    audioRef.current?.setBossMode(false);
     audioRef.current?.setBiome(next.zoneIndex);
     audioRef.current?.playEvents(next.audioQueue);
     audioRef.current?.startMusic();
@@ -411,6 +482,21 @@ export default function App() {
     triggerHaptic('powerup');
   }, []);
 
+  const handleClaimAchievement = useCallback((id: string) => {
+    const { next: nextAch, rewardCoins } = claimAchievementReward(achievementsRef.current, id);
+    if (rewardCoins > 0) {
+      achievementsRef.current = nextAch;
+      setAchievements(nextAch);
+      saveAchievementsState(nextAch);
+      const nextShop = addCoinsToBank(shopRef.current, rewardCoins);
+      shopRef.current = nextShop;
+      setShop(nextShop);
+      saveShopState(nextShop);
+      audioRef.current?.playEvents([{ type: 'coin', combo: 5 }]);
+      triggerHaptic('mission');
+    }
+  }, []);
+
   const handleBuyKnight = useCallback(() => {
     const next = buyKnightCharacter(shopRef.current);
     if (next !== shopRef.current) {
@@ -443,29 +529,53 @@ export default function App() {
     }
   }, []);
 
-  const handleSelectHat = useCallback((id: HatId) => {
-    const next = buyOrEquipHat(shopRef.current, id);
-    if (next !== shopRef.current) {
-      shopRef.current = next;
-      setShop(next);
-      saveShopState(next);
-      if (stateRef.current) stateRef.current.hatId = next.activeHat;
-      audioRef.current?.playEvents([{ type: 'coin', combo: 3 }]);
-      triggerHaptic('powerup');
-    }
-  }, []);
+  const handleSelectHat = useCallback(
+    (id: HatId) => {
+      const next = buyOrEquipHat(shopRef.current, id);
+      if (next !== shopRef.current) {
+        shopRef.current = next;
+        setShop(next);
+        saveShopState(next);
+        if (stateRef.current) stateRef.current.hatId = next.activeHat;
+        syncShopAchievements(next);
+        audioRef.current?.playEvents([{ type: 'coin', combo: 3 }]);
+        triggerHaptic('powerup');
+      }
+    },
+    [syncShopAchievements],
+  );
 
-  const handleSelectCape = useCallback((id: CapeId) => {
-    const next = buyOrEquipCape(shopRef.current, id);
-    if (next !== shopRef.current) {
-      shopRef.current = next;
-      setShop(next);
-      saveShopState(next);
-      if (stateRef.current) stateRef.current.capeId = next.activeCape;
-      audioRef.current?.playEvents([{ type: 'coin', combo: 3 }]);
-      triggerHaptic('powerup');
-    }
-  }, []);
+  const handleSelectCape = useCallback(
+    (id: CapeId) => {
+      const next = buyOrEquipCape(shopRef.current, id);
+      if (next !== shopRef.current) {
+        shopRef.current = next;
+        setShop(next);
+        saveShopState(next);
+        if (stateRef.current) stateRef.current.capeId = next.activeCape;
+        syncShopAchievements(next);
+        audioRef.current?.playEvents([{ type: 'coin', combo: 3 }]);
+        triggerHaptic('powerup');
+      }
+    },
+    [syncShopAchievements],
+  );
+
+  const handleSelectPet = useCallback(
+    (id: PetId) => {
+      const next = buyOrEquipPet(shopRef.current, id);
+      if (next !== shopRef.current) {
+        shopRef.current = next;
+        setShop(next);
+        saveShopState(next);
+        if (stateRef.current) stateRef.current.petId = next.activePet;
+        syncShopAchievements(next);
+        audioRef.current?.playEvents([{ type: 'powerup', kind: 'heart' }]);
+        triggerHaptic('powerup');
+      }
+    },
+    [syncShopAchievements],
+  );
 
   const handleBuyOrToggleGadget = useCallback((id: GadgetId) => {
     const next = buyOrToggleGadget(shopRef.current, id);
@@ -485,10 +595,11 @@ export default function App() {
       shopRef.current = next;
       setShop(next);
       saveShopState(next);
+      syncShopAchievements(next);
       audioRef.current?.playEvents([{ type: 'powerup', kind: 'shield' }]);
       triggerHaptic('mission');
     }
-  }, []);
+  }, [syncShopAchievements]);
 
   const handleBuyBooster = useCallback((id: BoosterId) => {
     const next = buyBooster(shopRef.current, id);
@@ -509,6 +620,15 @@ export default function App() {
       saveShopState(next);
       audioRef.current?.playEvents([{ type: 'coin', combo: 1 }]);
     }
+  }, []);
+
+  const handleSelectGameMode = useCallback((mode: GameMode) => {
+    gameModeRef.current = mode;
+    setGameMode(mode);
+    if (stateRef.current) {
+      stateRef.current.gameMode = mode;
+    }
+    audioRef.current?.playEvents([{ type: 'coin', combo: 2 }]);
   }, []);
 
   const handleTogglePause = useCallback(() => {
@@ -603,6 +723,8 @@ export default function App() {
     baseState.customCharacter = creatorRef.current.config;
     baseState.hatId = shopRef.current.activeHat;
     baseState.capeId = shopRef.current.activeCape;
+    baseState.petId = shopRef.current.activePet;
+    baseState.gameMode = gameModeRef.current;
     baseState.gadgets = [...shopRef.current.equippedGadgets];
     const initialState = autoStart
       ? startNewRun(baseState, {
@@ -613,6 +735,8 @@ export default function App() {
           trailId: shopRef.current.activeTrail,
           hatId: shopRef.current.activeHat,
           capeId: shopRef.current.activeCape,
+          petId: shopRef.current.activePet,
+          gameMode: gameModeRef.current,
           gadgets: shopRef.current.equippedGadgets,
         })
       : baseState;
@@ -634,6 +758,7 @@ export default function App() {
           e.preventDefault();
           setDailyOpen(false);
           setShopOpen(false);
+          setTrophyOpen(false);
           setCreatorOpen(false);
           setWeatherOpen(false);
         }
@@ -795,7 +920,8 @@ export default function App() {
           inp.jumpReleaseQueued = false;
           inp.duckQueued = false;
 
-          stepSimulation(st, rawDt, inputFrame);
+          stepSimulation(st, rawDt, inputFrame, runRngRef.current);
+          audio.setBossMode(Boolean(st.boss));
           for (let i = 0; i < st.audioQueue.length; i++) {
             const ev = st.audioQueue[i];
             if (ev.type === 'stomp') triggerHaptic('stomp');
@@ -933,6 +1059,9 @@ export default function App() {
 
   const viewport = getRenderViewport(orientation);
   const completedMissions = daily.missions.filter((m) => m.completed).length;
+  const hasUnclaimedTrophy = achievements.unlockedIds.some(
+    (id) => !achievements.claimedIds.includes(id),
+  );
   const effectiveWeather = getEffectiveWeather(weather);
   const weatherLabel =
     weather.source === 'live' && weather.liveWeather
@@ -975,12 +1104,16 @@ export default function App() {
           orientation={orientation}
           streakDays={daily.streakDays}
           hasUnclaimedDaily={!daily.claimedToday}
+          hasUnclaimedTrophy={hasUnclaimedTrophy}
           completedMissions={completedMissions}
           totalMissions={daily.missions.length}
           weatherLabel={weatherLabel}
+          gameMode={gameMode}
           onSelectCharacter={handleSelectCharacter}
+          onSelectGameMode={handleSelectGameMode}
           onOpenDaily={() => setDailyOpen(true)}
           onOpenShop={() => setShopOpen(true)}
+          onOpenTrophy={() => setTrophyOpen(true)}
           onOpenCreator={() => setCreatorOpen(true)}
           onOpenWeather={() => setWeatherOpen(true)}
           onStart={handleStartOrRestart}
@@ -1031,12 +1164,22 @@ export default function App() {
         onSelectTrail={handleSelectTrail}
         onSelectHat={handleSelectHat}
         onSelectCape={handleSelectCape}
+        onSelectPet={handleSelectPet}
         onBuyOrToggleGadget={handleBuyOrToggleGadget}
         onBuyExtraGadgetSlot={handleBuyExtraGadgetSlot}
         onBuyBooster={handleBuyBooster}
         onToggleArmBooster={handleToggleArmBooster}
         onClose={() => setShopOpen(false)}
       />
+
+      {trophyOpen && (
+        <TrophyModal
+          achievements={achievements}
+          coinsBank={shop.coinsBank}
+          onClaim={handleClaimAchievement}
+          onClose={() => setTrophyOpen(false)}
+        />
+      )}
 
       <CreatorModal
         open={creatorOpen}

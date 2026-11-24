@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { ColorOption } from '../game/creator';
 import type { DailyMission } from '../game/daily';
 import type { HudSnapshot } from '../game/types';
@@ -27,6 +27,8 @@ export function StatusModal({
   onRestart,
   onTitle,
 }: StatusModalProps) {
+  const [shareLabel, setShareLabel] = useState<'📤 SHARE RUN' | '✓ COPIED!'>('📤 SHARE RUN');
+
   if (hud.phase !== 'paused' && hud.phase !== 'gameover') {
     return null;
   }
@@ -38,10 +40,38 @@ export function StatusModal({
     distance: hud.distance,
     coins: hud.coins,
     stomps: 0,
+    bossesDefeated: 0,
+    gameMode: hud.gameMode,
     zoneName: hud.zoneName,
     zoneIndex: hud.zoneIndex,
     level: hud.level,
     isNewBest: false,
+  };
+
+  const handleShareRun = async () => {
+    const modeTag =
+      summary.gameMode === 'hardcore'
+        ? ' [HARDCORE 2X]'
+        : summary.gameMode === 'bossRush'
+          ? ' [BOSS RUSH]'
+          : summary.gameMode === 'daily'
+            ? ' [DAILY SEED]'
+            : '';
+    const bossPart = summary.bossesDefeated > 0 ? ` · 🐉 ${summary.bossesDefeated} Boss KO` : '';
+    const text = `🏃 Pixel Stride${modeTag} — Score: ${summary.score.toLocaleString()} · LV ${summary.level} (${summary.distance}m)${bossPart}! Play free: https://gabigtr123.github.io/Pixel-Pride-Runner-/`;
+    try {
+      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+        await navigator.share({ title: 'Pixel Stride Run', text });
+        return;
+      }
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        setShareLabel('✓ COPIED!');
+        window.setTimeout(() => setShareLabel('📤 SHARE RUN'), 2200);
+      }
+    } catch {
+      // User dismissed share sheet or clipboard unavailable
+    }
   };
 
   return (
@@ -70,6 +100,7 @@ export function StatusModal({
           )}
           <p className="font-pixel-ui text-xs text-[#B8C4E4] tracking-wider">
             LV {summary.level} · {summary.zoneName}
+            {summary.gameMode !== 'endless' ? ` · ${summary.gameMode.toUpperCase()}` : ''}
           </p>
         </div>
 
@@ -99,14 +130,31 @@ export function StatusModal({
 
         {isGameOver && (
           <div className="w-full flex flex-col items-center gap-2.5">
-            <div className="flex items-center justify-center gap-5 font-pixel-ui text-xs text-[#E4EAF8]">
+            <div className="flex flex-wrap items-center justify-center gap-3 font-pixel-ui text-xs text-[#E4EAF8]">
               <span className="inline-flex items-center gap-1.5">
                 <CoinIcon className="w-4 h-4" />
                 {summary.coins} COINS
               </span>
               <span aria-hidden="true">·</span>
               <span>{summary.stomps} STOMPS</span>
+              {summary.bossesDefeated > 0 && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span className="text-[#FFE05C]">🐉 {summary.bossesDefeated} BOSS KO</span>
+                </>
+              )}
             </div>
+
+            <button
+              type="button"
+              onClick={(e) => {
+                e.currentTarget.blur();
+                void handleShareRun();
+              }}
+              className="pixel-btn-secondary px-3.5 py-1.5 font-pixel-display text-[9px] text-[#78E8FF] cursor-pointer"
+            >
+              {shareLabel}
+            </button>
 
             {newlyCompletedMissions.length > 0 && (
               <div className="w-full bg-[#142A26] border-2 border-[#48C878] px-3 py-2 flex flex-col gap-1">

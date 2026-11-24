@@ -23,6 +23,31 @@ export type GadgetId = 'springBoots' | 'megaMagnet' | 'autoShield' | 'secondWind
 
 export type BoosterId = 'headStart' | 'shieldPack' | 'doublePotion';
 
+export type PetId = 'none' | 'fox' | 'owl' | 'dragon';
+
+export type GameMode = 'endless' | 'daily' | 'hardcore' | 'bossRush';
+
+export type BossKind = 'beetle' | 'golem' | 'drone' | 'wyrm';
+
+export interface BossEntity {
+  id: number;
+  kind: BossKind;
+  name: string;
+  x: number;
+  y: number;
+  targetX: number;
+  baseY: number;
+  width: number;
+  height: number;
+  hp: number;
+  maxHp: number;
+  attackTimer: number;
+  phaseTimer: number;
+  hitFlash: number;
+  stompCooldown: number;
+  pendingLevel: number;
+}
+
 export type OrientationMode = 'portrait' | 'landscape';
 
 export interface RenderViewport {
@@ -199,12 +224,15 @@ export interface RunSnapshot {
   zoneName: string;
   zoneIndex: number;
   level: number;
+  bossesDefeated: number;
+  gameMode: GameMode;
   isNewBest: boolean;
 }
 
 export interface HudSnapshot {
   phase: GamePhase;
   characterId: CharacterId;
+  gameMode: GameMode;
   score: number;
   bestScore: number;
   distance: number;
@@ -224,17 +252,26 @@ export interface HudSnapshot {
   level: number;
   dayCycleCount: number;
   levelBannerTimer: number;
+  bossName: string | null;
+  bossHp: number;
+  bossMaxHp: number;
   finalRun: RunSnapshot | null;
 }
 
 export interface GameState {
   phase: GamePhase;
   characterId: CharacterId;
+  gameMode: GameMode;
   customCharacter?: CustomCharacterConfig;
   trailId: TrailId;
   hatId: HatId;
   capeId: CapeId;
+  petId: PetId;
   gadgets: GadgetId[];
+  petActionTimer: number;
+  boss: BossEntity | null;
+  bossesDefeated: number;
+  bossRushCooldown: number;
   magnetDurationBonus: number;
   coinBonusPoints: number;
   powerupCooldownReduction: number;

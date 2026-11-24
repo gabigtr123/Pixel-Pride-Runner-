@@ -42,10 +42,24 @@
   - `Golden Touch` (380 C) — `+50 GEM` every 5th coin & `+25%` coin bank payout
   - `Second Wind` (450 C) — Auto-revives once per run with `2 HP` + hazard clear
 - **3 Consumable Pre-Run Boosters:** `Shield Pack` (25 C), `2X Potion` (35 C — 15s 2X Score), and `Head Start` (40 C — 5s invincible Turbo Dash launch).
+- **3 Pet Companions (Wardrobe Tab):**
+  - `🦊 Pixel Fox` (300 C) — Hops beside you & fetches nearby coins (`95px` pull radius).
+  - `🦉 Frost Owl` (380 C) — Hovers overhead & grants `+10%` bonus score on everything.
+  - `🐉 Mini Dragon` (550 C) — Fires a fireball every `20s`, zapping 1 visible hazard for `+75 ZAP!`.
 - **Upgrades, Runner Trails & Top-5 Leaderboard:** Permanent upgrades (**Magnet Time**, **Gold Value**, **Lucky Drops**), cosmetic trails (**Classic**, **Rainbow**, **Blossom**, **Ember**), and local **Top 5** high-score tracking.
 
+### 🐉 Mini-Bosses, 4 Game Modes & Trophy Room (v3.0 Beta)
+- **4 Retro Mini-Boss Encounters (Every 90s / Level Transition):** Face **Iron Beetle** (LV 2), **Sand Golem** (LV 3), **Neon Drone** (LV 4), and **Crystal Wyrm** (LV 5+) with a live Boss HP bar and dedicated chiptune boss battle music! Stomp them from above or smash through with **Turbo Dash** for **`+500 BOSS KO! +25 COINS`** + a free **Heart/Shield** drop and landscape transition.
+- **4 Game Modes:**
+  - `ENDLESS` — Classic run with a Mini-Boss every 90 seconds.
+  - `DAILY` — Deterministic daily seed so everyone plays the exact same obstacle & coin layout each day.
+  - `HARDCORE` — **1 HP**, **1.25× speed**, and **2× Coins & Score** payout!
+  - `BOSS RUSH` — Back-to-back Mini-Boss gauntlets!
+- **🏆 Trophy Room (12 Achievements + Career Stats):** Unlock 12 milestones (Boss Slayer, World Traveler, Storm Chaser, Fashion Icon, Tech Genius, Best Friend, No Fear, Arcade Legend, and more) with claimable **`+50 C` to `+200 C`** coin rewards + a full Career Stats board.
+- **📤 1-Tap Shareable Run Card:** Share your final score, mode, level, and Boss KOs straight to X or clipboard from the Game Over screen.
+
 ### 🌍 Levels, Biomes, Day/Night Cycle & Live Weather
-- **4 Looping Landscape Levels (Every 3 Day/Night Cycles):** Every **3 full Day/Night cycles** (`30s` per cycle → `90s` per level), you level up (`+250` bonus) and the parallax landscape architecture transforms through **Highland Meadows** → **Pyramid Canyon** → **Starlight City** → **Crystal Peaks** and loops seamlessly (`LV 5+`)!
+- **4 Looping Landscape Levels (Every 3 Day/Night Cycles):** Every **3 full Day/Night cycles** (`30s` per cycle → `90s` per level), defeat the stage Mini-Boss to level up (`+250` bonus) and transform the parallax landscape architecture through **Highland Meadows** → **Pyramid Canyon** → **Starlight City** → **Crystal Peaks** and loop seamlessly (`LV 5+`)!
 - **Winter Theme & Live Weather Sync (Alpha):**
   - Toggle **Winter Wonderland** mode (snow-capped mountains & pines, pixel snowmen, glacial sky, snowfall).
   - Sync real-world weather (`Clear`, `Rain`, `Storm`, `Snow`, `Fog`) + real **Day/Night** from your device GPS or any city via **Open-Meteo** (100% free, zero API keys), or pick `Auto / Day / Night` and manual weather anytime.
@@ -53,7 +67,7 @@
 - **6 Parallax Color Biomes & 6 Power-Ups:** Smoothly transition every 400m across **Sunlit Highlands**, **Amber Canyon**, **Starlight Citadel**, **Dawn Peaks**, **Frost Tundra**, and **Volcanic Forge**, collecting **Coins**, **Star Shield**, **Heart**, **Coin Magnet**, **2X Score**, **Slow-Mo**, and **⚡ Turbo Dash** (invincible smash burst!).
 - **Crisp Platformer Physics & 4 Hazards:** Variable-height jump cut, double/triple jump, coyote time (`110ms`), jump buffering (`120ms`), ground slide/duck, mid-air fast-fall, and dynamic encounters with **Spikes**, stompable **Hoppers**, **Swoopers**, and **Flames**.
 - **Daily Missions & 7-Day Login Streak:** 3 fresh daily quests every calendar day plus a 7-day play streak unlocking starting score boosts, a free **Star Shield** (Day 3+), and a **Coin Magnet** (Day 5+).
-- **Procedural Chiptune Audio, Haptics & Android 17 Ready:** Built-in Web Audio API synthesizer (`ChiptuneAudio`) with 6 biome themes, mobile haptic feedback, dedicated Portrait (`300×520`) & Landscape (`480×270`) framing, and **Capacitor 9** Android 17 (API 37) packaging with **Material You Themed Icon (`<monochrome>`)** & edge-to-edge safe areas.
+- **Procedural Chiptune Audio, Haptics & Android 17 Ready:** Built-in Web Audio API synthesizer (`ChiptuneAudio`) with 6 biome themes + Boss Battle theme, mobile haptic feedback, dedicated Portrait (`300×520`) & Landscape (`480×270`) framing, and **Capacitor 9** Android 17 (API 37) packaging with **Material You Themed Icon (`<monochrome>`)** & edge-to-edge safe areas.
 
 ---
 
@@ -64,8 +78,8 @@ Pre-built **Web** and **Android 17** packages are published on the [GitHub Relea
 | Platform | Latest Release | Artifact | How to Run / Install |
 | :--- | :--- | :--- | :--- |
 | **Android / Web PWA (Live)** | [Play / Install PWA](https://gabigtr123.github.io/Pixel-Pride-Runner-/) | GitHub Pages | Open in Chrome on Android and tap **Install app** — full-screen offline play, automatic updates, **0 Play Protect warnings**. |
-| **Android 17 Signed APK** | [`v2.4.0`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v2.4.0) | `pixel-stride-v2.4.0-android.apk` | Signed Release APK (API 37 / Capacitor 9) with Material You themed icon & persistent keystore. |
-| **Web (Static Bundle)** | [`v2.4.0`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v2.4.0) | `pixel-stride-v2.4.0-web.zip` | Unzip and serve with any static host (`npx serve .`, Netlify, Vercel, or GitHub Pages). |
+| **Android 17 Signed APK** | [`v3.0.0-beta.1`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v3.0.0-beta.1) | `pixel-stride-v3.0.0-beta.1-android.apk` | Signed Release APK (API 37 / Capacitor 9) with Material You themed icon & persistent keystore. |
+| **Web (Static Bundle)** | [`v3.0.0-beta.1`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v3.0.0-beta.1) | `pixel-stride-v3.0.0-beta.1-web.zip` | Unzip and serve with any static host (`npx serve .`, Netlify, Vercel, or GitHub Pages). |
 
 ---
 
