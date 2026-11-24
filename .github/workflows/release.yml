@@ -83,12 +83,13 @@ jobs:
           rm -f "$KEYSTORE_FILE"
           cp app/build/outputs/apk/release/app-release.apk "../pixel-stride-${RELEASE_TAG}-android.apk"
 
-      - name: Verify APK signature
+      - name: Verify APK signature & Android 17 metadata
         env:
           RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
         run: |
-          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)
-          "$APKSIGNER" verify --print-certs "pixel-stride-${RELEASE_TAG}-android.apk"
+          BUILD_TOOLS=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
+          "$BUILD_TOOLS/apksigner" verify --print-certs "pixel-stride-${RELEASE_TAG}-android.apk"
+          "$BUILD_TOOLS/aapt2" dump badging "pixel-stride-${RELEASE_TAG}-android.apk" | grep -E "^(package:|sdkVersion:|targetSdkVersion:|uses-permission:|application-label:)"
 
       - name: Publish Unified GitHub Release
         env:
@@ -108,11 +109,14 @@ jobs:
               "- **Web & PWA Bundle:** \`${ZIP}\` (static bundle ready for any host)" \
               "- **Play / Install PWA (0 warnings):** https://gabigtr123.github.io/Pixel-Pride-Runner-/" \
               "" \
-              "### What's New in v3.0.2" \
-              "- **Native Android GPS Weather Permission Fix (\`@capacitor/geolocation\`):** Fixed Live Weather Sync location detection inside the Android APK by integrating \`@capacitor/geolocation\` (native Android runtime permission prompt supporting both Approximate and Precise location) and declaring \`ACCESS_COARSE_LOCATION\`, \`ACCESS_FINE_LOCATION\`, and optional \`android.hardware.location.gps\` in \`AndroidManifest.xml\`." \
+              "### What's New in v3.0.3 (Android 17 / API 37 Polish)" \
+              "- **Proper Android Versioning & Explicit API 37 Target:** Synced \`versionName\` (\`3.0.3\`), \`versionCode\` (\`30003\`), and explicit \`targetSdkVersion 37\` in \`app/build.gradle\` (previously stuck at \`1.0\` / \`versionCode 1\`), verified automatically via \`aapt2 dump badging\` in CI." \
+              "- **Android 15–17 Game Mode & Predictive Back:** Added \`android:appCategory=\"game\"\` (unlocks Android Game Dashboard / Game Mode), \`android:enableOnBackInvokedCallback=\"true\"\` (Predictive Back gesture), and \`android:usesCleartextTraffic=\"false\"\` (HTTPS-only hardening)." \
+              "- **Native Android 12–17 Dark SplashScreen & Cutout Edge-to-Edge:** Replaced default Capacitor splash with Pixel Stride's dark \`#111324\` \`Theme.SplashScreen\` + adaptive pixel runner icon and \`windowLayoutInDisplayCutoutMode=\"always\"\` (zero white flash on launch)." \
               "" \
-              "### Included from v3.0.1" \
-              "- **Native Android Run Card PNG (Share Sheet + Save):** Added \`@capacitor/share\` + \`@capacitor/filesystem\` native support so tapping **SHARE PNG** opens the native Android Share Sheet and **SAVE PNG** saves directly to \`Documents/PixelStride/\`." \
+              "### Included from v3.0.1 – v3.0.2" \
+              "- **Native Android GPS Weather Permission (\`@capacitor/geolocation\`):** Native Android runtime location permission prompt (Approximate & Precise) for Live Weather Sync." \
+              "- **Native Android Run Card PNG (\`@capacitor/share\` + \`@capacitor/filesystem\`):** Native Share Sheet + direct save to \`Documents/PixelStride/\`." \
               "" \
               "### v3.0 Highlights" \
               "- **4 Retro Mini-Boss Encounters (Every 90s + Boss Rush):** Battle **Iron Beetle** (LV 2), **Sand Golem** (LV 3), **Neon Drone** (LV 4), and **Crystal Wyrm** (LV 5+) with a live Boss HP bar, charge-and-recoil attacks, flashing charge telegraphs, dedicated chiptune boss battle music, and **+500 BOSS KO! +25 COINS** + free Heart/Shield drop!" \

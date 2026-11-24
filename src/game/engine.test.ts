@@ -743,8 +743,14 @@ test('v3.0.1 Run Card PNG helpers format filename, share text, and base64 payloa
   assert.ok(text.includes('310m'));
 });
 
-test('v3.0.1 Android manifest script verifies FileProvider and idempotently adds SDK-capped storage permissions', async () => {
-  const { patchAndroidManifest, verifyFilePathsXml } = await import('../../scripts/configure-android-manifest.mjs');
+test('v3.0.3 Android 17 config script verifies FileProvider, permissions, Game Mode, Predictive Back, Gradle versioning, and dark SplashScreen', async () => {
+  const {
+    buildAndroid17StylesXml,
+    computeVersionCode,
+    patchAndroidManifest,
+    patchAppBuildGradle,
+    verifyFilePathsXml,
+  } = await import('../../scripts/configure-android-manifest.mjs');
   const sampleManifest = `<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application android:allowBackup="true">
@@ -754,6 +760,9 @@ test('v3.0.1 Android manifest script verifies FileProvider and idempotently adds
 </manifest>
 `;
   const once = patchAndroidManifest(sampleManifest);
+  assert.ok(once.includes('android:appCategory="game"'));
+  assert.ok(once.includes('android:enableOnBackInvokedCallback="true"'));
+  assert.ok(once.includes('android:usesCleartextTraffic="false"'));
   assert.ok(once.includes('android:requestLegacyExternalStorage="true"'));
   assert.ok(once.includes('android.permission.ACCESS_COARSE_LOCATION"'));
   assert.ok(once.includes('android.permission.ACCESS_FINE_LOCATION"'));
@@ -764,6 +773,25 @@ test('v3.0.1 Android manifest script verifies FileProvider and idempotently adds
   // Idempotent on second run
   const twice = patchAndroidManifest(once);
   assert.equal(twice, once);
+
+  // Semver -> versionCode and Gradle patching
+  assert.equal(computeVersionCode('3.0.3'), 30003);
+  assert.equal(computeVersionCode('3.12.4'), 31204);
+  const sampleGradle = `defaultConfig {
+        applicationId "com.gabigtr123.pixelstride"
+        minSdkVersion rootProject.ext.minSdkVersion
+        versionCode 1
+        versionName "1.0"
+    }`;
+  const patchedGradle = patchAppBuildGradle(sampleGradle, '3.0.3');
+  assert.ok(patchedGradle.includes('targetSdkVersion rootProject.ext.targetSdkVersion'));
+  assert.ok(patchedGradle.includes('versionCode 30003'));
+  assert.ok(patchedGradle.includes('versionName "3.0.3"'));
+
+  // Android 12-17 SplashScreen & Cutout theme
+  const stylesXml = buildAndroid17StylesXml();
+  assert.ok(stylesXml.includes('windowSplashScreenBackground">#111324'));
+  assert.ok(stylesXml.includes('windowLayoutInDisplayCutoutMode">always'));
 
   // Fails fast if FileProvider or <cache-path> is missing
   assert.throws(() => patchAndroidManifest('<manifest><application></application></manifest>'));
