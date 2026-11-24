@@ -80,15 +80,11 @@ jobs:
               "### Downloads" \
               "- **Native Android 17 Signed APK (Alpha):** \`${APK}\` (Package ID: \`com.gabigtr123.pixelstride.nativealpha\` — installs side-by-side alongside v3.0.3 without overwriting your saves!)" \
               "" \
-              "### What's Inside v4.0.0-alpha.1 (Pure Native Kotlin)" \
-              "- **Zero WebView / Zero Capacitor:** Built purely with **Kotlin + Android \`SurfaceView\` + \`Canvas\` + \`AudioTrack\`** targeting **Android 17 (API 37)**." \
-              "- **3 Playable Heroes:** **Stride**, **Lily**, and **Pixel Knight** (4 HP) with pixel-art run/jump/duck sprites." \
-              "- **4 Game Modes:** **ENDLESS**, **HARDCORE 2X** (1 HP, 1.25× speed, 2× score & coins), **BOSS RUSH**, and **WINTER** (live snowfall)." \
-              "- **6 Parallax Biomes + Day/Night Cycle:** Sunlit Highlands, Amber Canyon, Starlight Citadel, Dawn Peaks, Frost Tundra, Volcanic Forge." \
-              "- **Full Platformer Physics & Combat:** Variable jump, Double Jump, coyote time, jump buffering, Duck/Slide/Fast-Fall, stompable Hoppers, Spikes, Swoopers, Flames, 4 Mini-Bosses (Iron Beetle, Sand Golem, Neon Drone, Crystal Wyrm), and 6 Power-Ups (Shield, Heart, Magnet, 2X, Slow-Mo, Turbo Dash)." \
-              "- **Procedural 8-bit Chiptune Synth (\`AudioTrack\`):** Zero audio asset files — real-time square/noise PCM synthesis + native Android haptics." \
-              "- **Native Run Card PNG Export (\`Bitmap\` + \`MediaStore\` + \`FileProvider\`):** Share PNG via native Android Share Sheet or Save PNG straight to **Gallery (\`Pictures/PixelStride\`)** with **zero storage permissions**." \
-              "- **Android 17 Ready:** Game Mode (\`appCategory=\"game\"\`), Predictive Back, Dark \`#111324\` Material SplashScreen, Edge-to-Edge Cutout, Material You Monochrome Icon." \
+              "### What's New in v4.0.0-alpha.2 (Milestone 1: Graphics, Fonts & UI Parity)" \
+              "- **Real Bundled Pixel Fonts (\`Press Start 2P\` + \`Silkscreen\`):** Bundled both authentic Pixel Stride TTF fonts natively in \`res/font/\` for crisp 8-bit headings, HUD, modals, and Run Card PNGs." \
+              "- **100% Exact \`v3.0.3\` Pixel-Art Sprites:** Ported every hand-crafted 16×19 Hero sprite (Stride, Lily with ponytail & blossom, Pixel Knight), animated Shell Hopper & Sky Swooper, Spike Totem, 4-frame spinning Gold Coins, all 6 Power-Up sprites, and all 4 Mini-Bosses (Iron Beetle, Sand Golem, Neon Drone, Crystal Wyrm)." \
+              "- **Exact Beveled 8-Bit UI & Hero Selector Cards:** Authentic \`.pixel-panel\`, golden \`.pixel-btn-primary\`, navy \`.pixel-btn-secondary\`, Title Screen with 3 live animated Hero Cards + perks (+25% Stomp for Stride, Coin Aura for Lily, 4 HP for Knight), pixel Heart & Shield HUD sprites, and a **live Run Card Trading Card Preview Modal** (with holographic EPIC/LEGENDARY sparkles)." \
+              "- **4 Looping Landscape Levels & Winter Icicles:** Highland Meadows -> Pyramid Canyon (stepped pyramids) -> Starlight City (lit pixel skyscrapers) -> Crystal Peaks (glowing crystal spires), plus frosted Winter ledges with hanging pixel icicles & 2-layer snowfall." \
               > release-notes-alpha.md
             gh release create "$RELEASE_TAG" "$APK" \
               --title "Pixel Stride Native ${RELEASE_TAG} (Zero WebView Alpha)" \

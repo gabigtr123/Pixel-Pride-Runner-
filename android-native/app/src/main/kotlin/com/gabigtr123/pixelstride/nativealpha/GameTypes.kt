@@ -8,10 +8,10 @@ enum class GamePhase {
     RUN_CARD,
 }
 
-enum class HeroId(val displayName: String, val maxHp: Int, val accentColor: Int) {
-    STRIDE("STRIDE", 3, 0xFFFFE05C.toInt()),
-    LILY("LILY", 3, 0xFFFF78B4.toInt()),
-    KNIGHT("KNIGHT", 4, 0xFF78E8FF.toInt()),
+enum class HeroId(val displayName: String, val perk: String, val maxHp: Int, val accentColor: Int) {
+    STRIDE("STRIDE", "+25% STOMP", 3, 0xFFFFE05C.toInt()),
+    LILY("LILY", "COIN AURA", 3, 0xFFFF78B4.toInt()),
+    KNIGHT("KNIGHT", "4 MAX HP", 4, 0xFF78E8FF.toInt()),
 }
 
 enum class GameMode(val label: String, val shortLabel: String) {

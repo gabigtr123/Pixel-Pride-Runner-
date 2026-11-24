@@ -437,16 +437,17 @@ class GameEngine(private val feedback: EngineFeedback) {
                     floatingTexts.add(FloatingText(h.x, h.y - 8f, "SMASH!", 0xFFFFE05C.toInt()))
                     feedback.onStomp()
                 } else if (h.type == HazardType.HOPPER && playerVy > 0f && pBottom - playerVy * dt <= h.y + h.height * 0.6f) {
-                    // Stomp KO!
+                    // Stomp KO! (Stride gets +25% stomp bonus)
                     h.defeated = true
                     h.vy = -140f
                     playerVy = -290f
                     jumpsRemaining = 1
                     stomps++
-                    score += 50f * scoreMult
+                    val stompPts = (if (hero == HeroId.STRIDE) 62.5f else 50f) * scoreMult
+                    score += stompPts
                     screenShake = 3.5f
                     spawnDust(h.x + h.width / 2f, h.y, 10, 0xFF78F0A8.toInt())
-                    floatingTexts.add(FloatingText(h.x, h.y - 10f, "+${(50 * scoreMult).toInt()} STOMP!", 0xFF78F0A8.toInt()))
+                    floatingTexts.add(FloatingText(h.x, h.y - 10f, "+${stompPts.toInt()} STOMP!", 0xFF78F0A8.toInt()))
                     feedback.onStomp()
                 } else {
                     damagePlayer()
@@ -531,13 +532,20 @@ class GameEngine(private val feedback: EngineFeedback) {
             c.bobPhase += dt * 5f
             c.x -= currentSpeed * dt
 
-            if (c.type == CollectibleType.COIN && magnetTimer > 0f) {
-                val dx = pCx - c.x
-                val dy = pCy - c.y
-                val distSq = dx * dx + dy * dy
-                if (distSq < 110f * 110f) {
-                    c.x += dx * 6f * dt
-                    c.y += dy * 6f * dt
+            if (c.type == CollectibleType.COIN) {
+                val pullRadius = when {
+                    magnetTimer > 0f -> 115f
+                    hero == HeroId.LILY -> 58f
+                    else -> 0f
+                }
+                if (pullRadius > 0f) {
+                    val dx = pCx - c.x
+                    val dy = pCy - c.y
+                    val distSq = dx * dx + dy * dy
+                    if (distSq < pullRadius * pullRadius) {
+                        c.x += dx * 6f * dt
+                        c.y += dy * 6f * dt
+                    }
                 }
             }
 

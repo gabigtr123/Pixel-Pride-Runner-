@@ -1,6 +1,8 @@
 package com.gabigtr123.pixelstride.nativealpha
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Typeface
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -8,16 +10,22 @@ import android.os.VibratorManager
 import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import androidx.core.content.res.ResourcesCompat
 
 class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback, EngineFeedback {
     private val prefs = context.getSharedPreferences("pixel_stride_native_v4", Context.MODE_PRIVATE)
     private val synth = ChiptuneSynth()
     private val engine = GameEngine(this)
-    private val renderer = GameRenderer()
+    private val displayFont = ResourcesCompat.getFont(context, R.font.press_start_2p)
+        ?: Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
+    private val uiFont = ResourcesCompat.getFont(context, R.font.silkscreen)
+        ?: Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL)
+    private val renderer = GameRenderer(displayFont, uiFont)
 
     @Volatile
     private var running = false
     private var renderThread: Thread? = null
+    private var runCardPreview: Bitmap? = null
 
     var insetTopPx: Float = 48f
     var insetBottomPx: Float = 32f
@@ -85,6 +93,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
     fun onHostDestroy() {
         stopLoop()
+        runCardPreview?.recycle()
+        runCardPreview = null
         synth.release()
     }
 
@@ -118,6 +128,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                                 insetBottomPx = insetBottomPx,
                                 engine = engine,
                                 muted = synth.muted,
+                                runCardPreview = runCardPreview,
                             )
                         }
                     } finally {
@@ -164,7 +175,6 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                         handleButtonPress(hit.action, pointerId)
                         return true
                     }
-                    // Tap anywhere during play to jump
                     if (engine.phase == GamePhase.PLAYING) {
                         jumpPointerId = pointerId
                         engine.pressJump()
@@ -188,24 +198,25 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     private fun handleButtonPress(action: UiAction, pointerId: Int) {
         when (action) {
             UiAction.START_RUN, UiAction.RESTART -> {
+                runCardPreview?.recycle()
+                runCardPreview = null
                 engine.startNewRun()
                 vibrate(14, 70)
             }
-            UiAction.CYCLE_HERO -> {
-                val next = (engine.hero.ordinal + 1) % HeroId.entries.size
-                engine.hero = HeroId.entries[next]
-                persistSave()
-                vibrate(10, 50)
-            }
-            UiAction.CYCLE_MODE -> {
-                val next = (engine.mode.ordinal + 1) % GameMode.entries.size
-                engine.mode = GameMode.entries[next]
-                persistSave()
-                vibrate(10, 50)
-            }
+            UiAction.SELECT_HERO_STRIDE -> selectHero(HeroId.STRIDE)
+            UiAction.SELECT_HERO_LILY -> selectHero(HeroId.LILY)
+            UiAction.SELECT_HERO_KNIGHT -> selectHero(HeroId.KNIGHT)
+            UiAction.SELECT_MODE_ENDLESS -> selectMode(GameMode.ENDLESS)
+            UiAction.SELECT_MODE_HARDCORE -> selectMode(GameMode.HARDCORE)
+            UiAction.SELECT_MODE_BOSS_RUSH -> selectMode(GameMode.BOSS_RUSH)
+            UiAction.SELECT_MODE_WINTER -> selectMode(GameMode.WINTER)
             UiAction.TOGGLE_PAUSE -> engine.togglePause()
             UiAction.RESUME -> engine.phase = GamePhase.PLAYING
-            UiAction.TITLE -> engine.returnToTitle()
+            UiAction.TITLE -> {
+                runCardPreview?.recycle()
+                runCardPreview = null
+                engine.returnToTitle()
+            }
             UiAction.TOGGLE_MUTE -> {
                 synth.muted = !synth.muted
                 persistSave()
@@ -217,6 +228,16 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             UiAction.DUCK_BTN -> {
                 duckPointerId = pointerId
                 engine.setDuck(true)
+            }
+            UiAction.VIEW_RUN_CARD -> {
+                val snap = engine.lastRun ?: return
+                runCardPreview?.recycle()
+                runCardPreview = RunCardExporter.renderCardBitmap(context, snap)
+                engine.phase = GamePhase.RUN_CARD
+                vibrate(10, 50)
+            }
+            UiAction.CLOSE_RUN_CARD -> {
+                engine.phase = GamePhase.GAME_OVER
             }
             UiAction.SHARE_CARD -> {
                 val snap = engine.lastRun ?: return
@@ -233,6 +254,18 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                 }
             }
         }
+    }
+
+    private fun selectHero(hero: HeroId) {
+        engine.hero = hero
+        persistSave()
+        vibrate(10, 50)
+    }
+
+    private fun selectMode(mode: GameMode) {
+        engine.mode = mode
+        persistSave()
+        vibrate(10, 50)
     }
 
     private fun showToast(msg: String) {
