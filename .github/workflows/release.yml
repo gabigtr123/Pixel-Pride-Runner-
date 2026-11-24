@@ -108,9 +108,11 @@ jobs:
               "- **Web & PWA Bundle:** \`${ZIP}\` (static bundle ready for any host)" \
               "- **Play / Install PWA (0 warnings):** https://gabigtr123.github.io/Pixel-Pride-Runner-/" \
               "" \
-              "### What's New in v3.0.1" \
-              "- **Native Android Run Card PNG (Share Sheet + Save):** Added \`@capacitor/share\` + \`@capacitor/filesystem\` native support so tapping **SHARE PNG** inside the Android APK opens the native Android Share Sheet (via \`FileProvider\` cache URI), and **SAVE PNG** writes directly to \`Documents/PixelStride/\` with automatic fallback to the Share/Save sheet." \
-              "- **Android Manifest Permissions Verified:** Verified \`FileProvider\` + \`res/xml/file_paths.xml\` (\`<cache-path>\`) and added SDK-capped legacy storage permissions (\`READ_EXTERNAL_STORAGE\` maxSdkVersion 32, \`WRITE_EXTERNAL_STORAGE\` maxSdkVersion 29, \`requestLegacyExternalStorage\` for API 29) keeping Android 13–17 (API 33–37) 100% Scoped-Storage clean." \
+              "### What's New in v3.0.2" \
+              "- **Native Android GPS Weather Permission Fix (\`@capacitor/geolocation\`):** Fixed Live Weather Sync location detection inside the Android APK by integrating \`@capacitor/geolocation\` (native Android runtime permission prompt supporting both Approximate and Precise location) and declaring \`ACCESS_COARSE_LOCATION\`, \`ACCESS_FINE_LOCATION\`, and optional \`android.hardware.location.gps\` in \`AndroidManifest.xml\`." \
+              "" \
+              "### Included from v3.0.1" \
+              "- **Native Android Run Card PNG (Share Sheet + Save):** Added \`@capacitor/share\` + \`@capacitor/filesystem\` native support so tapping **SHARE PNG** opens the native Android Share Sheet and **SAVE PNG** saves directly to \`Documents/PixelStride/\`." \
               "" \
               "### v3.0 Highlights" \
               "- **4 Retro Mini-Boss Encounters (Every 90s + Boss Rush):** Battle **Iron Beetle** (LV 2), **Sand Golem** (LV 3), **Neon Drone** (LV 4), and **Crystal Wyrm** (LV 5+) with a live Boss HP bar, charge-and-recoil attacks, flashing charge telegraphs, dedicated chiptune boss battle music, and **+500 BOSS KO! +25 COINS** + free Heart/Shield drop!" \

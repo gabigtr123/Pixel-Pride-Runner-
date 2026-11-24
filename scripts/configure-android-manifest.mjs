@@ -2,7 +2,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const LEGACY_PERMISSIONS = [
+const REQUIRED_PERMISSIONS = [
+  {
+    name: 'android.permission.ACCESS_COARSE_LOCATION',
+    tag: '    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />',
+  },
+  {
+    name: 'android.permission.ACCESS_FINE_LOCATION',
+    tag: '    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />',
+  },
   {
     name: 'android.permission.READ_EXTERNAL_STORAGE',
     tag: '    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />',
@@ -10,6 +18,13 @@ const LEGACY_PERMISSIONS = [
   {
     name: 'android.permission.WRITE_EXTERNAL_STORAGE',
     tag: '    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />',
+  },
+];
+
+const OPTIONAL_FEATURES = [
+  {
+    name: 'android.hardware.location.gps',
+    tag: '    <uses-feature android:name="android.hardware.location.gps" android:required="false" />',
   },
 ];
 
@@ -28,8 +43,11 @@ export function patchAndroidManifest(manifestXml) {
     );
   }
 
-  // Add SDK-capped legacy storage permissions for Android 8-12 (minSdkVersion 26); no-op on Android 13-17 (API 33-37)
-  const missingTags = LEGACY_PERMISSIONS.filter((p) => !updated.includes(p.name)).map((p) => p.tag);
+  // Add location permissions (@capacitor/geolocation) and SDK-capped legacy storage permissions (@capacitor/filesystem)
+  const missingTags = [
+    ...REQUIRED_PERMISSIONS.filter((p) => !updated.includes(p.name)).map((p) => p.tag),
+    ...OPTIONAL_FEATURES.filter((f) => !updated.includes(f.name)).map((f) => f.tag),
+  ];
   if (missingTags.length > 0) {
     updated = updated.replace(
       /<\/manifest>\s*$/,

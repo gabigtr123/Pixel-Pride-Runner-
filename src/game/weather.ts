@@ -1,3 +1,5 @@
+import { Capacitor } from '@capacitor/core';
+import { Geolocation } from '@capacitor/geolocation';
 import { DAY_NIGHT_CYCLE_SECONDS } from './constants';
 import type { BiomePalette } from './types';
 
@@ -178,6 +180,102 @@ export async function searchCity(query: string): Promise<CitySearchResult[]> {
       latitude: r.latitude,
       longitude: r.longitude,
     }));
+}
+
+export type DeviceLocationResult =
+  | { ok: true; latitude: number; longitude: number }
+  | { ok: false; reason: 'unsupported' | 'denied' | 'disabled' | 'unavailable'; message: string };
+
+export async function detectDeviceLocation(): Promise<DeviceLocationResult> {
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const status = await Geolocation.checkPermissions();
+      const hasAccess =
+        status.location === 'granted' || status.coarseLocation === 'granted';
+      if (!hasAccess) {
+        const requested = await Geolocation.requestPermissions({
+          permissions: ['coarseLocation', 'location'],
+        });
+        if (
+          requested.location !== 'granted' &&
+          requested.coarseLocation !== 'granted'
+        ) {
+          return {
+            ok: false,
+            reason: 'denied',
+            message: 'Location permission denied. Allow Location in Android Settings or pick a city below!',
+          };
+        }
+      }
+      const pos = await Geolocation.getCurrentPosition({
+        enableHighAccuracy: false,
+        timeout: 10000,
+        maximumAge: 300000,
+      });
+      return {
+        ok: true,
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+      };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err ?? '');
+      if (/disabled|services|location settings/i.test(msg)) {
+        return {
+          ok: false,
+          reason: 'disabled',
+          message: 'Device Location / GPS is turned off. Turn on Location or pick a city below!',
+        };
+      }
+      if (/denied|permission/i.test(msg)) {
+        return {
+          ok: false,
+          reason: 'denied',
+          message: 'Location permission denied. Allow Location in Android Settings or pick a city below!',
+        };
+      }
+      return {
+        ok: false,
+        reason: 'unavailable',
+        message: 'Could not get GPS fix right now. Try again or pick a city below!',
+      };
+    }
+  }
+
+  if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    return {
+      ok: false,
+      reason: 'unsupported',
+      message: 'Geolocation is not supported on this device. Pick a city below!',
+    };
+  }
+
+  return new Promise<DeviceLocationResult>((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        resolve({
+          ok: true,
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        });
+      },
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) {
+          resolve({
+            ok: false,
+            reason: 'denied',
+            message: 'Location permission denied. Search or tap a city below!',
+          });
+        } else {
+          resolve({
+            ok: false,
+            reason: 'unavailable',
+            message: 'Could not determine location. Search or tap a city below!',
+          });
+        }
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
+    );
+  });
 }
 
 export function loadWeatherSettings(): WeatherSettings {

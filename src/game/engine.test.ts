@@ -755,6 +755,9 @@ test('v3.0.1 Android manifest script verifies FileProvider and idempotently adds
 `;
   const once = patchAndroidManifest(sampleManifest);
   assert.ok(once.includes('android:requestLegacyExternalStorage="true"'));
+  assert.ok(once.includes('android.permission.ACCESS_COARSE_LOCATION"'));
+  assert.ok(once.includes('android.permission.ACCESS_FINE_LOCATION"'));
+  assert.ok(once.includes('android.hardware.location.gps" android:required="false"'));
   assert.ok(once.includes('android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"'));
   assert.ok(once.includes('android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"'));
 

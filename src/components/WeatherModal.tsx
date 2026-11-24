@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  detectDeviceLocation,
   fetchLiveWeather,
   getWeatherEmoji,
   PRESET_CITIES,
@@ -60,23 +61,16 @@ export function WeatherModal({ open, settings, onChange, onClose }: WeatherModal
     }
   };
 
-  const handleDetectLocation = () => {
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      setStatusMsg('Geolocation is not supported on this device. Pick a city below!');
-      return;
-    }
+  const handleDetectLocation = async () => {
     setLoading(true);
     setStatusMsg('Detecting device location...');
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        void syncCoordinates(pos.coords.latitude, pos.coords.longitude, 'MY LOCATION');
-      },
-      () => {
-        setLoading(false);
-        setStatusMsg('Location permission denied. Search or tap a city below!');
-      },
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 },
-    );
+    const loc = await detectDeviceLocation();
+    if (!loc.ok) {
+      setLoading(false);
+      setStatusMsg(loc.message);
+      return;
+    }
+    await syncCoordinates(loc.latitude, loc.longitude, 'MY LOCATION');
   };
 
   const handleSearchCity = async (e: React.FormEvent) => {
@@ -301,7 +295,7 @@ export function WeatherModal({ open, settings, onChange, onClose }: WeatherModal
               <button
                 type="button"
                 disabled={loading}
-                onClick={handleDetectLocation}
+                onClick={() => void handleDetectLocation()}
                 className="pixel-btn-primary w-full py-2 font-pixel-display text-[9px] cursor-pointer"
               >
                 {loading ? 'SYNCING...' : '📍 DETECT DEVICE LOCATION'}

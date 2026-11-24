@@ -458,7 +458,7 @@ export function renderRunCardToCanvas(
   ctx.font = 'bold 10px "Press Start 2P", monospace';
   ctx.textAlign = 'left';
   ctx.fillStyle = '#8898C8';
-  ctx.fillText(`PIXEL STRIDE v3.0.1 · ${dateStr}`, 52, H - 50);
+  ctx.fillText(`PIXEL STRIDE v3.0.2 · ${dateStr}`, 52, H - 50);
 
   ctx.textAlign = 'right';
   ctx.fillStyle = rarityInfo.accent;
