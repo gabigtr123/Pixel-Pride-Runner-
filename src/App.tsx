@@ -1138,6 +1138,10 @@ export default function App() {
 
       <StatusModal
         hud={hud}
+        customCharacter={creator.config}
+        hatId={shop.activeHat}
+        capeId={shop.activeCape}
+        petId={shop.activePet}
         newlyCompletedMissions={newlyCompletedMissions}
         newlyUnlockedCosmetics={newlyUnlockedCosmetics}
         completedMissions={completedMissions}

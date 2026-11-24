@@ -1,11 +1,16 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { ColorOption } from '../game/creator';
 import type { DailyMission } from '../game/daily';
-import type { HudSnapshot } from '../game/types';
+import { renderRunCardToCanvas, runCardCanvasToBlob } from '../game/runCard';
+import type { CapeId, CustomCharacterConfig, HatId, HudSnapshot, PetId } from '../game/types';
 import { CoinIcon } from './PixelIcons';
 
 interface StatusModalProps {
   hud: HudSnapshot;
+  customCharacter: CustomCharacterConfig;
+  hatId: HatId;
+  capeId: CapeId;
+  petId: PetId;
   newlyCompletedMissions: DailyMission[];
   newlyUnlockedCosmetics: ColorOption[];
   completedMissions: number;
@@ -18,6 +23,10 @@ interface StatusModalProps {
 
 export function StatusModal({
   hud,
+  customCharacter,
+  hatId,
+  capeId,
+  petId,
   newlyCompletedMissions,
   newlyUnlockedCosmetics,
   completedMissions,
@@ -27,11 +36,9 @@ export function StatusModal({
   onRestart,
   onTitle,
 }: StatusModalProps) {
-  const [shareLabel, setShareLabel] = useState<'📤 SHARE RUN' | '✓ COPIED!'>('📤 SHARE RUN');
-
-  if (hud.phase !== 'paused' && hud.phase !== 'gameover') {
-    return null;
-  }
+  const [showCard, setShowCard] = useState(false);
+  const [cardStatus, setCardStatus] = useState<string | null>(null);
+  const cardCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const isGameOver = hud.phase === 'gameover';
   const summary = hud.finalRun ?? {
@@ -48,31 +55,126 @@ export function StatusModal({
     isNewBest: false,
   };
 
-  const handleShareRun = async () => {
-    const modeTag =
-      summary.gameMode === 'hardcore'
-        ? ' [HARDCORE 2X]'
-        : summary.gameMode === 'bossRush'
-          ? ' [BOSS RUSH]'
-          : summary.gameMode === 'daily'
-            ? ' [DAILY SEED]'
-            : '';
-    const bossPart = summary.bossesDefeated > 0 ? ` · 🐉 ${summary.bossesDefeated} Boss KO` : '';
-    const text = `🏃 Pixel Stride${modeTag} — Score: ${summary.score.toLocaleString()} · LV ${summary.level} (${summary.distance}m)${bossPart}! Play free: https://gabigtr123.github.io/Pixel-Pride-Runner-/`;
+  useEffect(() => {
+    if (!isGameOver) {
+      setShowCard(false);
+      setCardStatus(null);
+    }
+  }, [isGameOver]);
+
+  useEffect(() => {
+    if (!showCard || !cardCanvasRef.current) return;
+    renderRunCardToCanvas(cardCanvasRef.current, {
+      summary,
+      characterId: hud.characterId,
+      customCharacter,
+      hatId,
+      capeId,
+      petId,
+    });
+  }, [showCard, summary, hud.characterId, customCharacter, hatId, capeId, petId]);
+
+  if (hud.phase !== 'paused' && hud.phase !== 'gameover') {
+    return null;
+  }
+
+  const triggerDownload = (blob: Blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pixel-stride-card-${summary.score}.png`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    setCardStatus('SAVED PNG!');
+    window.setTimeout(() => setCardStatus(null), 2200);
+  };
+
+  const handleSaveCardPng = async () => {
+    if (!cardCanvasRef.current) return;
+    const blob = await runCardCanvasToBlob(cardCanvasRef.current);
+    if (blob) triggerDownload(blob);
+  };
+
+  const handleShareCardPng = async () => {
+    if (!cardCanvasRef.current) return;
+    const blob = await runCardCanvasToBlob(cardCanvasRef.current);
+    if (!blob) return;
+    const file = new File([blob], `pixel-stride-card-${summary.score}.png`, {
+      type: 'image/png',
+    });
+    const text = `🏃 Pixel Stride — Score ${summary.score.toLocaleString()} · LV ${summary.level} (${summary.distance}m)!`;
     try {
-      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
-        await navigator.share({ title: 'Pixel Stride Run', text });
+      if (
+        typeof navigator !== 'undefined' &&
+        typeof navigator.canShare === 'function' &&
+        navigator.canShare({ files: [file] })
+      ) {
+        await navigator.share({ title: 'Pixel Stride Run Card', text, files: [file] });
         return;
       }
-      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text);
-        setShareLabel('✓ COPIED!');
-        window.setTimeout(() => setShareLabel('📤 SHARE RUN'), 2200);
-      }
+      // Fallback: download PNG card directly so user can attach it to X / Discord
+      triggerDownload(blob);
     } catch {
-      // User dismissed share sheet or clipboard unavailable
+      // User dismissed share sheet
     }
   };
+
+  if (isGameOver && showCard) {
+    return (
+      <div
+        className="fixed inset-0 z-30 flex items-center justify-center modal-safe-area bg-[#0B0D1A]/80"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Shareable Run Card"
+        data-testid="run-card-modal"
+      >
+        <div className="pixel-panel w-full max-w-sm max-h-full overflow-y-auto p-3.5 sm:p-4 flex flex-col items-center gap-3">
+          <canvas
+            ref={cardCanvasRef}
+            className="w-full max-w-[270px] sm:max-w-[300px] h-auto border-2 border-[#121324] shadow-[0_6px_0_#0A0C18]"
+            style={{ imageRendering: 'pixelated' }}
+          />
+          {cardStatus && (
+            <span className="font-pixel-display text-[9px] text-[#78F0A8]">{cardStatus}</span>
+          )}
+          <div className="w-full grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.currentTarget.blur();
+                void handleShareCardPng();
+              }}
+              className="pixel-btn-primary py-2.5 px-2 font-pixel-display text-[9px] sm:text-[10px] cursor-pointer"
+            >
+              📤 SHARE PNG
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.currentTarget.blur();
+                void handleSaveCardPng();
+              }}
+              className="pixel-btn-secondary py-2.5 px-2 font-pixel-display text-[9px] sm:text-[10px] text-[#FFE05C] cursor-pointer"
+            >
+              ⬇ SAVE PNG
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.currentTarget.blur();
+              setShowCard(false);
+            }}
+            className="font-pixel-ui text-[11px] text-[#B8C4E4] underline underline-offset-4 cursor-pointer hover:text-[#FFFFFF]"
+          >
+            ← BACK TO SUMMARY
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -147,13 +249,14 @@ export function StatusModal({
 
             <button
               type="button"
+              data-testid="open-run-card-btn"
               onClick={(e) => {
                 e.currentTarget.blur();
-                void handleShareRun();
+                setShowCard(true);
               }}
-              className="pixel-btn-secondary px-3.5 py-1.5 font-pixel-display text-[9px] text-[#78E8FF] cursor-pointer"
+              className="pixel-btn-secondary px-4 py-2 font-pixel-display text-[9px] text-[#FFE05C] cursor-pointer"
             >
-              {shareLabel}
+              🃏 VIEW &amp; SHARE RUN CARD
             </button>
 
             {newlyCompletedMissions.length > 0 && (

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pixel-stride-pwa-v3.0.0-beta.1';
+const CACHE_NAME = 'pixel-stride-pwa-v3.0.0-beta.2';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

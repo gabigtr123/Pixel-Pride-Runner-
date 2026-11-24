@@ -697,3 +697,24 @@ test('v3.0 Trophy Room unlocks achievements and pays claimable coin rewards once
   const claim2 = claimAchievementReward(claim1.next, 'first_boss');
   assert.equal(claim2.rewardCoins, 0);
 });
+
+test('v3.0 Run Card assigns COMMON, RARE, EPIC, and LEGENDARY trading card rarities', async () => {
+  const { getCardRarity } = await import('./runCard');
+  const base = {
+    score: 500,
+    bestScore: 500,
+    distance: 80,
+    coins: 10,
+    stomps: 2,
+    zoneName: 'SUNLIT HIGHLANDS',
+    zoneIndex: 0,
+    level: 1,
+    bossesDefeated: 0,
+    gameMode: 'endless' as const,
+    isNewBest: false,
+  };
+  assert.equal(getCardRarity(base).rarity, 'COMMON');
+  assert.equal(getCardRarity({ ...base, score: 1500, level: 2 }).rarity, 'RARE');
+  assert.equal(getCardRarity({ ...base, score: 4500, bossesDefeated: 1 }).rarity, 'EPIC');
+  assert.equal(getCardRarity({ ...base, score: 12000, bossesDefeated: 2 }).rarity, 'LEGENDARY');
+});
