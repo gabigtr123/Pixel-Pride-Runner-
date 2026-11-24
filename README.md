@@ -48,15 +48,15 @@
   - `🐉 Mini Dragon` (550 C) — Fires a fireball every `20s`, zapping 1 visible hazard for `+75 ZAP!`.
 - **Upgrades, Runner Trails & Top-5 Leaderboard:** Permanent upgrades (**Magnet Time**, **Gold Value**, **Lucky Drops**), cosmetic trails (**Classic**, **Rainbow**, **Blossom**, **Ember**), and local **Top 5** high-score tracking.
 
-### 🐉 Mini-Bosses, 4 Game Modes & Trophy Room (v3.0 Beta)
-- **4 Retro Mini-Boss Encounters (Every 90s / Level Transition):** Face **Iron Beetle** (LV 2), **Sand Golem** (LV 3), **Neon Drone** (LV 4), and **Crystal Wyrm** (LV 5+) with a live Boss HP bar and dedicated chiptune boss battle music! Stomp them from above or smash through with **Turbo Dash** for **`+500 BOSS KO! +25 COINS`** + a free **Heart/Shield** drop and landscape transition.
+### 🐉 Mini-Bosses, 4 Game Modes & Trophy Room (v3.0)
+- **4 Retro Mini-Boss Encounters (Every 90s / Level Transition):** Face **Iron Beetle** (LV 2), **Sand Golem** (LV 3), **Neon Drone** (LV 4), and **Crystal Wyrm** (LV 5+) with a live Boss HP bar, flashing charge telegraphs, and dedicated chiptune boss battle music! Stomp them from above or smash through with **Turbo Dash** for **`+500 BOSS KO! +25 COINS`** + a free **Heart/Shield** drop and landscape transition.
 - **4 Game Modes:**
   - `ENDLESS` — Classic run with a Mini-Boss every 90 seconds.
   - `DAILY` — Deterministic daily seed so everyone plays the exact same obstacle & coin layout each day.
   - `HARDCORE` — **1 HP**, **1.25× speed**, and **2× Coins & Score** payout!
   - `BOSS RUSH` — Back-to-back Mini-Boss gauntlets!
-- **🏆 Trophy Room (12 Achievements + Career Stats):** Unlock 12 milestones (Boss Slayer, World Traveler, Storm Chaser, Fashion Icon, Tech Genius, Best Friend, No Fear, Arcade Legend, and more) with claimable **`+50 C` to `+200 C`** coin rewards + a full Career Stats board.
-- **🃏 Graphical Trading-Card Run Card (PNG):** On Game Over, tap **VIEW & SHARE RUN CARD** to generate a crisp 8-bit collector's trading card PNG (`COMMON` / `RARE` / `EPIC` / `LEGENDARY` rarity border, your hero + equipped Hat, Cape/Wings & Pet in the biome, final score & Boss KO stats) with 1-tap **Share PNG** or **Save PNG**!
+- **🏆 Trophy Room (12 Achievements + Career Stats):** Unlock 12 milestones (Boss Slayer, World Traveler, Storm Chaser, Fashion Icon, Tech Genius, Best Friend, No Fear, Arcade Legend, and more) with claimable **`+50 C` to `+200 C`** coin rewards + instant Game Over unlock banners + a full Career Stats board.
+- **🃏 Graphical Trading-Card Run Card (PNG):** On Game Over, tap **VIEW & SHARE RUN CARD** to generate a crisp 8-bit collector's trading card PNG (`COMMON` / `RARE` / `EPIC` / `LEGENDARY` rarity border with holographic sparkles, your hero + equipped Hat, Cape/Wings & Pet in the biome, final score & Boss KO stats) with 1-tap **Share PNG** or **Save PNG**!
 
 ### 🌍 Levels, Biomes, Day/Night Cycle & Live Weather
 - **4 Looping Landscape Levels (Every 3 Day/Night Cycles):** Every **3 full Day/Night cycles** (`30s` per cycle → `90s` per level), defeat the stage Mini-Boss to level up (`+250` bonus) and transform the parallax landscape architecture through **Highland Meadows** → **Pyramid Canyon** → **Starlight City** → **Crystal Peaks** and loop seamlessly (`LV 5+`)!
@@ -78,8 +78,8 @@ Pre-built **Web** and **Android 17** packages are published on the [GitHub Relea
 | Platform | Latest Release | Artifact | How to Run / Install |
 | :--- | :--- | :--- | :--- |
 | **Android / Web PWA (Live)** | [Play / Install PWA](https://gabigtr123.github.io/Pixel-Pride-Runner-/) | GitHub Pages | Open in Chrome on Android and tap **Install app** — full-screen offline play, automatic updates, **0 Play Protect warnings**. |
-| **Android 17 Signed APK** | [`v3.0.0-beta.2`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v3.0.0-beta.2) | `pixel-stride-v3.0.0-beta.2-android.apk` | Signed Release APK (API 37 / Capacitor 9) with Material You themed icon & persistent keystore. |
-| **Web (Static Bundle)** | [`v3.0.0-beta.2`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v3.0.0-beta.2) | `pixel-stride-v3.0.0-beta.2-web.zip` | Unzip and serve with any static host (`npx serve .`, Netlify, Vercel, or GitHub Pages). |
+| **Android 17 Signed APK** | [`v3.0.0`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v3.0.0) | `pixel-stride-v3.0.0-android.apk` | Signed Release APK (API 37 / Capacitor 9) with Material You themed icon & persistent keystore. |
+| **Web (Static Bundle)** | [`v3.0.0`](https://github.com/gabigtr123/Pixel-Pride-Runner-/releases/tag/v3.0.0) | `pixel-stride-v3.0.0-web.zip` | Unzip and serve with any static host (`npx serve .`, Netlify, Vercel, or GitHub Pages). |
 
 ---
 

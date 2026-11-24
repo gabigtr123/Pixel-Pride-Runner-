@@ -13,6 +13,7 @@ import {
   evaluateAchievements,
   loadAchievementsState,
   saveAchievementsState,
+  type AchievementDef,
   type AchievementsStorageState,
 } from './game/achievements';
 import { ChiptuneAudio } from './game/audio';
@@ -257,6 +258,7 @@ export default function App() {
   modalOpenRef.current = dailyOpen || shopOpen || trophyOpen || creatorOpen || weatherOpen;
   const [newlyCompletedMissions, setNewlyCompletedMissions] = useState<DailyMission[]>([]);
   const [newlyUnlockedCosmetics, setNewlyUnlockedCosmetics] = useState<ColorOption[]>([]);
+  const [newlyUnlockedTrophies, setNewlyUnlockedTrophies] = useState<AchievementDef[]>([]);
   const lastRecordedRunRef = useRef<GameState['finalRun']>(null);
   const [hud, setHud] = useState<HudSnapshot>(() => {
     const initialPhase = typeof window !== 'undefined' && shouldAutostart() ? 'playing' : 'title';
@@ -334,7 +336,7 @@ export default function App() {
 
       // Evaluate v3 Trophy Room achievements
       const effWeather = getEffectiveWeather(weatherRef.current);
-      const { next: nextAch, newlyUnlocked: newlyUnlockedTrophies } = evaluateAchievements(
+      const { next: nextAch, newlyUnlocked: unlockedTrophies } = evaluateAchievements(
         achievementsRef.current,
         nextShop,
         {
@@ -352,11 +354,12 @@ export default function App() {
       achievementsRef.current = nextAch;
       setAchievements(nextAch);
       saveAchievementsState(nextAch);
+      setNewlyUnlockedTrophies(unlockedTrophies);
 
       if (
         newlyCompleted.length > 0 ||
         unlockedNow.length > 0 ||
-        newlyUnlockedTrophies.length > 0
+        unlockedTrophies.length > 0
       ) {
         audioRef.current?.playEvents([{ type: 'powerup', kind: 'shield' }]);
         triggerHaptic('mission');
@@ -402,6 +405,7 @@ export default function App() {
     setWeatherOpen(false);
     setNewlyCompletedMissions([]);
     setNewlyUnlockedCosmetics([]);
+    setNewlyUnlockedTrophies([]);
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
@@ -1144,9 +1148,11 @@ export default function App() {
         petId={shop.activePet}
         newlyCompletedMissions={newlyCompletedMissions}
         newlyUnlockedCosmetics={newlyUnlockedCosmetics}
+        newlyUnlockedTrophies={newlyUnlockedTrophies}
         completedMissions={completedMissions}
         totalMissions={daily.missions.length}
         onOpenDaily={() => setDailyOpen(true)}
+        onOpenTrophy={() => setTrophyOpen(true)}
         onResume={handleTogglePause}
         onRestart={handleStartOrRestart}
         onTitle={handleReturnToTitle}

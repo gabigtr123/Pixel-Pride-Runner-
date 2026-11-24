@@ -1046,10 +1046,23 @@ function drawBoss(ctx: CanvasRenderingContext2D, state: GameState): void {
   ctx.fillStyle = 'rgba(12, 14, 30, 0.45)';
   ctx.fillRect(bx + 4, GROUND_Y - 2, boss.width - 8, 4);
 
-  // Subtle telegraph aura right before boss attacks
-  if (boss.attackTimer < 0.45 && boss.x <= boss.targetX + 20) {
-    ctx.fillStyle = 'rgba(255, 72, 104, 0.3)';
+  // Clear telegraph aura & flashing "!" badge right before boss charges or attacks
+  const cycle = boss.phaseTimer % 4.6;
+  const chargeWarning = boss.phaseTimer > 0 && cycle >= 1.7 && cycle < 2.2;
+  if (chargeWarning || (boss.attackTimer < 0.45 && boss.x <= boss.targetX + 20)) {
+    ctx.fillStyle = chargeWarning ? 'rgba(255, 56, 88, 0.38)' : 'rgba(255, 168, 56, 0.28)';
     ctx.fillRect(bx - 3, by - 3, boss.width + 6, boss.height + 6);
+    if (chargeWarning && Math.floor(state.elapsed * 18) % 2 === 0) {
+      const ex = bx + Math.round(boss.width / 2) - 4;
+      const ey = by - 14;
+      ctx.fillStyle = '#121324';
+      ctx.fillRect(ex - 1, ey - 1, 10, 12);
+      ctx.fillStyle = '#FF4858';
+      ctx.fillRect(ex, ey, 8, 10);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(ex + 3, ey + 1, 2, 5);
+      ctx.fillRect(ex + 3, ey + 7, 2, 2);
+    }
   }
 
   drawPixelGrid(ctx, grid, palette, bx, by, 2, boss.hitFlash > 0);

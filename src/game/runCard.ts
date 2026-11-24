@@ -431,12 +431,31 @@ export function renderRunCardToCanvas(
     ctx.fillText(stats[i].value, cx + cellW / 2, cy + 56);
   }
 
-  // 7. Trading Card Footer
+  // 7. Holographic corner sparkles for EPIC / LEGENDARY cards
+  if (rarityInfo.rarity === 'EPIC' || rarityInfo.rarity === 'LEGENDARY') {
+    const sparkles = [
+      [74, 152],
+      [W - 86, 156],
+      [84, 444],
+      [W - 92, 438],
+      [W / 2 - 110, 174],
+      [W / 2 + 106, 182],
+    ];
+    for (const [sx, sy] of sparkles) {
+      ctx.fillStyle = rarityInfo.accent;
+      ctx.fillRect(sx - 4, sy, 9, 2);
+      ctx.fillRect(sx, sy - 4, 2, 9);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(sx, sy, 2, 2);
+    }
+  }
+
+  // 8. Trading Card Footer
   const dateStr = data.dateLabel ?? new Date().toISOString().slice(0, 10);
   ctx.font = 'bold 10px "Press Start 2P", monospace';
   ctx.textAlign = 'left';
   ctx.fillStyle = '#8898C8';
-  ctx.fillText(`PIXEL STRIDE v3 · ${dateStr}`, 52, H - 50);
+  ctx.fillText(`PIXEL STRIDE v3.0 · ${dateStr}`, 52, H - 50);
 
   ctx.textAlign = 'right';
   ctx.fillStyle = rarityInfo.accent;

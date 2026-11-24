@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { AchievementDef } from '../game/achievements';
 import type { ColorOption } from '../game/creator';
 import type { DailyMission } from '../game/daily';
 import { renderRunCardToCanvas, runCardCanvasToBlob } from '../game/runCard';
@@ -13,9 +14,11 @@ interface StatusModalProps {
   petId: PetId;
   newlyCompletedMissions: DailyMission[];
   newlyUnlockedCosmetics: ColorOption[];
+  newlyUnlockedTrophies: AchievementDef[];
   completedMissions: number;
   totalMissions: number;
   onOpenDaily: () => void;
+  onOpenTrophy: () => void;
   onResume: () => void;
   onRestart: () => void;
   onTitle: () => void;
@@ -29,9 +32,11 @@ export function StatusModal({
   petId,
   newlyCompletedMissions,
   newlyUnlockedCosmetics,
+  newlyUnlockedTrophies,
   completedMissions,
   totalMissions,
   onOpenDaily,
+  onOpenTrophy,
   onResume,
   onRestart,
   onTitle,
@@ -282,6 +287,29 @@ export function StatusModal({
                     ★ {c.name} (Available in Hero Creator)
                   </span>
                 ))}
+              </div>
+            )}
+
+            {newlyUnlockedTrophies.length > 0 && (
+              <div className="w-full bg-[#2B1F0A] border-2 border-[#FFE05C] px-3 py-2 flex flex-col gap-1">
+                <span className="font-pixel-display text-[10px] text-[#FFE05C]">
+                  🏆 TROPHY UNLOCKED!
+                </span>
+                {newlyUnlockedTrophies.map((t) => (
+                  <span key={t.id} className="font-pixel-ui text-[11px] text-[#FFF4A8]">
+                    {t.icon} {t.title} (+{t.rewardCoins} C)
+                  </span>
+                ))}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.currentTarget.blur();
+                    onOpenTrophy();
+                  }}
+                  className="mt-0.5 font-pixel-display text-[8px] text-[#78F0A8] underline underline-offset-4 cursor-pointer"
+                >
+                  CLAIM IN TROPHY ROOM →
+                </button>
               </div>
             )}
 

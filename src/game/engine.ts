@@ -384,7 +384,7 @@ export function spawnBoss(state: GameState, pendingLevel: number): BossEntity {
     name: def.name,
     x: VIRTUAL_WIDTH + 38,
     y: def.baseY,
-    targetX: VIRTUAL_WIDTH - 72,
+    targetX: 282,
     baseY: def.baseY,
     width: 36,
     height: 28,
