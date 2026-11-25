@@ -35,14 +35,19 @@ jobs:
           distribution: "temurin"
           java-version: "21"
 
+      - name: Setup Gradle 9.8.2
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.8.2"
+
       - name: Accept Android SDK licenses
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
 
-      - name: Install dependencies
+      - name: Install Web dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Type-check & Test
+      - name: Type-check & Test Web/PWA
         run: |
           npm run lint
           npm test
@@ -57,16 +62,7 @@ jobs:
           cd dist
           zip -r "../pixel-stride-${RELEASE_TAG}-web.zip" .
 
-      - name: Add and sync Capacitor 9 Android project (Android 17 / API 37)
-        run: |
-          npx cap add android
-          npx cap sync android
-          node scripts/apply-android-icons.mjs
-          node scripts/configure-android-manifest.mjs
-          cat android/app/src/main/AndroidManifest.xml
-          cat android/variables.gradle
-
-      - name: Build Signed Android 17 Release APK
+      - name: Run Native Kotlin Unit Tests & Build Signed Android 17 APK (Zero WebView)
         env:
           RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -74,11 +70,10 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          KEYSTORE_FILE="$PWD/android/app/release.keystore"
+          KEYSTORE_FILE="$PWD/android-native/app/release.keystore"
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_FILE"
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleRelease \
+          cd android-native
+          gradle testDebugUnitTest assembleRelease \
             -Pandroid.injected.signing.store.file="$KEYSTORE_FILE" \
             -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
             -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
@@ -105,30 +100,21 @@ jobs:
             gh release upload "$RELEASE_TAG" "$APK" "$ZIP" --clobber
           else
             printf '%s\n' \
-              "Unified **Android 17** & **Web/PWA** release of **Pixel Stride ${RELEASE_TAG}**." \
+              "Unified **100% Native Android 17 (Zero WebView)** & **Web/PWA** release of **Pixel Stride ${RELEASE_TAG}**." \
               "" \
               "### Downloads" \
-              "- **Android 17 Signed APK:** \`${APK}\` (API 37 / Capacitor 9, persistent release keystore for seamless in-place updates)" \
+              "- **Android 17 Signed Native APK (~790 KB, Zero WebView):** \`${APK}\` (Package ID: \`com.gabigtr123.pixelstride\` — upgrades cleanly in-place over \`v3.0.3\` with the same release keystore!)" \
               "- **Web & PWA Bundle:** \`${ZIP}\` (static bundle ready for any host)" \
-              "- **Play / Install PWA (0 warnings):** https://gabigtr123.github.io/Pixel-Pride-Runner-/" \
+              "- **Play / Install PWA:** https://gabigtr123.github.io/Pixel-Pride-Runner-/" \
               "" \
-              "### What's New in v3.0.3 (Android 17 / API 37 Polish)" \
-              "- **Proper Android Versioning & Explicit API 37 Target:** Synced \`versionName\` (\`3.0.3\`), \`versionCode\` (\`30003\`), and explicit \`targetSdkVersion 37\` in \`app/build.gradle\` (previously stuck at \`1.0\` / \`versionCode 1\`), verified automatically via \`aapt2 dump badging\` in CI." \
-              "- **Android 15–17 Game Mode & Predictive Back:** Added \`android:appCategory=\"game\"\` (unlocks Android Game Dashboard / Game Mode), \`android:enableOnBackInvokedCallback=\"true\"\` (Predictive Back gesture), and \`android:usesCleartextTraffic=\"false\"\` (HTTPS-only hardening)." \
-              "- **Native Android 12–17 Dark SplashScreen & Cutout Edge-to-Edge:** Replaced default Capacitor splash with Pixel Stride's dark \`#111324\` \`Theme.SplashScreen\` + adaptive pixel runner icon and \`windowLayoutInDisplayCutoutMode=\"always\"\` (zero white flash on launch)." \
-              "" \
-              "### Included from v3.0.1 – v3.0.2" \
-              "- **Native Android GPS Weather Permission (\`@capacitor/geolocation\`):** Native Android runtime location permission prompt (Approximate & Precise) for Live Weather Sync." \
-              "- **Native Android Run Card PNG (\`@capacitor/share\` + \`@capacitor/filesystem\`):** Native Share Sheet + direct save to \`Documents/PixelStride/\`." \
-              "" \
-              "### v3.0 Highlights" \
-              "- **4 Retro Mini-Boss Encounters (Every 90s + Boss Rush):** Battle **Iron Beetle** (LV 2), **Sand Golem** (LV 3), **Neon Drone** (LV 4), and **Crystal Wyrm** (LV 5+) with a live Boss HP bar, charge-and-recoil attacks, flashing charge telegraphs, dedicated chiptune boss battle music, and **+500 BOSS KO! +25 COINS** + free Heart/Shield drop!" \
-              "- **3 Pet Companions (Pixel Shop Wardrobe):** **Pixel Fox**, **Frost Owl**, and **Mini Dragon**." \
-              "- **4 Game Modes:** **ENDLESS**, **DAILY**, **HARDCORE** (\`1 HP\`, \`1.25×\` speed, **2× Coins & Score**), and **BOSS RUSH**." \
-              "- **Trophy Room (12 Achievements + Career Stats):** Claimable \`+50 C\` to \`+200 C\` rewards & Game Over unlock banners." \
-              "- **Graphical Trading-Card Run Card (PNG):** \`640×900\` 8-bit collector's trading card (\`COMMON\` / \`RARE\` / \`EPIC\` / \`LEGENDARY\` with holographic sparkles) with 1-tap **Share PNG** or **Save PNG** on both Web/PWA and Android APK." \
+              "### What's New in v4.0.0 (100% Native Kotlin / Zero WebView GA)" \
+              "- **Zero WebView, Zero Capacitor — Pure Kotlin Android 17 Engine:** Dedicated \`SurfaceView\` 60 FPS loop, R8-minified **~790 KB** APK, native Android 12–17 Dark SplashScreen, Predictive Back, Game Mode (\`appCategory=\"game\"\`), and immersive edge-to-edge display." \
+              "- **1:1 v3.0.3 Pixel-Art Graphics Parity:** Exact hex palettes for all 6 Biomes + dedicated \`WINTER_BIOME_PALETTE\`, 4 stepped pixel-art landscapes (Highland Meadows, Pyramid Canyon, Starlight City, Crystal Peaks), 16px NES ground & floating platform masonry with rain puddles/trickles & snow icicles, orbiting 4-star Shield, Turbo/Magnet/Boss FX, and bundled \`Press Start 2P\` + \`Silkscreen\` fonts." \
+              "- **Full Gameplay, Audio, Pets & Live Weather Parity:** Floating platforms with one-way landing & drop-through, Swooper/Flame/Hopper telegraphs & upside-down KO topple, Combo Multiplier (\`x1..x8\`), Level/Biome banners, \`DAILY SEED\` mode + \`❄ WINTER\` theme toggle, 6 biome chiptune music loops + Boss theme + 4-channel polyphonic SFX via \`AudioTrack\`, 3 Pet Companions (Fox, Owl, Mini Dragon), and Open-Meteo Live Weather + single-shot native Android GPS." \
+              "- **Full Meta-Progression & Controls Parity:** Pixel Shop 2.0 (Hats, Capes/Wings, Pets, Runner Trails, 2+1 Gadget Slots, Boosters, Permanent Upgrades LV 0–3, Local Top-5), Hero Creator, Daily Missions + 7-Day Streak, Trophy Room (12 Achievements), Graphical \`640×900\` Run Card PNG (Share & Save to Gallery), and Hardware Keyboard + Bluetooth Gamepad support." \
+              "- **Automated Quality Gates in CI:** Verified with 26 Web/TypeScript unit tests + JUnit 4 Kotlin \`GameEngineTest\` suite before every release." \
               > release-notes.md
             gh release create "$RELEASE_TAG" "$APK" "$ZIP" \
-              --title "Pixel Stride ${RELEASE_TAG}" \
+              --title "Pixel Stride ${RELEASE_TAG} (Native Android 17 + Web)" \
               --notes-file release-notes.md
           fi

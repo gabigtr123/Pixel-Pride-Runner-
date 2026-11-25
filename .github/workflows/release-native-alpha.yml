@@ -49,7 +49,7 @@ jobs:
           KEYSTORE_FILE="$PWD/android-native/app/release.keystore"
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_FILE"
           cd android-native
-          gradle assembleRelease \
+          gradle testDebugUnitTest assembleRelease \
             -Pandroid.injected.signing.store.file="$KEYSTORE_FILE" \
             -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
             -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \

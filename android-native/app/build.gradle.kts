@@ -7,11 +7,11 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.gabigtr123.pixelstride.nativealpha"
+        applicationId = "com.gabigtr123.pixelstride"
         minSdk = 26
         targetSdk = 37
-        versionCode = 40015
-        versionName = "4.0.0-rc.1"
+        versionCode = 40020
+        versionName = "4.0.0"
     }
 
     buildTypes {
@@ -40,4 +40,5 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.8.0")
     implementation("androidx.activity:activity-ktx:1.13.0")
     implementation("androidx.core:core-splashscreen:1.2.0")
+    testImplementation("junit:junit:4.13.2")
 }
