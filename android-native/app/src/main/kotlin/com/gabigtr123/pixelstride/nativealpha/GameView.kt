@@ -99,9 +99,51 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         stopLoop()
     }
 
+    private fun resetTouchPointers() {
+        duckPointerId = MotionEvent.INVALID_POINTER_ID
+        jumpPointerId = MotionEvent.INVALID_POINTER_ID
+        engine.setDuck(false)
+    }
+
+    fun handleBackPress(): Boolean {
+        synchronized(engine) {
+            return when (engine.phase) {
+                GamePhase.SHOP, GamePhase.CREATOR, GamePhase.DAILY, GamePhase.TROPHY, GamePhase.WEATHER -> {
+                    engine.phase = GamePhase.TITLE
+                    true
+                }
+                GamePhase.RUN_CARD -> {
+                    engine.phase = GamePhase.GAME_OVER
+                    true
+                }
+                GamePhase.PLAYING -> {
+                    resetTouchPointers()
+                    engine.phase = GamePhase.PAUSED
+                    synth.stopMusic()
+                    true
+                }
+                GamePhase.PAUSED -> {
+                    engine.phase = GamePhase.PLAYING
+                    synth.startMusic()
+                    true
+                }
+                GamePhase.GAME_OVER -> {
+                    runCardPreview?.recycle()
+                    runCardPreview = null
+                    engine.returnToTitle()
+                    true
+                }
+                GamePhase.TITLE -> false
+            }
+        }
+    }
+
     fun onHostPause() {
-        if (engine.phase == GamePhase.PLAYING) {
-            engine.phase = GamePhase.PAUSED
+        synchronized(engine) {
+            resetTouchPointers()
+            if (engine.phase == GamePhase.PLAYING) {
+                engine.phase = GamePhase.PAUSED
+            }
         }
         synth.stopMusic()
         persistSave()
@@ -121,14 +163,20 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             }
             return
         }
-        val loc = WeatherService.getLastKnownLocation(context)
-        if (loc == null) {
-            synchronized(engine) {
-                engine.weatherStatusMsg = "GPS fix unavailable. Enable Location or pick a city!"
-            }
-            return
+        synchronized(engine) {
+            engine.weatherStatusMsg = "Getting GPS fix..."
         }
-        syncWeatherForCoords(loc.latitude, loc.longitude, "MY LOCATION")
+        WeatherService.requestCurrentLocation(
+            context = context,
+            onLocation = { loc ->
+                syncWeatherForCoords(loc.latitude, loc.longitude, "MY LOCATION")
+            },
+            onError = { errMsg ->
+                synchronized(engine) {
+                    engine.weatherStatusMsg = errMsg
+                }
+            },
+        )
     }
 
     private fun syncWeatherForCoords(lat: Double, lon: Double, label: String) {
@@ -436,6 +484,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             UiAction.SELECT_MODE_BOSS_RUSH -> selectMode(GameMode.BOSS_RUSH)
             UiAction.SELECT_MODE_WINTER -> selectMode(GameMode.WINTER)
             UiAction.TOGGLE_PAUSE -> {
+                resetTouchPointers()
                 engine.togglePause()
                 if (engine.phase == GamePhase.PAUSED) synth.stopMusic() else synth.startMusic()
             }
@@ -570,6 +619,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
 
     override fun onGameOver(snapshot: RunSnapshot) {
+        resetTouchPointers()
         synth.stopMusic()
         synth.playGameOver()
         vibrate(80, 200)

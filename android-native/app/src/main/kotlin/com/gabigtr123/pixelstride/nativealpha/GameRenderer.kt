@@ -583,40 +583,56 @@ class GameRenderer(
         val dp = minOf(vw, vh) / 360f
         val cx = vw / 2f
 
-        // Exact v3.0.3 top HUD bar: DAY X | COINS SHOP | TROPHY | WX | SFX
+        // Exact v3.0.3 top HUD bar: DAY X | COINS SHOP | TROPHY | WX | SFX (responsive to screen width!)
+        val isLandscape = vw > vh
         val h = 34f * dp
-        val dailyRect = RectF(8f * dp, topSafe, 82f * dp, topSafe + h)
-        drawPixelButtonSecondary(c, dailyRect, "D${meta.streakDays} ${meta.completedDailyCount()}/3", 7.5f * dp, dp, textColor = 0xFFFFE05C.toInt())
+        val margin = 8f * dp
+        val gap = 4f * dp
+        val availBarW = minOf(vw - margin * 2f, 440f * dp)
+        val muteW = 44f * dp
+        val leftBarW = availBarW - muteW - gap
+        val dailyW = leftBarW * 0.24f
+        val shopW = leftBarW * 0.30f
+        val trophyW = leftBarW * 0.20f
+        val wxW = leftBarW - dailyW - shopW - trophyW - gap * 3f
+
+        var bx = margin
+        val dailyRect = RectF(bx, topSafe, bx + dailyW, topSafe + h)
+        drawPixelButtonSecondary(c, dailyRect, "D${meta.streakDays} ${meta.completedDailyCount()}/3", 7.2f * dp, dp, textColor = 0xFFFFE05C.toInt())
         if (meta.hasUnclaimedDaily()) {
             paint.color = 0xFF78F0A8.toInt()
             c.drawRect(dailyRect.right - 8f * dp, dailyRect.top + 3f * dp, dailyRect.right - 2f * dp, dailyRect.top + 9f * dp, paint)
         }
         buttons.add(HitButton(UiAction.OPEN_DAILY, dailyRect))
 
-        val shopRect = RectF(86f * dp, topSafe, 174f * dp, topSafe + h)
-        drawPixelButtonSecondary(c, shopRect, "${engine.totalCoins}C SHOP", 7.5f * dp, dp, textColor = 0xFFFFF4A8.toInt())
+        bx += dailyW + gap
+        val shopRect = RectF(bx, topSafe, bx + shopW, topSafe + h)
+        val shopLabel = if (engine.totalCoins >= 1000) "${engine.totalCoins}C" else "${engine.totalCoins}C SHOP"
+        drawPixelButtonSecondary(c, shopRect, shopLabel, 7.2f * dp, dp, textColor = 0xFFFFF4A8.toInt())
         buttons.add(HitButton(UiAction.OPEN_SHOP, shopRect))
 
-        val trophyRect = RectF(178f * dp, topSafe, 232f * dp, topSafe + h)
-        drawPixelButtonSecondary(c, trophyRect, "🏆${meta.unlockedTrophies.size}", 8f * dp, dp, textColor = 0xFFFFE05C.toInt())
+        bx += shopW + gap
+        val trophyRect = RectF(bx, topSafe, bx + trophyW, topSafe + h)
+        drawPixelButtonSecondary(c, trophyRect, "🏆${meta.unlockedTrophies.size}", 7.8f * dp, dp, textColor = 0xFFFFE05C.toInt())
         if (meta.hasUnclaimedTrophy()) {
             paint.color = 0xFF78F0A8.toInt()
             c.drawRect(trophyRect.right - 8f * dp, trophyRect.top + 3f * dp, trophyRect.right - 2f * dp, trophyRect.top + 9f * dp, paint)
         }
         buttons.add(HitButton(UiAction.OPEN_TROPHY, trophyRect))
 
-        val wxRect = RectF(236f * dp, topSafe, 304f * dp, topSafe + h)
-        drawPixelButtonSecondary(c, wxRect, engine.weatherBadgeLabel(), 7.5f * dp, dp, textColor = 0xFF78E8FF.toInt())
+        bx += trophyW + gap
+        val wxRect = RectF(bx, topSafe, bx + wxW, topSafe + h)
+        drawPixelButtonSecondary(c, wxRect, engine.weatherBadgeLabel(), 7.2f * dp, dp, textColor = 0xFF78E8FF.toInt())
         buttons.add(HitButton(UiAction.OPEN_WEATHER, wxRect))
 
-        val muteRect = RectF(vw - 48f * dp, topSafe, vw - 8f * dp, topSafe + h)
+        val muteRect = RectF(vw - margin - muteW, topSafe, vw - margin, topSafe + h)
         drawPixelButtonSecondary(c, muteRect, if (muted) "OFF" else "SFX", 7.5f * dp, dp)
         buttons.add(HitButton(UiAction.TOGGLE_MUTE, muteRect))
 
-        // Exact v3.0.3 PixelStrideTitleLogo cartridge plaque in the upper sky!
-        val logoW = minOf(vw - 24f * dp, 326f * dp)
+        // Exact v3.0.3 PixelStrideTitleLogo cartridge plaque in the upper sky (compact in landscape!)
+        val logoW = if (isLandscape) minOf(vw * 0.38f, 220f * dp) else minOf(vw - 24f * dp, 326f * dp)
         val logoH = logoW * (116f / 420f)
-        val logoY = topSafe + 46f * dp
+        val logoY = topSafe + (if (isLandscape) 38f * dp else 46f * dp)
         drawTitleLogo(c, cx - logoW / 2f, logoY, logoW, logoH)
 
         // Lower underground masonry deck: 4 Hero pills + PERK/EDIT + 4 Mode pills + START RUN

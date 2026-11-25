@@ -4,6 +4,8 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.location.Location
 import android.location.LocationManager
+import android.os.Build
+import android.os.CancellationSignal
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
@@ -39,7 +41,7 @@ object WeatherService {
     fun mapWmoCode(code: Int): WeatherCondition = when {
         code == 45 || code == 48 -> WeatherCondition.FOG
         code in 95..99 -> WeatherCondition.STORM
-        code in 71..77 || code == 85 || code == 86 -> WeatherCondition.SNOW
+        code in 71..77 || code in 85..86 -> WeatherCondition.SNOW
         code in 51..67 || code in 80..82 -> WeatherCondition.RAIN
         else -> WeatherCondition.CLEAR
     }
@@ -92,15 +94,71 @@ object WeatherService {
         }
     }
 
+    /**
+     * Requests a fresh live GPS/Fused fix on Android 11+ (API 30+), falling back to cached lastKnownLocation.
+     */
     @SuppressLint("MissingPermission")
-    fun getLastKnownLocation(context: Context): Location? {
-        val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
-        val providers = listOf(
-            LocationManager.FUSED_PROVIDER,
-            LocationManager.GPS_PROVIDER,
-            LocationManager.NETWORK_PROVIDER,
-            LocationManager.PASSIVE_PROVIDER,
-        )
+    fun requestCurrentLocation(
+        context: Context,
+        onLocation: (Location) -> Unit,
+        onError: (String) -> Unit,
+    ) {
+        val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+        if (lm == null) {
+            onError("Location service unavailable. Pick a city below!")
+            return
+        }
+
+        // Fast path: if we already have a reasonably fresh cached fix (< 10 min old), use it immediately
+        val cached = getLastKnownLocation(lm)
+        if (cached != null && (System.currentTimeMillis() - cached.time) < 10 * 60 * 1000L) {
+            onLocation(cached)
+            return
+        }
+
+        // Active single-shot fix on Android 11+ (API 30+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val provider = when {
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && lm.isProviderEnabled(LocationManager.FUSED_PROVIDER) ->
+                    LocationManager.FUSED_PROVIDER
+                lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER) -> LocationManager.NETWORK_PROVIDER
+                lm.isProviderEnabled(LocationManager.GPS_PROVIDER) -> LocationManager.GPS_PROVIDER
+                else -> null
+            }
+            if (provider != null) {
+                try {
+                    val cancel = CancellationSignal()
+                    lm.getCurrentLocation(provider, cancel, ioExecutor) { loc ->
+                        if (loc != null) {
+                            onLocation(loc)
+                        } else if (cached != null) {
+                            onLocation(cached)
+                        } else {
+                            onError("Could not get GPS fix. Enable Location or pick a city!")
+                        }
+                    }
+                    return
+                } catch (_: Throwable) {
+                    // Fall through to cached fallback
+                }
+            }
+        }
+
+        if (cached != null) {
+            onLocation(cached)
+        } else {
+            onError("Turn on Device Location or pick a city below!")
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun getLastKnownLocation(lm: LocationManager): Location? {
+        val providers = buildList {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) add(LocationManager.FUSED_PROVIDER)
+            add(LocationManager.GPS_PROVIDER)
+            add(LocationManager.NETWORK_PROVIDER)
+            add(LocationManager.PASSIVE_PROVIDER)
+        }
         var best: Location? = null
         for (p in providers) {
             try {
@@ -110,7 +168,6 @@ object WeatherService {
                     best = loc
                 }
             } catch (_: Throwable) {
-                // Provider unavailable or not permitted
             }
         }
         return best

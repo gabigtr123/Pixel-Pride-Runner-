@@ -15,7 +15,8 @@ import kotlin.random.Random
  */
 class ChiptuneSynth {
     private val sampleRate = 22050
-    private val sfxExecutor = Executors.newSingleThreadExecutor()
+    private val sfxExecutor = Executors.newFixedThreadPool(4)
+    private val musicLock = Any()
 
     @Volatile
     var muted: Boolean = false
@@ -84,87 +85,95 @@ class ChiptuneSynth {
     }
 
     fun startMusic() {
-        if (muted || musicRunning) return
-        musicRunning = true
-        musicThread = Thread {
-            var track: AudioTrack? = null
-            try {
-                val minBuf = AudioTrack.getMinBufferSize(
-                    sampleRate,
-                    AudioFormat.CHANNEL_OUT_MONO,
-                    AudioFormat.ENCODING_PCM_16BIT,
-                )
-                val stepSamples = (sampleRate * 0.145).toInt()
-                val bufBytes = maxOf(minBuf, stepSamples * 4)
-                track = AudioTrack.Builder()
-                    .setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_GAME)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                            .build(),
-                    )
-                    .setAudioFormat(
-                        AudioFormat.Builder()
-                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                            .setSampleRate(sampleRate)
-                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                            .build(),
-                    )
-                    .setBufferSizeInBytes(bufBytes)
-                    .setTransferMode(AudioTrack.MODE_STREAM)
-                    .build()
-                track.play()
-
-                val pcm = ShortArray(stepSamples)
-                var step = 0
-                var leadPhase = 0.0
-                var bassPhase = 0.0
-
-                while (musicRunning && !muted) {
-                    val theme = if (bossMode) bossTheme else biomeThemes[biomeIndex]
-                    val leadFreq = theme.lead[step % theme.lead.size]
-                    val bassFreq = theme.bass[step % theme.bass.size]
-                    step = (step + 1) % 16
-
-                    for (i in 0 until stepSamples) {
-                        val t = i.toDouble() / stepSamples
-                        var mix = 0.0
-                        if (leadFreq > 0.0) {
-                            leadPhase += 2.0 * PI * leadFreq / sampleRate
-                            val sq = if (sin(leadPhase) >= 0.0) 1.0 else -1.0
-                            val env = if (t < 0.05) t / 0.05 else (1.0 - t * 0.78).coerceAtLeast(0.0)
-                            mix += sq * 0.065 * env
-                        }
-                        if (bassFreq > 0.0) {
-                            bassPhase += 2.0 * PI * bassFreq / sampleRate
-                            // Triangle-like soft bass
-                            val tri = (2.0 / PI) * kotlin.math.asin(sin(bassPhase))
-                            val env = (1.0 - t * 0.65).coerceAtLeast(0.0)
-                            mix += tri * 0.085 * env
-                        }
-                        pcm[i] = (mix.coerceIn(-0.9, 0.9) * Short.MAX_VALUE).toInt().toShort()
-                    }
-                    track.write(pcm, 0, pcm.size)
-                }
-            } catch (_: Throwable) {
-                // Ignore transient audio interruption
-            } finally {
+        synchronized(musicLock) {
+            if (muted || musicRunning) return
+            musicRunning = true
+            musicThread = Thread {
+                var track: AudioTrack? = null
                 try {
-                    track?.stop()
-                    track?.release()
+                    val minBuf = AudioTrack.getMinBufferSize(
+                        sampleRate,
+                        AudioFormat.CHANNEL_OUT_MONO,
+                        AudioFormat.ENCODING_PCM_16BIT,
+                    )
+                    val stepSamples = (sampleRate * 0.145).toInt()
+                    val bufBytes = maxOf(minBuf, stepSamples * 4)
+                    track = AudioTrack.Builder()
+                        .setAudioAttributes(
+                            AudioAttributes.Builder()
+                                .setUsage(AudioAttributes.USAGE_GAME)
+                                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                                .build(),
+                        )
+                        .setAudioFormat(
+                            AudioFormat.Builder()
+                                .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                                .setSampleRate(sampleRate)
+                                .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                                .build(),
+                        )
+                        .setBufferSizeInBytes(bufBytes)
+                        .setTransferMode(AudioTrack.MODE_STREAM)
+                        .build()
+                    track.play()
+
+                    val pcm = ShortArray(stepSamples)
+                    var step = 0
+                    var leadPhase = 0.0
+                    var bassPhase = 0.0
+
+                    while (musicRunning && !muted) {
+                        val theme = if (bossMode) bossTheme else biomeThemes[biomeIndex]
+                        val leadFreq = theme.lead[step % theme.lead.size]
+                        val bassFreq = theme.bass[step % theme.bass.size]
+                        step = (step + 1) % 16
+
+                        for (i in 0 until stepSamples) {
+                            val t = i.toDouble() / stepSamples
+                            var mix = 0.0
+                            if (leadFreq > 0.0) {
+                                leadPhase += 2.0 * PI * leadFreq / sampleRate
+                                val sq = if (sin(leadPhase) >= 0.0) 1.0 else -1.0
+                                val env = if (t < 0.05) t / 0.05 else (1.0 - t * 0.78).coerceAtLeast(0.0)
+                                mix += sq * 0.065 * env
+                            }
+                            if (bassFreq > 0.0) {
+                                bassPhase += 2.0 * PI * bassFreq / sampleRate
+                                val tri = (2.0 / PI) * kotlin.math.asin(sin(bassPhase))
+                                val env = (1.0 - t * 0.65).coerceAtLeast(0.0)
+                                mix += tri * 0.085 * env
+                            }
+                            pcm[i] = (mix.coerceIn(-0.9, 0.9) * Short.MAX_VALUE).toInt().toShort()
+                        }
+                        track.write(pcm, 0, pcm.size)
+                    }
                 } catch (_: Throwable) {
+                } finally {
+                    try {
+                        track?.stop()
+                        track?.release()
+                    } catch (_: Throwable) {
+                    }
                 }
+            }.apply {
+                name = "PixelStrideMusicThread"
+                start()
             }
-        }.apply {
-            name = "PixelStrideMusicThread"
-            start()
         }
     }
 
     fun stopMusic() {
-        musicRunning = false
-        musicThread?.interrupt()
-        musicThread = null
+        val t: Thread?
+        synchronized(musicLock) {
+            musicRunning = false
+            t = musicThread
+            musicThread = null
+        }
+        t?.interrupt()
+        try {
+            t?.join(120)
+        } catch (_: InterruptedException) {
+        }
     }
 
     fun playJump(isDouble: Boolean = false) {

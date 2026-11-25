@@ -81,15 +81,12 @@ jobs:
               "### Downloads" \
               "- **Native Android 17 Signed APK (Alpha):** \`${APK}\` (Package ID: \`com.gabigtr123.pixelstride.nativealpha\` — installs side-by-side alongside v3.0.3 without overwriting your saves!)" \
               "" \
-              "### What's New in v4.0.0-beta.1 (Milestone 3: Full Meta-Progression Parity)" \
-              "- **Pixel Shop 2.0 (4 Tabs: Wardrobe, Gadgets, Boosts, Top 5):**" \
-              "  - **Wardrobe:** 5 Hats (Crown, Wizard, Santa, Visor, Halo), 3 Back Gear (Hero Cape, Jetpack, Angel Wings), and 3 Pet Companions (Pixel Fox, Frost Owl, Mini Dragon) — rendered live in gameplay AND on the \`640×900\` Run Card PNG!" \
-              "  - **5 Equippable Gadgets** (2 slots + unlockable Slot #3 for \`400 C\`): Feather Boots (Triple Jump), Phoenix Charm (Second Wind 1× Revive), Magnet Ring (\`80px\` pull), Golden Emblem (\`+15%\` score), Aegis Buckle (Start Shield)." \
-              "  - **3 Consumable Boosters:** Turbo Start (\`4.5s\` Turbo Dash), Heart Flask (\`+1\` Max HP), 2X Coins Run." \
-              "  - **Local Top-5 Leaderboard:** Tracks your top 5 runs with hero, mode, and date." \
-              "- **Hero Creator (\`CUSTOM\` Hero):** Customize Hair/Cap, Tunic, Scarf, and Boots colors with live animated preview — playable in-game and rendered on Run Card PNGs." \
-              "- **Daily Missions & 7-Day Login Streak:** 3 deterministic daily quests with progress bars & claimable coin rewards, plus 7-day streak perks (Day 2 \`+150\` score, Day 3 free Star Shield, Day 5 Coin Magnet)." \
-              "- **Trophy Room (12 Achievements + Career Stats):** 12 claimable milestones (\`+50 C\` to \`+200 C\`), Career Stats bar, and instant **🏆 TROPHY UNLOCKED!** Game Over banner." \
+              "### What's New in v4.0.0-beta.2 (Full End-to-End Audit & Bugfix Pass)" \
+              "- **Android Predictive Back & Hardware Back Fix:** Pressing Back now cleanly closes modals (Shop, Creator, Daily, Trophy, Weather, Run Card) or pauses/resumes gameplay instead of immediately exiting the app." \
+              "- **Live Single-Shot GPS Fix (\`LocationManager.getCurrentLocation\`):** Upgraded native Android GPS detection to actively request a fresh Fused/Network/GPS fix on Android 11–17 (API 30–37) when no recent cached location exists." \
+              "- **Overlapping Multi-Channel Chiptune SFX + Thread-Safe Music:** Upgraded SFX pool to 4 concurrent channels so rapid coin chains, jumps, and stomps never queue/lag behind each other, and synchronized music thread start/stop." \
+              "- **Responsive Top Bar & Landscape Title Layout:** Fixed potential button overflow at \`1000+\` coins and compact Landscape logo scaling so buttons never collide on narrow or landscape screens." \
+              "- **Touch & Immersive Bar Polish:** Reset stuck Duck/Jump touch pointers on pause/backgrounding and automatically re-hide system bars when returning from notification shade." \
               > release-notes-alpha.md
             gh release create "$RELEASE_TAG" "$APK" \
               --title "Pixel Stride Native ${RELEASE_TAG} (Zero WebView Beta)" \
