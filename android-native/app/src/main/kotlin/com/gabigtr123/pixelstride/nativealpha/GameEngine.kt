@@ -143,7 +143,7 @@ class GameEngine(private val feedback: EngineFeedback) {
     fun currentPlayerHeight(): Float = if (ducking && onGround) playerDuckHeight else playerStandHeight
 
     fun currentBiome(): BiomePalette {
-        if (mode == GameMode.WINTER || effectiveWeather() == WeatherCondition.SNOW) return BIOMES[4]
+        if (mode == GameMode.WINTER) return WINTER_BIOME_PALETTE
         return BIOMES[zoneIndex % BIOMES.size]
     }
 

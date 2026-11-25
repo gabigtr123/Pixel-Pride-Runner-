@@ -7,7 +7,11 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.floor
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 enum class UiAction {
@@ -147,12 +151,31 @@ class GameRenderer(
             canvas.translate(sx, sy)
         }
 
-        val worldLeft = -offsetX / scale - 4f
-        val worldTop = -offsetY / scale - 4f
-        val worldRight = worldLeft + visibleWorldW + 8f
-        val worldBottom = worldTop + visibleWorldH + 8f
-        drawWorld(canvas, engine, worldLeft, worldTop, worldRight, worldBottom)
+        val worldLeft = -offsetX / scale - 8f
+        val worldTop = -offsetY / scale - 8f
+        val worldRight = worldLeft + visibleWorldW + 16f
+        val worldBottom = worldTop + visibleWorldH + 16f
+        drawWorld(canvas, engine, isPortrait, worldLeft, worldTop, worldRight, worldBottom)
         canvas.restore()
+
+        // Exact v3.0.3 screen-edge status borders (Slow-Mo cyan + Low-HP crimson pulse)
+        if (engine.phase == GamePhase.PLAYING) {
+            val borderPx = (3f * scale).coerceAtLeast(4f)
+            if (engine.slowMoTimer > 0f) {
+                paint.color = Color.argb(56, 104, 224, 255)
+                canvas.drawRect(0f, 0f, vw, borderPx, paint)
+                canvas.drawRect(0f, vh - borderPx, vw, vh, paint)
+            }
+            if (engine.hp == 1) {
+                val pulse = 0.14f + 0.10f * sin(engine.elapsed * 7f)
+                paint.color = Color.argb((pulse * 255f).toInt().coerceIn(0, 255), 232, 48, 72)
+                val warnPx = (4f * scale).coerceAtLeast(6f)
+                canvas.drawRect(0f, 0f, vw, warnPx, paint)
+                canvas.drawRect(0f, vh - warnPx, vw, vh, paint)
+                canvas.drawRect(0f, 0f, warnPx, vh, paint)
+                canvas.drawRect(vw - warnPx, 0f, vw, vh, paint)
+            }
+        }
 
         val topSafe = insetTopPx + 10f
         val bottomSafe = insetBottomPx + 12f
@@ -177,9 +200,72 @@ class GameRenderer(
         }
     }
 
+    private fun getBlendedBiome(engine: GameEngine): BiomePalette {
+        if (engine.mode == GameMode.WINTER) return WINTER_BIOME_PALETTE
+        val currIdx = engine.zoneIndex % BIOMES.size
+        val nextIdx = (currIdx + 1) % BIOMES.size
+        val curr = BIOMES[currIdx]
+        val next = BIOMES[nextIdx]
+        val zoneProgress = (engine.distance % 400f) / 400f
+        if (zoneProgress < 0.85f || engine.phase == GamePhase.TITLE) return curr
+        val t = ((zoneProgress - 0.85f) / 0.15f).coerceIn(0f, 1f)
+        return BiomePalette(
+            name = curr.name,
+            skyTop = blendColor(curr.skyTop, next.skyTop, t),
+            skyMid = blendColor(curr.skyMid, next.skyMid, t),
+            skyHorizon = blendColor(curr.skyHorizon, next.skyHorizon, t),
+            celestialType = curr.celestialType,
+            celestialColor = blendColor(curr.celestialColor, next.celestialColor, t),
+            starAlpha = curr.starAlpha + (next.starAlpha - curr.starAlpha) * t,
+            cloudMain = blendColor(curr.cloudMain, next.cloudMain, t),
+            cloudShadow = blendColor(curr.cloudShadow, next.cloudShadow, t),
+            farMountain = blendColor(curr.farMountain, next.farMountain, t),
+            nearHill = blendColor(curr.nearHill, next.nearHill, t),
+            ruinColor = blendColor(curr.ruinColor, next.ruinColor, t),
+            ruinHighlight = blendColor(curr.ruinHighlight, next.ruinHighlight, t),
+            grassTop = blendColor(curr.grassTop, next.grassTop, t),
+            grassTrim = blendColor(curr.grassTrim, next.grassTrim, t),
+            dirtMain = blendColor(curr.dirtMain, next.dirtMain, t),
+            dirtDark = blendColor(curr.dirtDark, next.dirtDark, t),
+            dirtAccent = blendColor(curr.dirtAccent, next.dirtAccent, t),
+            weather = curr.weather,
+        )
+    }
+
+    private fun applyDayNightCycle(biome: BiomePalette, nightFactor: Float): BiomePalette {
+        val nf = nightFactor.coerceIn(0f, 1f)
+        if (nf <= 0.01f) return biome
+        val duskGlow = (1f - abs(nf - 0.5f) * 2.6f).coerceIn(0f, 1f)
+        val baseSkyMid = blendColor(biome.skyMid, 0xFF16224A.toInt(), nf * 0.88f)
+        val baseSkyHor = blendColor(biome.skyHorizon, 0xFF283A6E.toInt(), nf * 0.85f)
+        return biome.copy(
+            celestialType = when {
+                nf >= 0.62f -> CelestialType.MOON
+                nf >= 0.34f -> CelestialType.SUNSET
+                else -> CelestialType.SUN
+            },
+            celestialColor = when {
+                nf >= 0.62f -> 0xFFF2F6FF.toInt()
+                nf >= 0.34f -> blendColor(0xFFFFE478.toInt(), 0xFFFF9858.toInt(), duskGlow)
+                else -> biome.celestialColor
+            },
+            starAlpha = maxOf(biome.starAlpha, ((nf - 0.35f) / 0.65f).coerceIn(0f, 1f) * 0.92f),
+            skyTop = blendColor(biome.skyTop, 0xFF0B1028.toInt(), nf * 0.90f),
+            skyMid = if (duskGlow > 0.05f) blendColor(baseSkyMid, 0xFFC86068.toInt(), duskGlow * 0.42f) else baseSkyMid,
+            skyHorizon = if (duskGlow > 0.05f) blendColor(baseSkyHor, 0xFFF4A262.toInt(), duskGlow * 0.55f) else baseSkyHor,
+            cloudMain = blendColor(biome.cloudMain, 0xFF485888.toInt(), nf * 0.68f),
+            cloudShadow = blendColor(biome.cloudShadow, 0xFF263056.toInt(), nf * 0.72f),
+            farMountain = blendColor(biome.farMountain, 0xFF1A2446.toInt(), nf * 0.58f),
+            nearHill = blendColor(biome.nearHill, 0xFF1F2C4C.toInt(), nf * 0.52f),
+            ruinColor = blendColor(biome.ruinColor, 0xFF2A3458.toInt(), nf * 0.52f),
+            ruinHighlight = blendColor(biome.ruinHighlight, 0xFF586A9C.toInt(), nf * 0.45f),
+        )
+    }
+
     private fun drawWorld(
         c: Canvas,
         engine: GameEngine,
+        isPortrait: Boolean,
         worldLeft: Float,
         worldTop: Float,
         worldRight: Float,
@@ -187,350 +273,514 @@ class GameRenderer(
     ) {
         val w = engine.worldWidth
         val groundY = engine.groundY
-        val biome = engine.currentBiome()
+        val baseBiome = getBlendedBiome(engine)
         val night = if (engine.phase == GamePhase.TITLE) 0f else engine.nightFactor()
-        val isWinter = engine.mode == GameMode.WINTER || biome.name == "FROST TUNDRA"
-        val landscapeIdx = (engine.level - 1) % 4
+        val biome = applyDayNightCycle(baseBiome, night)
+        val winterTheme = engine.mode == GameMode.WINTER
+        val wx = engine.effectiveWeather()
+        val isWet = wx == WeatherCondition.RAIN || wx == WeatherCondition.STORM
+        val isSnow = winterTheme || wx == WeatherCondition.SNOW
+        val isEmbers = !isWet && !isSnow && wx != WeatherCondition.FOG && baseBiome.weather == "embers"
+        val landscapeIdx = (engine.level - 1).coerceAtLeast(0) % 4
 
-        // 1. Authentic stepped 3-band 8-bit sky + sunset/dawn coral glow + 2px pixel dither seams
-        val duskGlow = (1f - abs(night - 0.5f) * 2.6f).coerceIn(0f, 1f)
-        val skyTop = blendColor(biome.skyTop, 0xFF0B1028.toInt(), night * 0.90f)
-        val baseMid = blendColor(biome.skyMid, 0xFF16224A.toInt(), night * 0.88f)
-        val baseHor = blendColor(biome.skyHorizon, 0xFF283A6E.toInt(), night * 0.85f)
-        val skyMid = if (duskGlow > 0.05f) blendColor(baseMid, 0xFFC86068.toInt(), duskGlow * 0.42f) else baseMid
-        val skyHor = if (duskGlow > 0.05f) blendColor(baseHor, 0xFFF4A262.toInt(), duskGlow * 0.55f) else baseHor
-
-        val band1Y = groundY - 146f
-        val band2Y = groundY - 70f
-        paint.color = skyTop
+        // 1. Exact v3.0.3 stepped 3-band 8-bit sky + 2px pixel dither seams
+        val band1Y = groundY - 150f
+        val band2Y = groundY - 74f
+        paint.color = biome.skyTop
         c.drawRect(worldLeft, worldTop, worldRight, band1Y, paint)
-        paint.color = skyMid
+        paint.color = biome.skyMid
         c.drawRect(worldLeft, band1Y, worldRight, band2Y, paint)
-        paint.color = skyHor
+        paint.color = biome.skyHorizon
         c.drawRect(worldLeft, band2Y, worldRight, groundY, paint)
 
-        // Stepped 2px pixel dither seams between bands
-        val ditherStart = (worldLeft.toInt() / 4) * 4
-        paint.color = skyMid
-        var dx = ditherStart.toFloat()
+        val ditherStart = (floor(worldLeft / 4f) * 4f)
+        paint.color = biome.skyMid
+        var dx = ditherStart
         while (dx < worldRight) {
             c.drawRect(dx, band1Y - 2f, dx + 2f, band1Y, paint)
             dx += 4f
         }
-        paint.color = skyHor
+        paint.color = biome.skyHorizon
         dx = ditherStart + 2f
         while (dx < worldRight) {
             c.drawRect(dx, band2Y - 2f, dx + 2f, band2Y, paint)
             dx += 4f
         }
 
-        // 2. Twinkling stars at night
-        val starAlpha = ((night - 0.35f) / 0.65f * 0.92f).coerceIn(0f, 1f)
-        if (starAlpha > 0.02f) {
-            for (i in 0 until 32) {
-                val sx = ((i * 73 + 19) % w.toInt()).toFloat()
-                val sy = worldTop + 12f + ((i * 41 + 11) % (groundY - worldTop - 70f).toInt().coerceAtLeast(30)).toFloat()
+        // 2. Deterministic 42-star twinkling starfield
+        if (biome.starAlpha > 0.02f) {
+            val starSpanY = (band2Y - worldTop - 16f).coerceAtLeast(40f).toInt()
+            for (i in 0 until 42) {
+                val sx = ((i * 73 + 19) % 480).toFloat()
+                val sy = worldTop + 10f + ((i * 41 + 11) % starSpanY).toFloat()
+                if (sx < worldLeft || sx > worldRight) continue
                 val twinkle = 0.45f + 0.55f * sin(engine.elapsed * 3.2f + i * 0.9f)
-                paint.color = Color.argb((starAlpha * twinkle * 255f).toInt().coerceIn(0, 255), 255, 249, 224)
+                paint.color = Color.argb((biome.starAlpha * twinkle * 255f).toInt().coerceIn(0, 255), 255, 249, 224)
                 val sz = if (i % 5 == 0) 2f else 1f
                 c.drawRect(sx, sy, sx + sz, sy + sz, paint)
             }
         }
 
-        // 3. Pixel Sun / Sunset Disc / Crescent Moon
-        val isMoon = night >= 0.62f
-        val isSunset = night in 0.34f..0.62f
-        val celX = w - 54f
-        val celY = if (isSunset) groundY - 92f else band1Y - 34f
-        paint.color = when {
-            isMoon -> 0xFFF2F6FF.toInt()
-            isSunset -> blendColor(0xFFFFE478.toInt(), 0xFFFF9858.toInt(), duskGlow)
-            else -> biome.celestialColor
+        // 3. Exact v3.0.3 Pixel Sun / Sunset Disc / Crescent Moon
+        val celX = w - (if (isPortrait) 54f else 82f)
+        val celY = when {
+            biome.celestialType == CelestialType.SUNSET -> groundY - 96f
+            isPortrait -> band1Y - 56f
+            else -> band1Y - 20f
         }
+        paint.color = biome.celestialColor
         c.drawRect(celX - 10f, celY - 14f, celX + 10f, celY + 14f, paint)
         c.drawRect(celX - 14f, celY - 10f, celX + 14f, celY + 10f, paint)
-        if (isMoon) {
-            paint.color = skyTop
+        if (biome.celestialType == CelestialType.MOON) {
+            paint.color = biome.skyTop
             c.drawRect(celX - 4f, celY - 12f, celX + 10f, celY + 10f, paint)
             c.drawRect(celX - 8f, celY - 8f, celX + 6f, celY + 6f, paint)
         }
 
-        // 4. Stepped pixel clouds with shadow underside
-        val cloudMain = blendColor(0xFFFFFFFF.toInt(), 0xFF485888.toInt(), night * 0.68f)
-        val cloudShade = blendColor(0xFFD4E6FA.toInt(), 0xFF263056.toInt(), night * 0.72f)
-        val cloudSpan = w + 100f
-        val cloudOffset = (engine.scrollX * 0.12f) % cloudSpan
-        for (i in 0 until 4) {
-            val cx = ((i * 112f - cloudOffset) % cloudSpan + cloudSpan) % cloudSpan - 44f
-            val cy = band1Y - 14f + (i % 2) * 28f
-            paint.color = cloudShade
-            c.drawRect(cx, cy + 5f, cx + 36f, cy + 10f, paint)
-            paint.color = cloudMain
-            c.drawRect(cx + 2f, cy + 2f, cx + 34f, cy + 7f, paint)
-            c.drawRect(cx + 8f, cy - 4f, cx + 26f, cy + 2f, paint)
+        // 4. Exact v3.0.3 3-tier fluffy pixel clouds (4 varied silhouettes)
+        val cloudScroll = engine.scrollX * 0.10f
+        val cloudSpan = 480f + 90f
+        val cloudDefs = arrayOf(
+            floatArrayOf(28f, band1Y - 40f, 44f, 12f),
+            floatArrayOf(158f, band1Y - 22f, 32f, 10f),
+            floatArrayOf(292f, band1Y - 48f, 52f, 14f),
+            floatArrayOf(410f, band1Y - 10f, 36f, 10f),
+        )
+        for (cd in cloudDefs) {
+            val cx = ((((cd[0] - cloudScroll) % cloudSpan) + cloudSpan) % cloudSpan - 60f).roundToInt().toFloat()
+            val cy = cd[1].roundToInt().toFloat()
+            val cw = cd[2]
+            val ch = cd[3]
+            paint.color = biome.cloudShadow
+            c.drawRect(cx + 2f, cy + 4f, cx + 2f + cw, cy + 4f + ch - 2f, paint)
+            paint.color = biome.cloudMain
+            c.drawRect(cx, cy + 2f, cx + cw, cy + 2f + ch - 4f, paint)
+            c.drawRect(cx + 6f, cy - 4f, cx + 6f + cw - 14f, cy + 4f, paint)
+            c.drawRect(cx + 12f, cy - 8f, cx + 12f + maxOf(10f, cw - 26f), cy - 2f, paint)
         }
 
-        // 5. 4 Looping Landscape Silhouettes (Meadows -> Pyramid Canyon -> Starlight City -> Crystal Peaks)
-        val farColor = blendColor(biome.farMountain, 0xFF141A36.toInt(), night * 0.55f)
-        val nearColor = blendColor(biome.nearHill, 0xFF1B2446.toInt(), night * 0.5f)
-        when (landscapeIdx) {
-            1 -> {
-                // Pyramid Canyon: stepped pyramids
-                paint.color = farColor
-                val step = 110f
-                val off = (engine.scrollX * 0.16f) % step
-                var px = -off - step
-                while (px < w + step) {
-                    c.drawRect(px + 8f, groundY - 20f, px + 92f, groundY, paint)
-                    c.drawRect(px + 20f, groundY - 38f, px + 80f, groundY - 20f, paint)
-                    c.drawRect(px + 34f, groundY - 54f, px + 66f, groundY - 38f, paint)
-                    c.drawRect(px + 44f, groundY - 64f, px + 56f, groundY - 54f, paint)
-                    px += step
-                }
-            }
-            2 -> {
-                // Starlight City: pixel skyscrapers with glowing windows
-                val step = 54f
-                val off = (engine.scrollX * 0.22f) % step
-                var bx = -off - step
-                var idx = 0
-                while (bx < w + step) {
-                    val bh = 42f + (idx % 4) * 18f
-                    paint.color = farColor
-                    c.drawRect(bx + 4f, groundY - bh, bx + 42f, groundY, paint)
-                    paint.color = if (night > 0.35f) 0xFFFFE066.toInt() else 0x8878E8FF.toInt()
-                    var wy = groundY - bh + 6f
-                    while (wy < groundY - 12f) {
-                        c.drawRect(bx + 10f, wy, bx + 16f, wy + 4f, paint)
-                        c.drawRect(bx + 22f, wy, bx + 28f, wy + 4f, paint)
-                        c.drawRect(bx + 32f, wy, bx + 36f, wy + 4f, paint)
-                        wy += 10f
+        // 5. Exact v3.0.3 Far Parallax Silhouettes (100% stepped pixel art — zero smooth triangles!)
+        val mtnScroll = engine.scrollX * 0.20f
+        val mtnTile = 120f
+        val mtnOffset = -(((mtnScroll % mtnTile) + mtnTile) % mtnTile)
+        var baseFar = mtnOffset - mtnTile
+        while (baseFar < worldRight + mtnTile) {
+            val bx = baseFar.roundToInt().toFloat()
+            when (landscapeIdx) {
+                1 -> {
+                    // Level 2: Pyramid Canyon — stepped desert mesas & shaded twin pyramids
+                    paint.color = biome.farMountain
+                    c.drawRect(bx + 6f, groundY - 46f, bx + 54f, groundY, paint)
+                    c.drawRect(bx + 12f, groundY - 56f, bx + 48f, groundY - 46f, paint)
+                    paint.color = if (winterTheme) 0xFFF4FAFF.toInt() else biome.cloudShadow
+                    c.drawRect(bx + 12f, groundY - 56f, bx + 48f, groundY - 52f, paint)
+                    for (step in 0 until 13) {
+                        val pw = (54 - step * 4).toFloat()
+                        val sx = bx + 62f + step * 2f
+                        val sy = groundY - 8f - step * 5f
+                        paint.color = if (step >= 10 && winterTheme) 0xFFF4FAFF.toInt() else biome.farMountain
+                        c.drawRect(sx, sy, sx + pw, sy + 5f, paint)
+                        paint.color = biome.cloudShadow
+                        c.drawRect(sx, sy, sx + maxOf(2f, floor(pw * 0.35f)), sy + 5f, paint)
                     }
-                    bx += step
-                    idx++
+                }
+                2 -> {
+                    // Level 3: Starlight City — distant retro skyline towers + antennas + windows
+                    val towers = arrayOf(
+                        floatArrayOf(6f, 22f, 68f),
+                        floatArrayOf(32f, 28f, 86f),
+                        floatArrayOf(64f, 20f, 58f),
+                        floatArrayOf(88f, 26f, 74f),
+                    )
+                    for (t in towers) {
+                        val tx = bx + t[0]
+                        val tw = t[1]
+                        val th = t[2]
+                        paint.color = biome.farMountain
+                        c.drawRect(tx, groundY - th, tx + tw, groundY, paint)
+                        if (winterTheme) {
+                            paint.color = 0xFFF4FAFF.toInt()
+                            c.drawRect(tx, groundY - th - 2f, tx + tw, groundY - th + 1f, paint)
+                        }
+                        paint.color = biome.ruinHighlight
+                        c.drawRect(tx + floor(tw / 2f), groundY - th - 10f, tx + floor(tw / 2f) + 2f, groundY - th, paint)
+                        paint.color = if (biome.starAlpha > 0.3f) 0xFFFFE478.toInt() else biome.cloudShadow
+                        var wy = groundY - th + 6f
+                        while (wy < groundY - 12f) {
+                            var wxPos = tx + 4f
+                            while (wxPos < tx + tw - 4f) {
+                                c.drawRect(wxPos, wy, wxPos + 3f, wy + 4f, paint)
+                                wxPos += 6f
+                            }
+                            wy += 9f
+                        }
+                    }
+                }
+                3 -> {
+                    // Level 4: Crystal Peaks — stepped twin crystal spires (cyan & magenta tips)
+                    for (step in 0 until 16) {
+                        val sw = maxOf(4f, (34 - step * 2).toFloat())
+                        paint.color = if (step >= 12) 0xFF78E8FF.toInt() else biome.farMountain
+                        c.drawRect(bx + 12f + step, groundY - 10f - step * 5f, bx + 12f + step + sw, groundY - 4f - step * 5f, paint)
+                    }
+                    for (step in 0 until 13) {
+                        val sw = maxOf(4f, (28 - step * 2).toFloat())
+                        paint.color = if (step >= 9) 0xFFE878FF.toInt() else biome.farMountain
+                        c.drawRect(bx + 68f + step, groundY - 10f - step * 5f, bx + 68f + step + sw, groundY - 4f - step * 5f, paint)
+                    }
+                }
+                else -> {
+                    // Level 1: Highland Meadows — stepped 8-bit mountain peaks
+                    for (step in 0 until 14) {
+                        val mw = (64 - step * 4).toFloat()
+                        paint.color = if (step >= (if (winterTheme) 9 else 11)) {
+                            if (winterTheme) 0xFFF4FAFF.toInt() else biome.cloudShadow
+                        } else {
+                            biome.farMountain
+                        }
+                        val sx = bx + 8f + step * 2f
+                        val sy = groundY - 12f - step * 5f
+                        c.drawRect(sx, sy, sx + mw, sy + 6f, paint)
+                    }
+                    for (step in 0 until 10) {
+                        val mw = (52 - step * 4).toFloat()
+                        paint.color = if (step >= (if (winterTheme) 6 else 8)) {
+                            if (winterTheme) 0xFFF4FAFF.toInt() else biome.cloudShadow
+                        } else {
+                            biome.farMountain
+                        }
+                        val sx = bx + 62f + step * 2f
+                        val sy = groundY - 12f - step * 5f
+                        c.drawRect(sx, sy, sx + mw, sy + 6f, paint)
+                    }
                 }
             }
-            3 -> {
-                // Crystal Peaks: jagged glowing spires
-                val step = 76f
-                val off = (engine.scrollX * 0.20f) % step
-                var cx = -off - step
-                while (cx < w + step) {
-                    paint.color = farColor
-                    path.reset()
-                    path.moveTo(cx + 8f, groundY)
-                    path.lineTo(cx + 28f, groundY - 76f)
-                    path.lineTo(cx + 48f, groundY)
-                    path.close()
-                    c.drawPath(path, paint)
-                    paint.color = 0x6678F0FF
-                    path.reset()
-                    path.moveTo(cx + 28f, groundY - 76f)
-                    path.lineTo(cx + 35f, groundY - 46f)
-                    path.lineTo(cx + 28f, groundY - 46f)
-                    path.close()
-                    c.drawPath(path, paint)
-                    cx += step
-                }
-            }
-            else -> {
-                // Highland Meadows: layered mountains + hills
-                paint.color = farColor
-                val mtnStep = 90f
-                val mtnOff = (engine.scrollX * 0.18f) % mtnStep
-                var mx = -mtnOff - mtnStep
-                while (mx < w + mtnStep) {
-                    path.reset()
-                    path.moveTo(mx, groundY)
-                    path.lineTo(mx + mtnStep * 0.5f, groundY - 68f)
-                    path.lineTo(mx + mtnStep, groundY)
-                    path.close()
-                    c.drawPath(path, paint)
-                    mx += mtnStep
-                }
-                paint.color = nearColor
-                val hillStep = 64f
-                val hillOff = (engine.scrollX * 0.38f) % hillStep
-                var hx = -hillOff - hillStep
-                while (hx < w + hillStep) {
-                    c.drawRect(hx, groundY - 22f, hx + hillStep - 10f, groundY, paint)
-                    c.drawRect(hx + 8f, groundY - 30f, hx + hillStep - 20f, groundY - 22f, paint)
-                    hx += hillStep
-                }
-            }
+            baseFar += mtnTile
         }
 
-        // 6. Full-bleed ground & repeating underground pixel masonry + Winter frost/icicles
-        paint.color = 0xFF121526.toInt()
-        c.drawRect(worldLeft, groundY - 2f, worldRight, groundY, paint)
-        paint.color = biome.grassTop
-        c.drawRect(worldLeft, groundY, worldRight, groundY + 7f, paint)
-        paint.color = biome.grassTrim
-        c.drawRect(worldLeft, groundY + 7f, worldRight, groundY + 11f, paint)
-        paint.color = biome.dirtMain
-        c.drawRect(worldLeft, groundY + 11f, worldRight, worldBottom, paint)
-        val brickStep = 24f
-        val brickOff = engine.scrollX % brickStep
-        val startBx = (kotlin.math.floor(worldLeft / brickStep) * brickStep) - brickOff
-        var rowY = groundY + 18f
-        var rowIdx = 0
-        while (rowY < worldBottom) {
-            paint.color = biome.dirtDark
-            val stagger = if (rowIdx % 2 == 0) 0f else 12f
-            var bx = startBx - brickStep
-            while (bx < worldRight + brickStep) {
-                c.drawRect(bx + 2f + stagger, rowY, bx + 14f + stagger, rowY + 6f, paint)
-                if (rowIdx == 0 && isWinter) {
-                    paint.color = 0xFFD8F4FF.toInt()
-                    c.drawRect(bx + 6f, groundY + 11f, bx + 10f, groundY + 16f, paint)
-                    c.drawRect(bx + 7f, groundY + 16f, bx + 9f, groundY + 19f, paint)
+        // 6. Exact v3.0.3 Midground Pixel Scenery (rolling hills, pines, ruins, cacti, obelisks, neon bridges, crystal arches)
+        val hillScroll = engine.scrollX * 0.42f
+        val hillTile = 160f
+        val hillOffset = -(((hillScroll % hillTile) + hillTile) % hillTile)
+        var baseMid = hillOffset - hillTile
+        while (baseMid < worldRight + hillTile) {
+            val bx = baseMid.roundToInt().toFloat()
+            when (landscapeIdx) {
+                1 -> {
+                    // Level 2: Pyramid Canyon — sand dune, pixel cacti & sandstone obelisk
+                    paint.color = biome.nearHill
+                    c.drawRect(bx, groundY - 20f, bx + 102f, groundY, paint)
+                    c.drawRect(bx + 16f, groundY - 28f, bx + 86f, groundY - 20f, paint)
+                    paint.color = if (winterTheme) 0xFFF4FAFF.toInt() else biome.grassTrim
+                    c.drawRect(bx + 16f, groundY - 28f, bx + 86f, groundY - 26f, paint)
+                    // Pixel cactus
+                    paint.color = if (winterTheme) 0xFF489890.toInt() else 0xFF2C8848.toInt()
+                    c.drawRect(bx + 26f, groundY - 22f, bx + 30f, groundY, paint)
+                    c.drawRect(bx + 20f, groundY - 16f, bx + 26f, groundY - 13f, paint)
+                    c.drawRect(bx + 20f, groundY - 20f, bx + 23f, groundY - 15f, paint)
+                    c.drawRect(bx + 30f, groundY - 14f, bx + 36f, groundY - 11f, paint)
+                    c.drawRect(bx + 33f, groundY - 19f, bx + 36f, groundY - 13f, paint)
+                    // Sandstone obelisk
+                    paint.color = biome.ruinColor
+                    c.drawRect(bx + 114f, groundY - 46f, bx + 128f, groundY, paint)
+                    c.drawRect(bx + 117f, groundY - 52f, bx + 125f, groundY - 46f, paint)
+                    paint.color = biome.ruinHighlight
+                    c.drawRect(bx + 116f, groundY - 44f, bx + 119f, groundY - 4f, paint)
+                    paint.color = 0xFFFFE05C.toInt()
+                    c.drawRect(bx + 120f, groundY - 34f, bx + 123f, groundY - 30f, paint)
+                    c.drawRect(bx + 120f, groundY - 24f, bx + 123f, groundY - 20f, paint)
+                }
+                2 -> {
+                    // Level 3: Starlight City — midground buildings + elevated neon sky-bridges
+                    paint.color = biome.nearHill
+                    c.drawRect(bx + 8f, groundY - 42f, bx + 42f, groundY, paint)
+                    c.drawRect(bx + 54f, groundY - 54f, bx + 96f, groundY, paint)
+                    c.drawRect(bx + 112f, groundY - 36f, bx + 148f, groundY, paint)
+                    paint.color = biome.ruinColor
+                    c.drawRect(bx + 42f, groundY - 26f, bx + 54f, groundY - 20f, paint)
+                    c.drawRect(bx + 96f, groundY - 24f, bx + 112f, groundY - 18f, paint)
+                    paint.color = 0xFF78E8FF.toInt()
+                    c.drawRect(bx + 42f, groundY - 26f, bx + 54f, groundY - 24f, paint)
+                    c.drawRect(bx + 96f, groundY - 24f, bx + 112f, groundY - 22f, paint)
+                    paint.color = if (biome.starAlpha > 0.25f) 0xFF78E8FF.toInt() else biome.ruinHighlight
+                    var wy = groundY - 46f
+                    while (wy < groundY - 8f) {
+                        c.drawRect(bx + 60f, wy, bx + 65f, wy + 4f, paint)
+                        c.drawRect(bx + 70f, wy, bx + 75f, wy + 4f, paint)
+                        c.drawRect(bx + 82f, wy, bx + 87f, wy + 4f, paint)
+                        wy += 9f
+                    }
+                    paint.color = 0xFFFFE05C.toInt()
+                    c.drawRect(bx + 16f, groundY - 34f, bx + 22f, groundY - 30f, paint)
+                    c.drawRect(bx + 28f, groundY - 24f, bx + 34f, groundY - 20f, paint)
+                    c.drawRect(bx + 122f, groundY - 28f, bx + 128f, groundY - 24f, paint)
+                }
+                3 -> {
+                    // Level 4: Crystal Peaks — crystal outcrops, glowing shards & floating rune monolith arch
+                    paint.color = biome.nearHill
+                    c.drawRect(bx + 4f, groundY - 24f, bx + 96f, groundY, paint)
+                    c.drawRect(bx + 18f, groundY - 34f, bx + 76f, groundY - 24f, paint)
+                    paint.color = 0xFF58D8FF.toInt()
+                    c.drawRect(bx + 22f, groundY - 22f, bx + 28f, groundY, paint)
+                    c.drawRect(bx + 24f, groundY - 28f, bx + 27f, groundY - 22f, paint)
+                    paint.color = 0xFFE878FF.toInt()
+                    c.drawRect(bx + 68f, groundY - 18f, bx + 74f, groundY, paint)
+                    c.drawRect(bx + 70f, groundY - 24f, bx + 73f, groundY - 18f, paint)
+                    paint.color = biome.ruinColor
+                    c.drawRect(bx + 108f, groundY - 48f, bx + 116f, groundY, paint)
+                    c.drawRect(bx + 132f, groundY - 48f, bx + 140f, groundY, paint)
+                    c.drawRect(bx + 104f, groundY - 54f, bx + 144f, groundY - 46f, paint)
+                    paint.color = 0xFF78F0A8.toInt()
+                    c.drawRect(bx + 111f, groundY - 38f, bx + 113f, groundY - 22f, paint)
+                    c.drawRect(bx + 135f, groundY - 38f, bx + 137f, groundY - 22f, paint)
+                    c.drawRect(bx + 118f, groundY - 51f, bx + 130f, groundY - 49f, paint)
+                }
+                else -> {
+                    // Level 1: Highland Meadows — rolling hills, pixel pine trees, winter snowman & ancient aqueduct ruin
+                    paint.color = biome.nearHill
+                    c.drawRect(bx, groundY - 26f, bx + 98f, groundY, paint)
+                    c.drawRect(bx + 12f, groundY - 34f, bx + 86f, groundY - 26f, paint)
+                    c.drawRect(bx + 26f, groundY - 40f, bx + 72f, groundY - 34f, paint)
+                    paint.color = if (winterTheme) 0xFFF4FAFF.toInt() else biome.grassTrim
+                    c.drawRect(bx + 26f, groundY - 40f, bx + 72f, groundY - 38f, paint)
+                    c.drawRect(bx + 12f, groundY - 34f, bx + 26f, groundY - 32f, paint)
+
+                    // Classic 8-bit pixel pine trees
                     paint.color = biome.dirtDark
+                    c.drawRect(bx + 16f, groundY - 10f, bx + 20f, groundY, paint)
+                    c.drawRect(bx + 78f, groundY - 8f, bx + 82f, groundY, paint)
+                    paint.color = if (winterTheme) 0xFF2C6A68.toInt() else biome.grassTrim
+                    c.drawRect(bx + 10f, groundY - 16f, bx + 26f, groundY - 10f, paint)
+                    c.drawRect(bx + 12f, groundY - 22f, bx + 24f, groundY - 16f, paint)
+                    c.drawRect(bx + 15f, groundY - 27f, bx + 21f, groundY - 22f, paint)
+                    c.drawRect(bx + 73f, groundY - 14f, bx + 87f, groundY - 8f, paint)
+                    c.drawRect(bx + 76f, groundY - 19f, bx + 84f, groundY - 14f, paint)
+
+                    if (winterTheme) {
+                        paint.color = 0xFFF4FAFF.toInt()
+                        c.drawRect(bx + 15f, groundY - 28f, bx + 21f, groundY - 26f, paint)
+                        c.drawRect(bx + 12f, groundY - 22f, bx + 24f, groundY - 20f, paint)
+                        c.drawRect(bx + 76f, groundY - 20f, bx + 84f, groundY - 18f, paint)
+                        // Pixel snowman (body + head + red scarf + carrot nose + eyes)
+                        c.drawRect(bx + 44f, groundY - 8f, bx + 52f, groundY, paint)
+                        c.drawRect(bx + 45f, groundY - 14f, bx + 51f, groundY - 8f, paint)
+                        paint.color = 0xFFE83B48.toInt()
+                        c.drawRect(bx + 44f, groundY - 9f, bx + 52f, groundY - 7f, paint)
+                        paint.color = 0xFFFF8820.toInt()
+                        c.drawRect(bx + 50f, groundY - 12f, bx + 53f, groundY - 11f, paint)
+                        paint.color = 0xFF121324.toInt()
+                        c.drawRect(bx + 47f, groundY - 13f, bx + 48f, groundY - 12f, paint)
+                        c.drawRect(bx + 49f, groundY - 13f, bx + 50f, groundY - 12f, paint)
+                    }
+
+                    // Ancient pixel aqueduct / ruin tower
+                    paint.color = biome.ruinColor
+                    c.drawRect(bx + 106f, groundY - 44f, bx + 134f, groundY, paint)
+                    c.drawRect(bx + 102f, groundY - 48f, bx + 110f, groundY - 42f, paint)
+                    c.drawRect(bx + 116f, groundY - 48f, bx + 124f, groundY - 42f, paint)
+                    c.drawRect(bx + 130f, groundY - 48f, bx + 138f, groundY - 42f, paint)
+                    paint.color = biome.ruinHighlight
+                    c.drawRect(bx + 108f, groundY - 42f, bx + 112f, groundY - 4f, paint)
+                    if (winterTheme) {
+                        paint.color = 0xFFF4FAFF.toInt()
+                        c.drawRect(bx + 102f, groundY - 49f, bx + 110f, groundY - 47f, paint)
+                        c.drawRect(bx + 116f, groundY - 49f, bx + 124f, groundY - 47f, paint)
+                        c.drawRect(bx + 130f, groundY - 49f, bx + 138f, groundY - 47f, paint)
+                    }
+                    paint.color = biome.skyHorizon
+                    c.drawRect(bx + 116f, groundY - 26f, bx + 124f, groundY - 14f, paint)
                 }
-                bx += brickStep
             }
-            rowY += 16f
-            rowIdx++
+            baseMid += hillTile
         }
 
-        // 7. Weather-Reactive Terrain & Atmosphere (Snow, Rain/Storm puddles & splashes, Fog)
-        val wx = engine.effectiveWeather()
-        if (isWinter || wx == WeatherCondition.SNOW) {
-            paint.color = 0xE6FFFFFF.toInt()
-            for (i in 0 until 32) {
-                val speedX = 20f + (i % 3) * 10f
-                val speedY = 34f + (i % 4) * 12f
-                val fx = ((i * 37f - engine.elapsed * speedX) % w + w) % w
-                val fy = ((i * 53f + engine.elapsed * speedY) % groundY)
-                val sz = if (i % 3 == 0) 2.5f else 1.5f
-                c.drawRect(fx, fy, fx + sz, fy + sz, paint)
+        // 7. Exact v3.0.3 16px NES Checkerboard/Brick Ground Masonry + Grass Overhang + Weather-Reactive Puddles/Trickles
+        paint.color = biome.dirtMain
+        c.drawRect(worldLeft, groundY, worldRight, worldBottom, paint)
+        paint.color = 0xFF121526.toInt()
+        c.drawRect(worldLeft, groundY - 1f, worldRight, groundY + 1f, paint)
+        paint.color = if (isSnow) 0xFFF4FAFF.toInt() else biome.grassTop
+        c.drawRect(worldLeft, groundY + 1f, worldRight, groundY + 6f, paint)
+        paint.color = if (isSnow) 0xFFA8DCF8.toInt() else biome.grassTrim
+        c.drawRect(worldLeft, groundY + 6f, worldRight, groundY + 9f, paint)
+
+        val tileSize = 16f
+        val scrollOffset = -floor(((engine.scrollX % tileSize) + tileSize) % tileSize)
+        val startTileX = floor(worldLeft / tileSize) * tileSize + scrollOffset
+        val baseTileIndex = floor((engine.scrollX + startTileX) / tileSize).toInt()
+        var tx = startTileX - tileSize
+        var tIdx = -1
+        while (tx < worldRight + tileSize) {
+            val worldTile = baseTileIndex + tIdx
+            // Grass / snow overhang notches
+            paint.color = if (isSnow) 0xFFC4E8FF.toInt() else biome.grassTrim
+            c.drawRect(tx + 4f, groundY + 9f, tx + 8f, groundY + 11f, paint)
+            c.drawRect(tx + 12f, groundY + 9f, tx + 14f, groundY + 12f, paint)
+
+            // Repeating staggered 13px underground brick rows with mortar & stone highlights
+            var rowY = groundY + 14f
+            var rowIdx = 0
+            while (rowY < worldBottom) {
+                val stagger = if (rowIdx % 2 == 0) 8f else 0f
+                paint.color = biome.dirtDark
+                c.drawRect(tx, rowY, tx + tileSize - 1f, rowY + 1f, paint)
+                c.drawRect(tx + stagger, rowY, tx + stagger + 1f, rowY + 13f, paint)
+                paint.color = biome.dirtAccent
+                val ax = tx + ((stagger + 2f) % tileSize)
+                c.drawRect(ax, rowY + 2f, ax + 4f, rowY + 4f, paint)
+                rowY += 13f
+                rowIdx++
             }
-        } else if (wx == WeatherCondition.RAIN || wx == WeatherCondition.STORM) {
-            val isStorm = wx == WeatherCondition.STORM
-            // Glistening ground puddles + surface splashes
-            val puddleStep = 64f
-            val puddleOff = engine.scrollX % puddleStep
-            var px = -puddleOff
-            while (px < w + puddleStep) {
-                paint.color = 0x9948A8F8.toInt()
-                c.drawRect(px + 8f, groundY + 1f, px + 34f, groundY + 4f, paint)
-                paint.color = 0xCCB8ECFF.toInt()
-                c.drawRect(px + 12f, groundY + 1f, px + 24f, groundY + 2.5f, paint)
-                // Animated splash pixel
-                if (((engine.elapsed * 12f + px * 0.1f).toInt() % 3) == 0) {
-                    c.drawRect(px + 18f, groundY - 3f, px + 20f, groundY - 1f, paint)
+
+            // Rain / Storm: glistening puddles + animated splash crowns + underground water trickles
+            if (isWet) {
+                val hash = (((worldTile * 37) % 11) + 11) % 11
+                if (hash % 2 == 0) {
+                    val puddleW = 8f + (hash % 6)
+                    paint.color = Color.argb(184, 88, 192, 248)
+                    c.drawRect(tx + 2f, groundY + 1f, tx + 2f + puddleW, groundY + 4f, paint)
+                    val ripple = ((engine.elapsed * 7f + worldTile).toInt() % 3) == 0
+                    paint.color = 0xFFE8FCFF.toInt()
+                    val rx = tx + 4f + (if (ripple) 2f else 0f)
+                    c.drawRect(rx, groundY + 2f, rx + 3f, groundY + 3f, paint)
                 }
-                px += puddleStep
+                if (hash % 3 == 0) {
+                    val splashPhase = (engine.elapsed * 4.5f + hash * 0.7f) % 1f
+                    if (splashPhase < 0.35f) {
+                        val sx = tx + 6f + (hash % 5)
+                        paint.color = 0xFFD8F6FF.toInt()
+                        c.drawRect(sx - 2f, groundY - 2f, sx - 1f, groundY - 1f, paint)
+                        c.drawRect(sx + 2f, groundY - 2f, sx + 3f, groundY - 1f, paint)
+                        c.drawRect(sx, groundY - 3f, sx + 1f, groundY - 2f, paint)
+                    }
+                    val trickleSpeed = if (wx == WeatherCondition.STORM) 38f else 24f
+                    val maxLen = (worldBottom - groundY - 12f).coerceIn(24f, 72f).toInt()
+                    val trickleLen = 10f + (((engine.elapsed * trickleSpeed).toInt() + hash * 17) % maxLen).toFloat()
+                    val waterX = tx + 3f + (hash % 9)
+                    paint.color = Color.argb(140, 72, 178, 242)
+                    c.drawRect(waterX, groundY + 5f, waterX + 2f, groundY + 5f + trickleLen, paint)
+                    paint.color = Color.argb(216, 210, 244, 255)
+                    val tipY = groundY + 5f + maxOf(0f, trickleLen - 4f)
+                    c.drawRect(waterX, tipY, waterX + 2f, tipY + 3f, paint)
+                }
             }
-            // Diagonal pixel raindrops
-            paint.color = if (isStorm) 0xCCA8DCFF.toInt() else 0xAA88C8FF.toInt()
-            val dropCount = if (isStorm) 44 else 28
-            for (i in 0 until dropCount) {
-                val rx = ((i * 41f - engine.elapsed * 90f) % w + w) % w
-                val ry = ((i * 67f + engine.elapsed * 240f) % groundY)
-                c.drawRect(rx, ry, rx + 1.5f, ry + 7f, paint)
-            }
-            // Occasional storm lightning flash
-            if (isStorm && ((engine.elapsed * 2.2f).toInt() % 11 == 0) && ((engine.elapsed * 22f).toInt() % 3 == 0)) {
-                paint.color = 0x44E8F4FF
-                c.drawRect(worldLeft, worldTop, worldRight, groundY, paint)
-            }
-        } else if (wx == WeatherCondition.FOG) {
-            paint.color = 0x55D8E4F4
-            c.drawRect(worldLeft, groundY - 46f, worldRight, groundY - 16f, paint)
-            paint.color = 0x44E8F0FC
-            c.drawRect(worldLeft, groundY - 24f, worldRight, groundY, paint)
+            tx += tileSize
+            tIdx++
         }
 
         // 8. Collectibles (exact v3.0.3 pixel sprites)
         for (col in engine.collectibles) {
             val cy = col.y + sin(col.bobPhase) * 2.5f
-            PixelSprites.drawCollectible(c, col.type, col.x - 8f, cy - 8f, 1.6f, col.bobPhase)
+            PixelSprites.drawCollectible(c, col.type, (col.x - 6f).roundToInt().toFloat(), (cy - 6f).roundToInt().toFloat(), 1.25f, col.bobPhase)
         }
 
-        // 9. Hazards (exact v3.0.3 pixel sprites)
+        // 9. Hazards (exact v3.0.3 pixel sprites + authentic stone brazier flame jet)
         for (hz in engine.hazards) {
+            val hx = hz.x.roundToInt().toFloat()
+            val hy = hz.y.roundToInt().toFloat()
             when (hz.type) {
-                HazardType.SPIKE -> PixelSprites.drawSpike(c, hz.x - 1f, hz.y - 2f, 1.35f)
-                HazardType.HOPPER -> PixelSprites.drawHopper(c, hz.x - 3f, hz.y, 1.5f, hz.animPhase)
-                HazardType.SWOOPER -> PixelSprites.drawSwooper(c, hz.x - 4f, hz.y, 1.4f, hz.animPhase)
-                HazardType.FLAME -> PixelSprites.drawFlame(c, hz.x - 1f, hz.y + 1f, 2.0f, hz.animPhase)
+                HazardType.SPIKE -> PixelSprites.drawSpike(c, hx - 1f, hy - 1f, 1.25f)
+                HazardType.HOPPER -> PixelSprites.drawHopper(c, hx - 2f, hy + 1f, 1.3f, hz.animPhase)
+                HazardType.SWOOPER -> PixelSprites.drawSwooper(c, hx - 3f, hy, 1.25f, hz.animPhase)
+                HazardType.FLAME -> {
+                    // Exact v3.0.3 stone brazier base + 3-color flickering pixel flame jet
+                    paint.color = 0xFF141628.toInt()
+                    c.drawRect(hx, groundY - 12f, hx + 16f, groundY, paint)
+                    paint.color = 0xFF586484.toInt()
+                    c.drawRect(hx + 2f, groundY - 10f, hx + 14f, groundY, paint)
+                    paint.color = 0xFF92A2C8.toInt()
+                    c.drawRect(hx + 2f, groundY - 10f, hx + 6f, groundY - 2f, paint)
+                    val flicker = ((engine.elapsed * 18f).toInt() % 2).toFloat()
+                    paint.color = 0xFFE83828.toInt()
+                    c.drawRect(hx + 2f, groundY - 35f + flicker, hx + 14f, groundY - 11f + flicker, paint)
+                    c.drawRect(hx + 4f, groundY - 39f - flicker, hx + 12f, groundY - 33f - flicker, paint)
+                    paint.color = 0xFFFF9C28.toInt()
+                    c.drawRect(hx + 4f, groundY - 32f, hx + 12f, groundY - 11f, paint)
+                    paint.color = 0xFFFFF4A8.toInt()
+                    c.drawRect(hx + 6f, groundY - 26f + flicker, hx + 10f, groundY - 11f + flicker, paint)
+                }
             }
         }
 
-        // 10. Active Mini-Boss (exact 18x12 sprites at 2.2x scale!)
+        // 10. Active Mini-Boss (ground shadow + telegraph aura + flashing "!" badge + 2x pixel sprite)
         engine.activeBoss?.let { boss ->
-            val flash = boss.hurtFlash > 0f || (boss.telegraphing && ((engine.elapsed * 16f).toInt() % 2 == 0))
-            PixelSprites.drawBoss(c, boss.kind, boss.x - 2f, boss.y + 2f, 2.2f, flash)
-
-            val barW = boss.width + 8f
-            val barX = boss.x - 4f
-            val barY = boss.y - 11f
-            paint.color = 0xFF121324.toInt()
-            c.drawRect(barX, barY, barX + barW, barY + 6f, paint)
-            paint.color = 0xFFFF4868.toInt()
-            val fill = (boss.hp.toFloat() / boss.maxHp.toFloat()).coerceIn(0f, 1f)
-            c.drawRect(barX + 1f, barY + 1f, barX + 1f + (barW - 2f) * fill, barY + 5f, paint)
+            val bx = boss.x.roundToInt().toFloat()
+            val by = boss.y.roundToInt().toFloat()
+            // Ground shadow
+            paint.color = Color.argb(115, 12, 14, 30)
+            c.drawRect(bx + 4f, groundY - 2f, bx + boss.width - 4f, groundY + 2f, paint)
 
             if (boss.telegraphing) {
-                displayPaint.textAlign = Paint.Align.CENTER
-                displayPaint.textSize = 6.5f
-                displayPaint.color = 0xFFFFE05C.toInt()
-                c.drawText("! CHARGE !", boss.x + boss.width / 2f, barY - 4f, displayPaint)
+                paint.color = Color.argb(96, 255, 56, 88)
+                c.drawRect(bx - 3f, by - 3f, bx + boss.width + 3f, by + boss.height + 3f, paint)
+                if (((engine.elapsed * 18f).toInt() % 2) == 0) {
+                    val ex = bx + (boss.width / 2f).roundToInt() - 4f
+                    val ey = by - 22f
+                    paint.color = 0xFF121324.toInt()
+                    c.drawRect(ex - 1f, ey - 1f, ex + 9f, ey + 11f, paint)
+                    paint.color = 0xFFFF4858.toInt()
+                    c.drawRect(ex, ey, ex + 8f, ey + 10f, paint)
+                    paint.color = 0xFFFFFFFF.toInt()
+                    c.drawRect(ex + 3f, ey + 1f, ex + 5f, ey + 6f, paint)
+                    c.drawRect(ex + 3f, ey + 7f, ex + 5f, ey + 9f, paint)
+                }
             }
+
+            val flash = boss.hurtFlash > 0f
+            PixelSprites.drawBoss(c, boss.kind, bx - 2f, by + 2f, 2.0f, flash)
+
+            val barW = boss.width + 8f
+            val barX = bx - 4f
+            val barY = by - 10f
+            paint.color = 0xFF121324.toInt()
+            c.drawRect(barX, barY, barX + barW, barY + 5f, paint)
+            paint.color = 0xFFFF4868.toInt()
+            val fill = (boss.hp.toFloat() / boss.maxHp.toFloat()).coerceIn(0f, 1f)
+            c.drawRect(barX + 1f, barY + 1f, barX + 1f + (barW - 2f) * fill, barY + 4f, paint)
         }
 
-        // 11. Equipped Pet Companion (Fox hops on ground, Owl/Dragon hover overhead + Dragon Zap beam!)
+        // 11. Equipped Pet Companion (Fox hops on ground with shadow, Owl/Dragon hover overhead + Dragon Zap beam)
         if (engine.pet != PetId.NONE) {
-            val petScale = 1.4f
-            val petX = engine.playerX - 20f
+            val petScale = 1.25f
+            val petX = (engine.playerX - 18f).roundToInt().toFloat()
             val petY = when (engine.pet) {
-                PetId.FOX -> groundY - 12.5f - abs(sin(engine.elapsed * 9f)) * 5f
-                PetId.OWL -> engine.playerY - 14f + sin(engine.elapsed * 5f) * 3f
-                PetId.DRAGON -> engine.playerY - 12f + sin(engine.elapsed * 6f) * 3.5f
+                PetId.FOX -> {
+                    paint.color = Color.argb(90, 12, 14, 30)
+                    c.drawRect(petX + 1f, groundY - 1f, petX + 11f, groundY + 1f, paint)
+                    (groundY - 11.5f - abs(sin(engine.elapsed * 11f)) * 4f).roundToInt().toFloat()
+                }
+                PetId.OWL -> (engine.playerY - 13f + sin(engine.elapsed * 6.5f) * 3.5f).roundToInt().toFloat()
+                PetId.DRAGON -> (engine.playerY - 11f + sin(engine.elapsed * 7.5f) * 4f).roundToInt().toFloat()
                 PetId.NONE -> groundY
             }
             PixelSprites.drawPet(c, engine.pet, petX, petY, petScale)
             if (engine.pet == PetId.DRAGON && engine.dragonBeamTimer > 0f) {
                 strokePaint.color = 0xFFFFE858.toInt()
                 strokePaint.strokeWidth = 3f
-                c.drawLine(petX + 12f, petY + 6f, engine.dragonBeamTargetX, engine.dragonBeamTargetY, strokePaint)
+                c.drawLine(petX + 11f, petY + 5f, engine.dragonBeamTargetX, engine.dragonBeamTargetY, strokePaint)
                 strokePaint.color = 0xFFFF5838.toInt()
                 strokePaint.strokeWidth = 1.5f
-                c.drawLine(petX + 12f, petY + 6f, engine.dragonBeamTargetX, engine.dragonBeamTargetY, strokePaint)
+                c.drawLine(petX + 11f, petY + 5f, engine.dragonBeamTargetX, engine.dragonBeamTargetY, strokePaint)
             }
         }
 
-        // 12. Hero + Shadow + Shield / Turbo aura (exact 16x19 pixel sprite!)
-        val blink = engine.invulnTimer > 0f && ((engine.elapsed * 18f).toInt() % 2 == 0)
+        // 12. Hero + Contact Shadow + Exact v3.0.3 Turbo Aura, Orbiting 4-Star Shield & Magnet Field
+        val blink = engine.invulnTimer > 0f && ((engine.elapsed * 20f).toInt() % 2 == 0)
         if (!blink) {
-            paint.color = 0x550A0C18
-            val shadowScale = (1f - abs(groundY - (engine.playerY + engine.currentPlayerHeight())) / 180f).coerceIn(0.35f, 1f)
-            c.drawRect(
-                engine.playerX + 11f - 10f * shadowScale,
-                groundY - 2f,
-                engine.playerX + 11f + 10f * shadowScale,
-                groundY + 1f,
-                paint,
-            )
+            val pH = engine.currentPlayerHeight()
+            val altitude = maxOf(0f, groundY - (engine.playerY + pH))
+            val shadowW = maxOf(6f, (16f - altitude * 0.08f).roundToInt().toFloat())
+            paint.color = Color.argb(115, 12, 14, 30)
+            val shadowX = (engine.playerX + (engine.playerWidth - shadowW) * 0.5f).roundToInt().toFloat()
+            c.drawRect(shadowX, groundY - 1f, shadowX + shadowW, groundY + 2f, paint)
 
-            if (engine.turboTimer > 0f) {
-                paint.color = 0x88FF9828.toInt()
-                c.drawRect(
-                    engine.playerX - 6f,
-                    engine.playerY - 2f,
-                    engine.playerX + engine.playerWidth + 4f,
-                    engine.playerY + engine.currentPlayerHeight() + 2f,
-                    paint,
-                )
-            }
-
-            val spriteScale = 1.45f
+            val spriteScale = 1.35f
             val isDuck = engine.ducking && engine.onGround
-            val spriteY = if (isDuck) engine.playerY - 1f else engine.playerY - 3f
+            val spriteY = (if (isDuck) engine.playerY - 1f else engine.playerY - 2f).roundToInt().toFloat()
             PixelSprites.drawHero(
                 canvas = c,
                 hero = engine.hero,
-                x = engine.playerX - 1f,
+                x = (engine.playerX - 1f).roundToInt().toFloat(),
                 y = spriteY,
                 scale = spriteScale,
                 onGround = engine.onGround,
@@ -541,32 +791,120 @@ class GameRenderer(
                 cape = engine.cape,
             )
 
+            val pCx = (engine.playerX + engine.playerWidth * 0.5f).roundToInt().toFloat()
+            val pCy = (engine.playerY + pH * 0.5f).roundToInt().toFloat()
+
+            // Golden electric aura + speed streaks when Turbo Dash is active
+            if (engine.turboTimer > 0f) {
+                paint.color = Color.argb(72, 255, 232, 72)
+                c.drawRect(pCx - 14f, pCy - 13f, pCx + 14f, pCy + 13f, paint)
+                paint.color = 0xFFFFF8C0.toInt()
+                c.drawRect(pCx - 18f, pCy - 6f, pCx - 10f, pCy - 4f, paint)
+                c.drawRect(pCx - 22f, pCy + 2f, pCx - 12f, pCy + 4f, paint)
+            }
+
+            // Orbiting 4-Star Pixel Shield barrier (exact v3.0.3 — no vector circles!)
             if (engine.hasShield) {
-                strokePaint.color = 0xCC58E8FF.toInt()
-                strokePaint.strokeWidth = 1.6f
-                c.drawCircle(
-                    engine.playerX + engine.playerWidth / 2f,
-                    engine.playerY + engine.currentPlayerHeight() / 2f,
-                    16f,
-                    strokePaint,
-                )
+                val r = 16f
+                paint.color = Color.argb(56, 88, 216, 255)
+                c.drawRect(pCx - r + 2f, pCy - r + 2f, pCx + r - 2f, pCy + r - 2f, paint)
+                for (i in 0 until 4) {
+                    val a = engine.elapsed * 5f + (i * PI.toFloat() / 2f)
+                    val sx = (pCx + cos(a) * r).roundToInt() - 1f
+                    val sy = (pCy + sin(a) * r).roundToInt() - 1f
+                    paint.color = if (i % 2 == 0) 0xFFFFFFFF.toInt() else 0xFF58D8FF.toInt()
+                    c.drawRect(sx, sy, sx + 3f, sy + 3f, paint)
+                }
+            }
+
+            // Magnet field pulsing pink pixel arcs
+            if (engine.magnetTimer > 0f) {
+                val pulse = 18f + (sin(engine.elapsed * 12f) * 3f).roundToInt().toFloat()
+                paint.color = Color.argb(140, 255, 144, 216)
+                c.drawRect(pCx - pulse, pCy - 2f, pCx - pulse + 2f, pCy + 2f, paint)
+                c.drawRect(pCx + pulse - 2f, pCy - 2f, pCx + pulse, pCy + 2f, paint)
+                c.drawRect(pCx - 2f, pCy - pulse, pCx + 2f, pCy - pulse + 2f, paint)
             }
         }
 
         // 13. Particles
         for (p in engine.particles) {
             paint.color = p.color
-            c.drawRect(p.x, p.y, p.x + p.size, p.y + p.size, paint)
+            c.drawRect(p.x.roundToInt().toFloat(), p.y.roundToInt().toFloat(), p.x.roundToInt() + p.size, p.y.roundToInt() + p.size, paint)
         }
 
         // 14. Floating score popups (Press Start 2P)
         displayPaint.textAlign = Paint.Align.CENTER
         displayPaint.textSize = 6.5f
         for (ft in engine.floatingTexts) {
-            displayPaint.color = 0xFF0D1022.toInt()
-            c.drawText(ft.text, ft.x + 1f, ft.y + 1f, displayPaint)
+            val fx = ft.x.coerceIn(36f, w - 36f).roundToInt().toFloat()
+            val fy = ft.y.roundToInt().toFloat()
+            displayPaint.color = 0xFF121324.toInt()
+            c.drawText(ft.text, fx + 1f, fy + 1f, displayPaint)
             displayPaint.color = ft.color
-            c.drawText(ft.text, ft.x, ft.y, displayPaint)
+            c.drawText(ft.text, fx, fy, displayPaint)
+        }
+
+        // 15. Foreground Atmospheric Weather (Rain/Storm wash + 2-part slanted drops + lightning, Fog bands, Snow, Volcanic Embers)
+        val spanY = (groundY - worldTop).coerceAtLeast(60f)
+        val spanW = (worldRight - worldLeft).coerceAtLeast(60f)
+        when {
+            isWet -> {
+                val isStorm = wx == WeatherCondition.STORM
+                paint.color = if (isStorm) Color.argb(72, 12, 18, 38) else Color.argb(36, 20, 36, 68)
+                c.drawRect(worldLeft, worldTop, worldRight, groundY + 12f, paint)
+                val dropCount = if (isStorm) 46 else 30
+                val speedY = if (isStorm) 230f else 170f
+                val speedX = if (isStorm) 95f else 55f
+                for (i in 0 until dropCount) {
+                    val rx = worldLeft + ((((i * 37f - engine.elapsed * (speedX + (i % 3) * 14f)) % spanW) + spanW) % spanW)
+                    val ry = worldTop + ((((i * 29f + engine.elapsed * (speedY + (i % 4) * 22f)) % spanY) + spanY) % spanY)
+                    val rxi = rx.roundToInt().toFloat()
+                    val ryi = ry.roundToInt().toFloat()
+                    paint.color = if (i % 3 == 0) 0xFFD8F4FF.toInt() else 0xFF78C8FF.toInt()
+                    c.drawRect(rxi, ryi, rxi + 1f, ryi + (if (isStorm) 7f else 5f), paint)
+                    c.drawRect(rxi - 1f, ryi + 2f, rxi, ryi + 5f, paint)
+                }
+                if (isStorm) {
+                    val cycle = engine.elapsed % 5.4f
+                    if ((cycle > 4.95f && cycle < 5.05f) || (cycle > 5.12f && cycle < 5.19f)) {
+                        paint.color = Color.argb(82, 232, 246, 255)
+                        c.drawRect(worldLeft, worldTop, worldRight, groundY + 12f, paint)
+                    }
+                }
+            }
+            wx == WeatherCondition.FOG -> {
+                for (band in 0 until 4) {
+                    val by = groundY - 58f + band * 15f
+                    val drift = ((engine.elapsed * (10f + band * 4f)) % 80f).roundToInt().toFloat()
+                    paint.color = if (band % 2 == 0) Color.argb(56, 220, 236, 250) else Color.argb(41, 196, 218, 240)
+                    c.drawRect(worldLeft, by, worldRight, by + 12f, paint)
+                    paint.color = Color.argb(46, 244, 250, 255)
+                    var fx = worldLeft - drift
+                    while (fx < worldRight + 40f) {
+                        c.drawRect(fx, by + 3f, fx + 44f, by + 7f, paint)
+                        fx += 80f
+                    }
+                }
+            }
+            isSnow -> {
+                for (i in 0 until 32) {
+                    val sway = sin(engine.elapsed * 2.2f + i * 1.3f) * 6f
+                    val fx = worldLeft + ((((i * 47f + sway - engine.elapsed * (22f + (i % 3) * 8f)) % spanW) + spanW) % spanW)
+                    val fy = worldTop + ((((i * 31f + engine.elapsed * (30f + (i % 4) * 9f)) % spanY) + spanY) % spanY)
+                    paint.color = if (i % 3 == 0) 0xFFFFFFFF.toInt() else 0xFFC8ECFF.toInt()
+                    val sz = if (i % 4 == 0) 2f else 1f
+                    c.drawRect(fx.roundToInt().toFloat(), fy.roundToInt().toFloat(), fx.roundToInt() + sz, fy.roundToInt() + sz, paint)
+                }
+            }
+            isEmbers -> {
+                for (i in 0 until 24) {
+                    val ex = worldLeft + ((((i * 53f - engine.elapsed * (18f + (i % 3) * 10f)) % spanW) + spanW) % spanW)
+                    val ey = worldTop + ((((i * 37f - engine.elapsed * (28f + (i % 4) * 12f)) % spanY) + spanY) % spanY)
+                    paint.color = if (i % 2 == 0) 0xFFFFE05C.toInt() else 0xFFFF6828.toInt()
+                    c.drawRect(ex.roundToInt().toFloat(), ey.roundToInt().toFloat(), ex.roundToInt() + 2f, ey.roundToInt() + 2f, paint)
+                }
+            }
         }
     }
 
