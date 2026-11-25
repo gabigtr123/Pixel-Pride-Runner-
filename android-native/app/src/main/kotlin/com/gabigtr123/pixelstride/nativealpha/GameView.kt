@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.view.Choreographer
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.SurfaceHolder
@@ -26,10 +27,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
     @Volatile
     private var running = false
-    private var renderThread: Thread? = null
+    private var lastFrameNs: Long = 0L
     private var runCardPreview: Bitmap? = null
     private var shopTab: ShopTab = ShopTab.WARDROBE
     private var trophyPage: Int = 0
+    private var hapticsEnabled: Boolean = true
+    private var swipeEnabled: Boolean = true
 
     var insetTopPx: Float = 48f
     var insetBottomPx: Float = 32f
@@ -37,6 +40,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
     private var duckPointerId: Int = MotionEvent.INVALID_POINTER_ID
     private var jumpPointerId: Int = MotionEvent.INVALID_POINTER_ID
+    private var swipePointerId: Int = MotionEvent.INVALID_POINTER_ID
+    private var swipeStartY: Float = 0f
+    private var swipeTriggered: Boolean = false
 
     init {
         holder.addCallback(this)
@@ -59,7 +65,11 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         engine.trailId = meta.equippedTrail
         engine.customHero = meta.customHero
         engine.winterTheme = prefs.getBoolean("winter_theme", false)
-        synth.muted = prefs.getBoolean("muted", false)
+        val legacyMuted = prefs.getBoolean("muted", false)
+        synth.musicMuted = prefs.getBoolean("music_muted", legacyMuted)
+        synth.sfxMuted = prefs.getBoolean("sfx_muted", legacyMuted)
+        hapticsEnabled = prefs.getBoolean("haptics_enabled", true)
+        swipeEnabled = prefs.getBoolean("swipe_enabled", true)
     }
 
     private fun persistSave() {
@@ -74,11 +84,16 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             .putInt("wx_man_ordinal", engine.manualWeather.ordinal)
             .putBoolean("winter_theme", engine.winterTheme)
             .putBoolean("muted", synth.muted)
+            .putBoolean("music_muted", synth.musicMuted)
+            .putBoolean("sfx_muted", synth.sfxMuted)
+            .putBoolean("haptics_enabled", hapticsEnabled)
+            .putBoolean("swipe_enabled", swipeEnabled)
             .apply()
         meta.save()
     }
 
     private fun vibrate(ms: Long, amplitude: Int = 80) {
+        if (!hapticsEnabled) return
         try {
             val vib = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)?.defaultVibrator
@@ -211,25 +226,26 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         )
     }
 
-    private fun startLoop() {
-        if (running) return
-        running = true
-        renderThread = Thread {
-            var lastNs = System.nanoTime()
-            while (running) {
-                val now = System.nanoTime()
-                val dt = (now - lastNs) / 1_000_000_000f
-                lastNs = now
+    private val frameCallback = object : Choreographer.FrameCallback {
+        override fun doFrame(frameTimeNanos: Long) {
+            if (!running) return
+            val dt = if (lastFrameNs == 0L) 0.016f else ((frameTimeNanos - lastFrameNs) / 1_000_000_000f).coerceIn(0f, 0.05f)
+            lastFrameNs = frameTimeNanos
 
-                synchronized(engine) {
-                    engine.update(dt)
-                    if (renderer.toastTimer > 0f) {
-                        renderer.toastTimer = (renderer.toastTimer - dt).coerceAtLeast(0f)
-                        if (renderer.toastTimer <= 0f) renderer.toastMessage = null
-                    }
+            synchronized(engine) {
+                engine.update(dt)
+                if (renderer.toastTimer > 0f) {
+                    renderer.toastTimer = (renderer.toastTimer - dt).coerceAtLeast(0f)
+                    if (renderer.toastTimer <= 0f) renderer.toastMessage = null
                 }
+            }
 
-                val canvas = holder.lockCanvas()
+            if (holder.surface?.isValid == true && width > 0 && height > 0) {
+                val canvas = try {
+                    holder.lockHardwareCanvas()
+                } catch (_: Throwable) {
+                    holder.lockCanvas()
+                }
                 if (canvas != null) {
                     try {
                         synchronized(engine) {
@@ -245,35 +261,36 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                                 trophyPage = trophyPage,
                                 muted = synth.muted,
                                 runCardPreview = runCardPreview,
+                                musicMuted = synth.musicMuted,
+                                sfxMuted = synth.sfxMuted,
+                                hapticsEnabled = hapticsEnabled,
+                                swipeEnabled = swipeEnabled,
                             )
                         }
                     } finally {
                         holder.unlockCanvasAndPost(canvas)
                     }
                 }
-
-                val elapsedMs = (System.nanoTime() - now) / 1_000_000L
-                val sleepMs = (16L - elapsedMs).coerceAtLeast(1L)
-                try {
-                    Thread.sleep(sleepMs)
-                } catch (_: InterruptedException) {
-                    break
-                }
             }
-        }.apply {
-            name = "PixelStrideRenderThread"
-            start()
+
+            if (running) {
+                Choreographer.getInstance().postFrameCallback(this)
+            }
+        }
+    }
+
+    private fun startLoop() {
+        if (running) return
+        running = true
+        lastFrameNs = 0L
+        post {
+            if (running) Choreographer.getInstance().postFrameCallback(frameCallback)
         }
     }
 
     private fun stopLoop() {
         running = false
-        renderThread?.interrupt()
-        try {
-            renderThread?.join(400)
-        } catch (_: InterruptedException) {
-        }
-        renderThread = null
+        Choreographer.getInstance().removeFrameCallback(frameCallback)
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -292,11 +309,37 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                         return true
                     }
                     if (engine.phase == GamePhase.PLAYING) {
+                        swipePointerId = pointerId
+                        swipeStartY = y
+                        swipeTriggered = false
                         jumpPointerId = pointerId
                         engine.pressJump()
                     }
                 }
+                MotionEvent.ACTION_MOVE -> {
+                    if (swipeEnabled && engine.phase == GamePhase.PLAYING && swipePointerId != MotionEvent.INVALID_POINTER_ID && !swipeTriggered) {
+                        val ptrIdx = event.findPointerIndex(swipePointerId)
+                        if (ptrIdx >= 0) {
+                            val dy = event.getY(ptrIdx) - swipeStartY
+                            val threshold = resources.displayMetrics.density * 28f
+                            if (dy > threshold) {
+                                // Swipe Down -> Duck / Fast-Fall / Platform Drop-Through
+                                swipeTriggered = true
+                                duckPointerId = swipePointerId
+                                engine.setDuck(true)
+                            } else if (dy < -threshold) {
+                                // Swipe Up -> Extra Jump / Double Jump
+                                swipeTriggered = true
+                                engine.pressJump()
+                            }
+                        }
+                    }
+                }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_CANCEL -> {
+                    if (pointerId == swipePointerId) {
+                        swipePointerId = MotionEvent.INVALID_POINTER_ID
+                        swipeTriggered = false
+                    }
                     if (pointerId == duckPointerId) {
                         duckPointerId = MotionEvent.INVALID_POINTER_ID
                         engine.setDuck(false)
@@ -441,6 +484,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             UiAction.CREATOR_CYCLE -> {
                 val c = meta.customHero
                 meta.customHero = when (hit.payload) {
+                    "STYLE" -> c.copy(isFemale = !c.isFemale)
+                    "SKIN" -> c.copy(skinIndex = (c.skinIndex + 1) % CustomHeroConfig.SKIN_COLORS.size)
                     "HAIR" -> c.copy(hairIndex = (c.hairIndex + 1) % CustomHeroConfig.HAIR_COLORS.size)
                     "TUNIC" -> c.copy(tunicIndex = (c.tunicIndex + 1) % CustomHeroConfig.TUNIC_COLORS.size)
                     "SCARF" -> c.copy(scarfIndex = (c.scarfIndex + 1) % CustomHeroConfig.SCARF_COLORS.size)
@@ -533,6 +578,29 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                     synth.startMusic()
                 }
                 persistSave()
+            }
+            UiAction.TOGGLE_MUSIC -> {
+                synth.musicMuted = !synth.musicMuted
+                if (!synth.musicMuted && engine.phase == GamePhase.PLAYING) {
+                    synth.startMusic()
+                }
+                persistSave()
+                vibrate(10, 50)
+            }
+            UiAction.TOGGLE_SFX -> {
+                synth.sfxMuted = !synth.sfxMuted
+                persistSave()
+                vibrate(10, 50)
+            }
+            UiAction.TOGGLE_HAPTICS -> {
+                hapticsEnabled = !hapticsEnabled
+                persistSave()
+                if (hapticsEnabled) vibrate(14, 70)
+            }
+            UiAction.TOGGLE_SWIPE -> {
+                swipeEnabled = !swipeEnabled
+                persistSave()
+                vibrate(10, 50)
             }
             UiAction.JUMP_BTN -> {
                 jumpPointerId = pointerId

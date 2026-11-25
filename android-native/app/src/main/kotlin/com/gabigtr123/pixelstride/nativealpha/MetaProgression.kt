@@ -64,18 +64,24 @@ data class CustomHeroConfig(
     val tunicIndex: Int = 0,
     val scarfIndex: Int = 0,
     val bootsIndex: Int = 0,
+    val isFemale: Boolean = false,
+    val skinIndex: Int = 0,
 ) {
     fun toPalette(): Map<Char, Int> {
         val hair = HAIR_COLORS[hairIndex % HAIR_COLORS.size]
         val tunic = TUNIC_COLORS[tunicIndex % TUNIC_COLORS.size]
         val scarf = SCARF_COLORS[scarfIndex % SCARF_COLORS.size]
         val boots = BOOTS_COLORS[bootsIndex % BOOTS_COLORS.size]
+        val skin = SKIN_COLORS[skinIndex % SKIN_COLORS.size]
         return mapOf(
             'K' to 0xFF121324.toInt(),
             'H' to hair.first,
             'h' to hair.second,
             'V' to 0xFF68F0FF.toInt(),
-            'S' to 0xFFFFCC98.toInt(),
+            'E' to 0xFF223868.toInt(),
+            'F' to 0xFFFFFDF5.toInt(),
+            'L' to 0xFF48C868.toInt(),
+            'S' to skin,
             'R' to scarf.first,
             'r' to scarf.second,
             'T' to tunic.first,
@@ -87,6 +93,13 @@ data class CustomHeroConfig(
     }
 
     companion object {
+        val SKIN_COLORS = listOf(
+            0xFFFFD4A8.toInt(), // Light Peach
+            0xFFF2BC8E.toInt(), // Warm Beige
+            0xFFD89864.toInt(), // Golden Tan
+            0xFFA66B42.toInt(), // Rich Brown
+            0xFF6E4428.toInt(), // Deep Espresso
+        )
         val HAIR_COLORS = listOf(
             0xFF304488.toInt() to 0xFF5878D0.toInt(), // Navy
             0xFFB83868.toInt() to 0xFFFF78B4.toInt(), // Rose
@@ -488,6 +501,8 @@ class MetaProgressionManager(private val prefs: SharedPreferences) {
             put("cTunic", customHero.tunicIndex)
             put("cScarf", customHero.scarfIndex)
             put("cBoots", customHero.bootsIndex)
+            put("cFemale", customHero.isFemale)
+            put("cSkin", customHero.skinIndex)
             put("streakDays", streakDays)
             put("lastPlayDate", lastPlayDate)
             put("dailyDate", dailyDate)
@@ -572,6 +587,8 @@ class MetaProgressionManager(private val prefs: SharedPreferences) {
                 tunicIndex = j.optInt("cTunic", 0),
                 scarfIndex = j.optInt("cScarf", 0),
                 bootsIndex = j.optInt("cBoots", 0),
+                isFemale = j.optBoolean("cFemale", false),
+                skinIndex = j.optInt("cSkin", 0),
             )
             streakDays = j.optInt("streakDays", 1).coerceIn(1, 7)
             lastPlayDate = j.optString("lastPlayDate", "")

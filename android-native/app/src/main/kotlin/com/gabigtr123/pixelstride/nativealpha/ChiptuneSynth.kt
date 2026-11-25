@@ -19,10 +19,20 @@ class ChiptuneSynth {
     private val musicLock = Any()
 
     @Volatile
-    var muted: Boolean = false
+    var musicMuted: Boolean = false
         set(value) {
             field = value
             if (value) stopMusic()
+        }
+
+    @Volatile
+    var sfxMuted: Boolean = false
+
+    var muted: Boolean
+        get() = musicMuted && sfxMuted
+        set(value) {
+            musicMuted = value
+            sfxMuted = value
         }
 
     @Volatile
@@ -86,7 +96,7 @@ class ChiptuneSynth {
 
     fun startMusic() {
         synchronized(musicLock) {
-            if (muted || musicRunning) return
+            if (musicMuted || musicRunning) return
             musicRunning = true
             musicThread = Thread {
                 var track: AudioTrack? = null
@@ -122,7 +132,7 @@ class ChiptuneSynth {
                     var leadPhase = 0.0
                     var bassPhase = 0.0
 
-                    while (musicRunning && !muted) {
+                    while (musicRunning && !musicMuted) {
                         val theme = if (bossMode) bossTheme else biomeThemes[biomeIndex]
                         val leadFreq = theme.lead[step % theme.lead.size]
                         val bassFreq = theme.bass[step % theme.bass.size]
@@ -177,14 +187,14 @@ class ChiptuneSynth {
     }
 
     fun playJump(isDouble: Boolean = false) {
-        if (muted) return
+        if (sfxMuted) return
         val f0 = if (isDouble) 420.0 else 300.0
         val f1 = if (isDouble) 860.0 else 640.0
         playTone(f0, f1, 0.10, 0.22, square = true)
     }
 
     fun playCoin() {
-        if (muted) return
+        if (sfxMuted) return
         playSequence(
             listOf(
                 Triple(987.77, 987.77, 0.055),
@@ -195,7 +205,7 @@ class ChiptuneSynth {
     }
 
     fun playStomp() {
-        if (muted) return
+        if (sfxMuted) return
         playSequence(
             listOf(
                 Triple(520.0, 260.0, 0.06),
@@ -206,7 +216,7 @@ class ChiptuneSynth {
     }
 
     fun playPowerUp() {
-        if (muted) return
+        if (sfxMuted) return
         playSequence(
             listOf(
                 Triple(523.25, 523.25, 0.055),
@@ -219,17 +229,17 @@ class ChiptuneSynth {
     }
 
     fun playZap() {
-        if (muted) return
+        if (sfxMuted) return
         playTone(1240.0, 280.0, 0.13, 0.22, square = true)
     }
 
     fun playHit() {
-        if (muted) return
+        if (sfxMuted) return
         playNoise(0.16, 0.25)
     }
 
     fun playBossKo() {
-        if (muted) return
+        if (sfxMuted) return
         playSequence(
             listOf(
                 Triple(523.25, 523.25, 0.07),
@@ -242,7 +252,7 @@ class ChiptuneSynth {
     }
 
     fun playGameOver() {
-        if (muted) return
+        if (sfxMuted) return
         playSequence(
             listOf(
                 Triple(440.0, 415.0, 0.11),

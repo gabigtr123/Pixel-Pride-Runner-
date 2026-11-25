@@ -375,15 +375,24 @@ class MetaModalsRenderer(
 
         val innerW = panelW - 32f * dp
         val leftX = cx - innerW / 2f
-        val rows = listOf(
-            Triple("HAIR / CAP", CustomHeroConfig.HAIR_COLORS[meta.customHero.hairIndex % 6].second, "HAIR"),
-            Triple("TUNIC", CustomHeroConfig.TUNIC_COLORS[meta.customHero.tunicIndex % 6].first, "TUNIC"),
-            Triple("SCARF", CustomHeroConfig.SCARF_COLORS[meta.customHero.scarfIndex % 6].first, "SCARF"),
-            Triple("BOOTS", CustomHeroConfig.BOOTS_COLORS[meta.customHero.bootsIndex % 6].first, "BOOTS"),
+        val cfg = meta.customHero
+        val cells = listOf(
+            Triple(if (cfg.isFemale) "STYLE: F" else "STYLE: M", if (cfg.isFemale) 0xFFFF78B4.toInt() else 0xFF58A8FF.toInt(), "STYLE"),
+            Triple("SKIN ${cfg.skinIndex + 1}/5", CustomHeroConfig.SKIN_COLORS[cfg.skinIndex % CustomHeroConfig.SKIN_COLORS.size], "SKIN"),
+            Triple("HAIR", CustomHeroConfig.HAIR_COLORS[cfg.hairIndex % 6].second, "HAIR"),
+            Triple("TUNIC", CustomHeroConfig.TUNIC_COLORS[cfg.tunicIndex % 6].first, "TUNIC"),
+            Triple("SCARF", CustomHeroConfig.SCARF_COLORS[cfg.scarfIndex % 6].first, "SCARF"),
+            Triple("BOOTS", CustomHeroConfig.BOOTS_COLORS[cfg.bootsIndex % 6].first, "BOOTS"),
         )
-        var y = topY + 190f * dp
-        for ((label, swatchColor, key) in rows) {
-            val r = RectF(leftX, y, leftX + innerW, y + 38f * dp)
+        val colW = (innerW - 8f * dp) / 2f
+        val gridY = topY + 188f * dp
+        for (i in cells.indices) {
+            val (label, swatchColor, key) = cells[i]
+            val col = i % 2
+            val row = i / 2
+            val rx = leftX + col * (colW + 8f * dp)
+            val ry = gridY + row * 48f * dp
+            val r = RectF(rx, ry, rx + colW, ry + 40f * dp)
             paint.color = 0xFF12162D.toInt()
             c.drawRect(r, paint)
             strokePaint.color = 0xFF3A467A.toInt()
@@ -391,17 +400,13 @@ class MetaModalsRenderer(
             c.drawRect(r, strokePaint)
 
             paint.color = swatchColor
-            c.drawRect(r.left + 10f * dp, r.top + 8f * dp, r.left + 32f * dp, r.bottom - 8f * dp, paint)
+            c.drawRect(r.left + 8f * dp, r.top + 8f * dp, r.left + 26f * dp, r.bottom - 8f * dp, paint)
 
             displayPaint.textAlign = Paint.Align.LEFT
-            displayPaint.textSize = 9f * dp
+            displayPaint.textSize = 8f * dp
             displayPaint.color = 0xFFFFFFFF.toInt()
-            c.drawText(label, r.left + 44f * dp, r.centerY() + 4f * dp, displayPaint)
-
-            val btn = RectF(r.right - 92f * dp, r.top + 5f * dp, r.right - 8f * dp, r.bottom - 5f * dp)
-            drawSecondaryBtn(c, btn, "NEXT ▶", 8.5f * dp, dp, 0xFFFFE05C.toInt())
-            buttons.add(HitButton(UiAction.CREATOR_CYCLE, btn, key))
-            y += 45f * dp
+            c.drawText(label, r.left + 34f * dp, r.centerY() + 3.5f * dp, displayPaint)
+            buttons.add(HitButton(UiAction.CREATOR_CYCLE, r, key))
         }
 
         val doneRect = RectF(leftX, panelRect.bottom - 52f * dp, leftX + innerW, panelRect.bottom - 14f * dp)

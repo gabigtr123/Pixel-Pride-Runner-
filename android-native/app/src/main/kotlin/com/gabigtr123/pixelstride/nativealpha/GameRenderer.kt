@@ -63,6 +63,10 @@ enum class UiAction {
     TOGGLE_WINTER_THEME,
     TOGGLE_PAUSE,
     TOGGLE_MUTE,
+    TOGGLE_MUSIC,
+    TOGGLE_SFX,
+    TOGGLE_HAPTICS,
+    TOGGLE_SWIPE,
     RESUME,
     RESTART,
     TITLE,
@@ -133,6 +137,10 @@ class GameRenderer(
         trophyPage: Int,
         muted: Boolean,
         runCardPreview: Bitmap?,
+        musicMuted: Boolean = muted,
+        sfxMuted: Boolean = muted,
+        hapticsEnabled: Boolean = true,
+        swipeEnabled: Boolean = true,
     ) {
         buttons.clear()
         val vw = viewWidth.toFloat().coerceAtLeast(1f)
@@ -192,7 +200,7 @@ class GameRenderer(
             GamePhase.PLAYING -> drawPlayingHud(canvas, vw, vh, topSafe, bottomSafe, engine, muted)
             GamePhase.PAUSED -> {
                 drawPlayingHud(canvas, vw, vh, topSafe, bottomSafe, engine, muted)
-                drawPauseOverlay(canvas, vw, vh)
+                drawPauseOverlay(canvas, vw, vh, musicMuted, sfxMuted, hapticsEnabled, swipeEnabled)
             }
             GamePhase.GAME_OVER -> drawGameOverOverlay(canvas, vw, vh, topSafe, bottomSafe, engine, meta)
             GamePhase.RUN_CARD -> drawRunCardModal(canvas, vw, vh, topSafe, bottomSafe, runCardPreview)
@@ -1461,22 +1469,30 @@ class GameRenderer(
         buttons.add(HitButton(UiAction.JUMP_BTN, jumpRect))
     }
 
-    private fun drawPauseOverlay(c: Canvas, vw: Float, vh: Float) {
+    private fun drawPauseOverlay(
+        c: Canvas,
+        vw: Float,
+        vh: Float,
+        musicMuted: Boolean,
+        sfxMuted: Boolean,
+        hapticsEnabled: Boolean,
+        swipeEnabled: Boolean,
+    ) {
         paint.color = 0xB80B0D1A.toInt()
         c.drawRect(0f, 0f, vw, vh, paint)
         val dp = minOf(vw, vh) / 360f
         val cx = vw / 2f
         val cy = vh / 2f
-        val panelW = minOf(vw - 32f * dp, 290f * dp)
-        val panelRect = RectF(cx - panelW / 2f, cy - 118f * dp, cx + panelW / 2f, cy + 128f * dp)
+        val panelW = minOf(vw - 32f * dp, 296f * dp)
+        val panelRect = RectF(cx - panelW / 2f, cy - 134f * dp, cx + panelW / 2f, cy + 148f * dp)
         drawPixelPanel(c, panelRect, dp)
 
-        drawShadowDisplayText(c, "PAUSED", cx, panelRect.top + 42f * dp, 18f * dp, 0xFFFFE05C.toInt(), dp)
+        drawShadowDisplayText(c, "PAUSED", cx, panelRect.top + 40f * dp, 18f * dp, 0xFFFFE05C.toInt(), dp)
 
         val innerW = panelW - 36f * dp
-        val resumeRect = RectF(cx - innerW / 2f, panelRect.top + 66f * dp, cx + innerW / 2f, panelRect.top + 114f * dp)
-        val restartRect = RectF(cx - innerW / 2f, panelRect.top + 126f * dp, cx + innerW / 2f, panelRect.top + 170f * dp)
-        val titleRect = RectF(cx - innerW / 2f, panelRect.top + 182f * dp, cx + innerW / 2f, panelRect.top + 226f * dp)
+        val resumeRect = RectF(cx - innerW / 2f, panelRect.top + 62f * dp, cx + innerW / 2f, panelRect.top + 108f * dp)
+        val restartRect = RectF(cx - innerW / 2f, panelRect.top + 118f * dp, cx + innerW / 2f, panelRect.top + 160f * dp)
+        val titleRect = RectF(cx - innerW / 2f, panelRect.top + 170f * dp, cx + innerW / 2f, panelRect.top + 212f * dp)
 
         drawPixelButtonPrimary(c, resumeRect, "▶ RESUME", 12f * dp, dp)
         drawPixelButtonSecondary(c, restartRect, "↻ RESTART", 11f * dp, dp)
@@ -1484,6 +1500,23 @@ class GameRenderer(
         buttons.add(HitButton(UiAction.RESUME, resumeRect))
         buttons.add(HitButton(UiAction.RESTART, restartRect))
         buttons.add(HitButton(UiAction.TITLE, titleRect))
+
+        // 4 Granular Settings toggles: MUSIC, SFX, VIB (Haptics), SWIPE
+        val toggleY = panelRect.top + 226f * dp
+        val toggleGap = 5f * dp
+        val toggleW = (innerW - toggleGap * 3f) / 4f
+        val toggles = listOf(
+            Triple(if (musicMuted) "MUS OFF" else "MUS ON", !musicMuted, UiAction.TOGGLE_MUSIC),
+            Triple(if (sfxMuted) "SFX OFF" else "SFX ON", !sfxMuted, UiAction.TOGGLE_SFX),
+            Triple(if (hapticsEnabled) "VIB ON" else "VIB OFF", hapticsEnabled, UiAction.TOGGLE_HAPTICS),
+            Triple(if (swipeEnabled) "SWIPE" else "NO SWP", swipeEnabled, UiAction.TOGGLE_SWIPE),
+        )
+        for (i in toggles.indices) {
+            val rx = cx - innerW / 2f + i * (toggleW + toggleGap)
+            val r = RectF(rx, toggleY, rx + toggleW, toggleY + 34f * dp)
+            drawModePill(c, r, toggles[i].first, toggles[i].second, dp)
+            buttons.add(HitButton(toggles[i].third, r))
+        }
     }
 
     private fun drawGameOverOverlay(

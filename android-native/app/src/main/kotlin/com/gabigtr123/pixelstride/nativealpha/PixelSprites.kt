@@ -628,8 +628,8 @@ object PixelSprites {
         HeroId.CUSTOM -> custom.toPalette()
     }
 
-    fun heroFrame(hero: HeroId, onGround: Boolean, ducking: Boolean, animTime: Float): List<String> {
-        val isLily = hero == HeroId.LILY
+    fun heroFrame(hero: HeroId, onGround: Boolean, ducking: Boolean, animTime: Float, custom: CustomHeroConfig = CustomHeroConfig()): List<String> {
+        val isLily = hero == HeroId.LILY || (hero == HeroId.CUSTOM && custom.isFemale)
         if (ducking) return if (isLily) LILY_DUCK else RUNNER_DUCK
         if (!onGround) return if (isLily) LILY_JUMP else RUNNER_JUMP
         val idx = (animTime * 11f).toInt() % 4
@@ -664,7 +664,7 @@ object PixelSprites {
         hat: HatId = HatId.NONE,
         cape: CapeId = CapeId.NONE,
     ) {
-        val frame = heroFrame(hero, onGround, ducking, animTime)
+        val frame = heroFrame(hero, onGround, ducking, animTime, custom)
         val anchorX = x + (frame[0].length * scale) / 2f
         val feetY = y + frame.size * scale
         if (cape != CapeId.NONE) {
