@@ -145,7 +145,7 @@ class GameRenderer(
         canvas.translate(offsetX, offsetY)
         canvas.scale(scale, scale)
 
-        if (engine.screenShake > 0.2f) {
+        if ((engine.phase == GamePhase.PLAYING || engine.phase == GamePhase.GAME_OVER) && engine.screenShake > 0.2f) {
             val sx = ((engine.elapsed * 90f).toInt() % 3 - 1) * engine.screenShake * 0.5f
             val sy = ((engine.elapsed * 70f).toInt() % 3 - 1) * engine.screenShake * 0.4f
             canvas.translate(sx, sy)

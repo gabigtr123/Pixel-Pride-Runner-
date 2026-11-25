@@ -81,11 +81,10 @@ jobs:
               "### Downloads" \
               "- **Native Android 17 Signed APK (Alpha):** \`${APK}\` (Package ID: \`com.gabigtr123.pixelstride.nativealpha\` — installs side-by-side alongside v3.0.3 without overwriting your saves!)" \
               "" \
-              "### What's New in v4.0.0-beta.3 (1:1 v3.0.3 Graphics Parity)" \
-              "- **Exact v3.0.3 Biome Palettes & Smooth Blending:** Exact hex colors from \`v3.0.3\` for all 6 Biomes + dedicated \`WINTER_BIOME_PALETTE\`, smooth 15% zone-end color transitions, and full Day/Sunset/Night tinting for clouds, mountains, hills, and ruins." \
-              "- **100% Stepped Pixel-Art Parallax Scenery (All 4 Landscapes):** Eliminated all smooth vector triangles; ported exact pixel mountain steps, rolling hills with pixel pine trees, Winter snowmen, ancient aqueduct stone ruins, Pyramid Canyon mesas/cacti/obelisks, Starlight City skyline antennas & neon sky-bridges, and Crystal Peaks glowing shards & rune monolith arches." \
-              "- **16px NES Checkerboard Masonry & Weather-Reactive Terrain:** Grass/snow overhang notches, staggered 13px brick rows with mortar & stone highlights, animated rain puddles + 3-pixel splash crowns + underground water trickles, 2-part slanted raindrops, drifting fog mist bands, and Volcanic Forge rising embers." \
-              "- **Exact v3.0.3 Combat & Power-Up FX:** Orbiting 4-star pixel Shield barrier (no vector circle), Turbo Dash golden aura + speed streaks, pulsing pink Magnet field arcs, stone brazier Flame Jet, Boss charge warning \`!\` badge + ground shadow, and Slow-Mo / Low-HP screen-edge borders." \
+              "### What's New in v4.0.0-beta.4 (Title Screen Shake & State Reset Fix)" \
+              "- **Fixed Stuck Screen Shake on Title Screen:** On a fatal hit (\`screenShake = 7f\`), returning to the Title screen no longer leaves the world behind the menu shaking violently forever. \`screenShake\` now decays cleanly during Game Over and resets to \`0f\` on \`returnToTitle()\` and \`startNewRun()\`." \
+              "- **Complete Run State Cleanup on Return to Title:** \`returnToTitle()\` now also clears leftover particles, floating texts, power-up/invulnerability timers, shield state, and resets level/biome to a clean Title preview." \
+              "- **Includes Full 1:1 v3.0.3 Graphics Parity (from beta.3):** Exact biome hex palettes, all 4 stepped pixel-art landscapes, 16px NES ground masonry + weather-reactive puddles/trickles, orbiting 4-star shield, and screen-edge borders." \
               > release-notes-alpha.md
             gh release create "$RELEASE_TAG" "$APK" \
               --title "Pixel Stride Native ${RELEASE_TAG} (Zero WebView Beta)" \

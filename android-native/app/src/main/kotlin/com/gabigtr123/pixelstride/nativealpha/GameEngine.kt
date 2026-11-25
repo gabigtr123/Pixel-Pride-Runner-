@@ -214,6 +214,7 @@ class GameEngine(private val feedback: EngineFeedback) {
         coyoteTimer = 0f
         jumpBufferTimer = 0f
         invulnTimer = 0f
+        screenShake = 0f
         playerY = groundY - playerStandHeight
 
         hazards.clear()
@@ -267,10 +268,24 @@ class GameEngine(private val feedback: EngineFeedback) {
         phase = GamePhase.TITLE
         hazards.clear()
         collectibles.clear()
+        particles.clear()
+        floatingTexts.clear()
         activeBoss = null
         feedback.onBossActiveChanged(false)
+        screenShake = 0f
+        invulnTimer = 0f
+        magnetTimer = 0f
+        doubleScoreTimer = 0f
+        slowMoTimer = 0f
+        turboTimer = 0f
+        dragonBeamTimer = 0f
+        hasShield = false
         ducking = false
         onGround = true
+        playerVy = 0f
+        level = 1
+        distance = 0f
+        zoneIndex = if (mode == GameMode.WINTER) 4 else 0
         playerY = groundY - playerStandHeight
     }
 
@@ -298,8 +313,13 @@ class GameEngine(private val feedback: EngineFeedback) {
     fun update(rawDt: Float) {
         val dt = rawDt.coerceIn(0f, 0.05f)
         if (phase == GamePhase.TITLE || phase == GamePhase.WEATHER || phase == GamePhase.SHOP || phase == GamePhase.CREATOR || phase == GamePhase.DAILY || phase == GamePhase.TROPHY) {
+            screenShake = 0f
             elapsed += dt
             scrollX += 65f * dt
+            return
+        }
+        if (phase == GamePhase.GAME_OVER || phase == GamePhase.RUN_CARD) {
+            if (screenShake > 0f) screenShake = max(0f, screenShake - dt * 18f)
             return
         }
         if (phase != GamePhase.PLAYING) return
