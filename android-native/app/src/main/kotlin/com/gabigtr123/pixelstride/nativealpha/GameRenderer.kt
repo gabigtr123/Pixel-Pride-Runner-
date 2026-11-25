@@ -55,9 +55,10 @@ enum class UiAction {
     CITY_3,
     CITY_4,
     SELECT_MODE_ENDLESS,
+    SELECT_MODE_DAILY,
     SELECT_MODE_HARDCORE,
     SELECT_MODE_BOSS_RUSH,
-    SELECT_MODE_WINTER,
+    TOGGLE_WINTER_THEME,
     TOGGLE_PAUSE,
     TOGGLE_MUTE,
     RESUME,
@@ -201,7 +202,7 @@ class GameRenderer(
     }
 
     private fun getBlendedBiome(engine: GameEngine): BiomePalette {
-        if (engine.mode == GameMode.WINTER) return WINTER_BIOME_PALETTE
+        if (engine.winterTheme) return WINTER_BIOME_PALETTE
         val currIdx = engine.zoneIndex % BIOMES.size
         val nextIdx = (currIdx + 1) % BIOMES.size
         val curr = BIOMES[currIdx]
@@ -276,7 +277,7 @@ class GameRenderer(
         val baseBiome = getBlendedBiome(engine)
         val night = if (engine.phase == GamePhase.TITLE) 0f else engine.nightFactor()
         val biome = applyDayNightCycle(baseBiome, night)
-        val winterTheme = engine.mode == GameMode.WINTER
+        val winterTheme = engine.winterTheme
         val wx = engine.effectiveWeather()
         val isWet = wx == WeatherCondition.RAIN || wx == WeatherCondition.STORM
         val isSnow = winterTheme || wx == WeatherCondition.SNOW
@@ -668,36 +669,124 @@ class GameRenderer(
             tIdx++
         }
 
+        // 7b. Exact v3.0.3 Floating Platforms (16px masonry + wet drips / snow icicles)
+        for (plat in engine.platforms) {
+            val px = plat.x.roundToInt().toFloat()
+            val py = plat.y.roundToInt().toFloat()
+            paint.color = 0xFF121526.toInt()
+            c.drawRect(px - 1f, py - 1f, px + plat.width + 1f, py + plat.height + 1f, paint)
+            paint.color = if (isSnow) 0xFFF4FAFF.toInt() else biome.grassTop
+            c.drawRect(px, py, px + plat.width, py + 3f, paint)
+            paint.color = biome.dirtMain
+            c.drawRect(px, py + 3f, px + plat.width, py + plat.height, paint)
+            paint.color = biome.dirtDark
+            var bx = px + 8f
+            while (bx < px + plat.width) {
+                c.drawRect(bx, py + 3f, bx + 2f, py + plat.height, paint)
+                bx += 16f
+            }
+            paint.color = biome.dirtAccent
+            bx = px + 2f
+            while (bx < px + plat.width - 4f) {
+                c.drawRect(bx, py + 4f, bx + 4f, py + 6f, paint)
+                bx += 16f
+            }
+            if (isWet) {
+                paint.color = Color.argb(184, 110, 212, 255)
+                c.drawRect(px + 2f, py, px + plat.width - 2f, py + 2f, paint)
+                var dx = px + 8f
+                var dIdx = 0
+                while (dx < px + plat.width - 6f) {
+                    val dropY = ((engine.elapsed * 32f + dIdx * 9f + plat.id * 5f).toInt() % 18).toFloat()
+                    paint.color = Color.argb(190, 92, 194, 250)
+                    c.drawRect(dx, py + plat.height + 1f, dx + 1f, py + plat.height + 1f + minOf(4f, dropY), paint)
+                    if (dropY > 4f) {
+                        paint.color = 0xFFD8F6FF.toInt()
+                        c.drawRect(dx, py + plat.height + dropY, dx + 1f, py + plat.height + dropY + 2f, paint)
+                    }
+                    dx += 18f
+                    dIdx++
+                }
+            } else if (isSnow) {
+                paint.color = 0xFFD8F4FF.toInt()
+                var ix = px + 6f
+                while (ix < px + plat.width - 6f) {
+                    c.drawRect(ix, py + plat.height + 1f, ix + 2f, py + plat.height + 4f, paint)
+                    c.drawRect(ix, py + plat.height + 4f, ix + 1f, py + plat.height + 6f, paint)
+                    ix += 14f
+                }
+            }
+        }
+
         // 8. Collectibles (exact v3.0.3 pixel sprites)
         for (col in engine.collectibles) {
             val cy = col.y + sin(col.bobPhase) * 2.5f
             PixelSprites.drawCollectible(c, col.type, (col.x - 6f).roundToInt().toFloat(), (cy - 6f).roundToInt().toFloat(), 1.25f, col.bobPhase)
         }
 
-        // 9. Hazards (exact v3.0.3 pixel sprites + authentic stone brazier flame jet)
+        // 9. Hazards (exact v3.0.3 telegraphs, upside-down KO topple & cycling stone brazier flame jet)
+        val warningX = w - 18f
         for (hz in engine.hazards) {
             val hx = hz.x.roundToInt().toFloat()
             val hy = hz.y.roundToInt().toFloat()
             when (hz.type) {
                 HazardType.SPIKE -> PixelSprites.drawSpike(c, hx - 1f, hy - 1f, 1.25f)
-                HazardType.HOPPER -> PixelSprites.drawHopper(c, hx - 2f, hy + 1f, 1.3f, hz.animPhase)
-                HazardType.SWOOPER -> PixelSprites.drawSwooper(c, hx - 3f, hy, 1.25f, hz.animPhase)
+                HazardType.HOPPER -> {
+                    c.save()
+                    if (hz.stomped) {
+                        c.translate(hx + hz.width * 0.5f, hy + hz.height * 0.5f)
+                        c.scale(1f, -1f)
+                        PixelSprites.drawHopper(c, -hz.width * 0.5f, -hz.height * 0.5f, 1.3f, 0f)
+                    } else {
+                        val crouchY = if (hz.telegraphTimer > 0f) hy + 3f else hy + 1f
+                        PixelSprites.drawHopper(c, hx - 2f, crouchY, 1.3f, hz.animPhase)
+                    }
+                    c.restore()
+                }
+                HazardType.SWOOPER -> {
+                    if (hz.telegraphTimer > 0f && !hz.stomped) {
+                        val blinkWarn = ((engine.elapsed * 20f).toInt() % 2) == 0
+                        val wy = (hz.baseY + 2f).roundToInt().toFloat()
+                        paint.color = if (blinkWarn) 0xFFFFE048.toInt() else 0xFFFF4858.toInt()
+                        c.drawRect(warningX, wy, warningX + 12f, wy + 12f, paint)
+                        paint.color = 0xFF141224.toInt()
+                        c.drawRect(warningX + 5f, wy + 2f, warningX + 7f, wy + 7f, paint)
+                        c.drawRect(warningX + 5f, wy + 8f, warningX + 7f, wy + 10f, paint)
+                    } else {
+                        c.save()
+                        if (hz.stomped) {
+                            c.translate(hx + hz.width * 0.5f, hy + hz.height * 0.5f)
+                            c.scale(1f, -1f)
+                            PixelSprites.drawSwooper(c, -hz.width * 0.5f, -hz.height * 0.5f, 1.25f, 0f)
+                        } else {
+                            PixelSprites.drawSwooper(c, hx - 3f, hy, 1.25f, hz.animPhase)
+                        }
+                        c.restore()
+                    }
+                }
                 HazardType.FLAME -> {
-                    // Exact v3.0.3 stone brazier base + 3-color flickering pixel flame jet
+                    // Exact v3.0.3 stone brazier base + idle / telegraph embers / flickering 3-color flame jet
                     paint.color = 0xFF141628.toInt()
                     c.drawRect(hx, groundY - 12f, hx + 16f, groundY, paint)
                     paint.color = 0xFF586484.toInt()
                     c.drawRect(hx + 2f, groundY - 10f, hx + 14f, groundY, paint)
                     paint.color = 0xFF92A2C8.toInt()
                     c.drawRect(hx + 2f, groundY - 10f, hx + 6f, groundY - 2f, paint)
-                    val flicker = ((engine.elapsed * 18f).toInt() % 2).toFloat()
-                    paint.color = 0xFFE83828.toInt()
-                    c.drawRect(hx + 2f, groundY - 35f + flicker, hx + 14f, groundY - 11f + flicker, paint)
-                    c.drawRect(hx + 4f, groundY - 39f - flicker, hx + 12f, groundY - 33f - flicker, paint)
-                    paint.color = 0xFFFF9C28.toInt()
-                    c.drawRect(hx + 4f, groundY - 32f, hx + 12f, groundY - 11f, paint)
-                    paint.color = 0xFFFFF4A8.toInt()
-                    c.drawRect(hx + 6f, groundY - 26f + flicker, hx + 10f, groundY - 11f + flicker, paint)
+                    if (hz.telegraphTimer > 0f) {
+                        val pulse = ((engine.elapsed * 24f).toInt() % 2) == 0
+                        paint.color = if (pulse) 0xFFFFF4A8.toInt() else 0xFFFF8828.toInt()
+                        c.drawRect(hx + 3f, groundY - 16f, hx + 13f, groundY - 11f, paint)
+                        c.drawRect(hx + 5f, groundY - 20f, hx + 11f, groundY - 16f, paint)
+                    } else if (hz.isActive) {
+                        val flicker = ((engine.elapsed * 18f).toInt() % 2).toFloat()
+                        paint.color = 0xFFE83828.toInt()
+                        c.drawRect(hx + 2f, groundY - 35f + flicker, hx + 14f, groundY - 11f + flicker, paint)
+                        c.drawRect(hx + 4f, groundY - 39f - flicker, hx + 12f, groundY - 33f - flicker, paint)
+                        paint.color = 0xFFFF9C28.toInt()
+                        c.drawRect(hx + 4f, groundY - 32f, hx + 12f, groundY - 11f, paint)
+                        paint.color = 0xFFFFF4A8.toInt()
+                        c.drawRect(hx + 6f, groundY - 26f + flicker, hx + 10f, groundY - 11f + flicker, paint)
+                    }
                 }
             }
         }
@@ -768,11 +857,12 @@ class GameRenderer(
         val blink = engine.invulnTimer > 0f && ((engine.elapsed * 20f).toInt() % 2 == 0)
         if (!blink) {
             val pH = engine.currentPlayerHeight()
-            val altitude = maxOf(0f, groundY - (engine.playerY + pH))
+            val shadowY = if (engine.onPlatform) engine.playerY + pH else groundY
+            val altitude = maxOf(0f, shadowY - (engine.playerY + pH))
             val shadowW = maxOf(6f, (16f - altitude * 0.08f).roundToInt().toFloat())
             paint.color = Color.argb(115, 12, 14, 30)
             val shadowX = (engine.playerX + (engine.playerWidth - shadowW) * 0.5f).roundToInt().toFloat()
-            c.drawRect(shadowX, groundY - 1f, shadowX + shadowW, groundY + 2f, paint)
+            c.drawRect(shadowX, shadowY - 1f, shadowX + shadowW, shadowY + 2f, paint)
 
             val spriteScale = 1.35f
             val isDuck = engine.ducking && engine.onGround
@@ -1020,9 +1110,9 @@ class GameRenderer(
         val modeW = (stackW - modeGap * 3f) / 4f
         val modeActions = listOf(
             GameMode.ENDLESS to UiAction.SELECT_MODE_ENDLESS,
+            GameMode.DAILY to UiAction.SELECT_MODE_DAILY,
             GameMode.HARDCORE to UiAction.SELECT_MODE_HARDCORE,
             GameMode.BOSS_RUSH to UiAction.SELECT_MODE_BOSS_RUSH,
-            GameMode.WINTER to UiAction.SELECT_MODE_WINTER,
         )
         for (i in modeActions.indices) {
             val (m, action) = modeActions[i]
@@ -1051,13 +1141,16 @@ class GameRenderer(
         val dp = minOf(vw, vh) / 360f
         val cx = vw / 2f
         val panelW = minOf(vw - 24f * dp, 336f * dp)
-        val panelH = minOf(vh - topSafe - bottomSafe - 20f * dp, 430f * dp)
+        val panelH = minOf(vh - topSafe - bottomSafe - 20f * dp, 456f * dp)
         val topY = (vh - panelH) / 2f
         val panelRect = RectF(cx - panelW / 2f, topY, cx + panelW / 2f, topY + panelH)
         drawPixelPanel(c, panelRect, dp)
 
-        // Header + X close
-        drawShadowDisplayText(c, "LIVE WEATHER", panelRect.left + 18f * dp, topY + 34f * dp, 13f * dp, 0xFF78E8FF.toInt(), dp, Paint.Align.LEFT)
+        // Header + Winter Theme toggle + X close
+        drawShadowDisplayText(c, "WEATHER & THEME", panelRect.left + 16f * dp, topY + 34f * dp, 11f * dp, 0xFF78E8FF.toInt(), dp, Paint.Align.LEFT)
+        val winterRect = RectF(panelRect.right - 132f * dp, topY + 12f * dp, panelRect.right - 52f * dp, topY + 42f * dp)
+        drawModePill(c, winterRect, if (engine.winterTheme) "❄ WINTER" else "CLASSIC", engine.winterTheme, dp)
+        buttons.add(HitButton(UiAction.TOGGLE_WINTER_THEME, winterRect))
         val closeRect = RectF(panelRect.right - 46f * dp, topY + 12f * dp, panelRect.right - 14f * dp, topY + 42f * dp)
         drawPixelButtonSecondary(c, closeRect, "X", 10f * dp, dp)
         buttons.add(HitButton(UiAction.CLOSE_WEATHER, closeRect))
@@ -1304,6 +1397,46 @@ class GameRenderer(
             uiPaint.textSize = 10f * dp
             uiPaint.color = 0xFF78E8FF.toInt()
             c.drawText(activePills.joinToString(" · "), 16f * dp, topSafe + 80f * dp, uiPaint)
+        }
+
+        // Combo Multiplier pill + shrinking timer bar
+        if (engine.combo > 1 && engine.comboTimer > 0f) {
+            val cbW = 64f * dp
+            val cbH = 22f * dp
+            val cbX = vw - 12f * dp - cbW
+            val cbY = topSafe + 46f * dp
+            paint.color = 0xD8141830.toInt()
+            c.drawRect(cbX, cbY, cbX + cbW, cbY + cbH, paint)
+            strokePaint.color = 0xFFFFE05C.toInt()
+            strokePaint.strokeWidth = 1.8f * dp
+            c.drawRect(cbX, cbY, cbX + cbW, cbY + cbH, strokePaint)
+            val fillFrac = (engine.comboTimer / 3.2f).coerceIn(0f, 1f)
+            paint.color = 0xFFFFB838.toInt()
+            c.drawRect(cbX + 2f * dp, cbY + cbH - 4f * dp, cbX + 2f * dp + (cbW - 4f * dp) * fillFrac, cbY + cbH - 2f * dp, paint)
+            displayPaint.textAlign = Paint.Align.CENTER
+            displayPaint.textSize = 9.5f * dp
+            displayPaint.color = 0xFFFFF4A8.toInt()
+            c.drawText("x${engine.combo} COMBO", cbX + cbW / 2f, cbY + 13f * dp, displayPaint)
+        }
+
+        // Retro Level-Up / Biome / Boss / Daily Seed Banner
+        engine.bannerText?.let { bTxt ->
+            if (engine.bannerTimer > 0f) {
+                val bW = minOf(vw - 32f * dp, 260f * dp)
+                val bH = 28f * dp
+                val bX = (vw - bW) / 2f
+                val bY = topSafe + 78f * dp
+                paint.color = 0xE6121526.toInt()
+                c.drawRect(bX, bY, bX + bW, bY + bH, paint)
+                strokePaint.color = engine.bannerColor
+                strokePaint.strokeWidth = 2f * dp
+                c.drawRect(bX, bY, bX + bW, bY + bH, strokePaint)
+                displayPaint.textAlign = Paint.Align.CENTER
+                displayPaint.textSize = 9.5f * dp
+                displayPaint.color = engine.bannerColor
+                val baseline = bY + bH / 2f - (displayPaint.descent() + displayPaint.ascent()) / 2f
+                c.drawText(bTxt, vw / 2f, baseline, displayPaint)
+            }
         }
 
         // Top-right Pause & Mute

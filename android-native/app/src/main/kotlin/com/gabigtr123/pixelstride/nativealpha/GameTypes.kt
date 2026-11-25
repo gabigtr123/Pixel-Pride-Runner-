@@ -49,9 +49,9 @@ enum class TimeOfDayMode(val label: String) {
 
 enum class GameMode(val label: String, val shortLabel: String) {
     ENDLESS("ENDLESS", "ENDLESS"),
+    DAILY("DAILY SEED", "DAILY"),
     HARDCORE("HARDCORE 2X", "HARDCORE"),
     BOSS_RUSH("BOSS RUSH", "BOSS RUSH"),
-    WINTER("WINTER", "WINTER"),
 }
 
 enum class HazardType {
@@ -251,6 +251,14 @@ val BIOMES: List<BiomePalette> = listOf(
 
 val LEVEL_NAMES = listOf("HIGHLAND MEADOWS", "PYRAMID CANYON", "STARLIGHT CITY", "CRYSTAL PEAKS")
 
+data class PlatformEntity(
+    val id: Int,
+    var x: Float,
+    var y: Float,
+    val width: Float,
+    val height: Float = 10f,
+)
+
 data class HazardEntity(
     var x: Float,
     var y: Float,
@@ -261,6 +269,10 @@ data class HazardEntity(
     var animPhase: Float = 0f,
     var defeated: Boolean = false,
     var vy: Float = 0f,
+    var telegraphTimer: Float = 0f,
+    var isActive: Boolean = true,
+    var stomped: Boolean = false,
+    var cycleTimer: Float = 0f,
 )
 
 data class CollectibleEntity(

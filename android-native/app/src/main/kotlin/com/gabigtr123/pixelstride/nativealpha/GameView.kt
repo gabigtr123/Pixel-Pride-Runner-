@@ -55,6 +55,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         engine.hat = meta.equippedHat
         engine.cape = meta.equippedCape
         engine.customHero = meta.customHero
+        engine.winterTheme = prefs.getBoolean("winter_theme", false)
         synth.muted = prefs.getBoolean("muted", false)
     }
 
@@ -68,6 +69,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             .putInt("tod_ordinal", engine.timeOfDayMode.ordinal)
             .putInt("wx_src_ordinal", engine.weatherSource.ordinal)
             .putInt("wx_man_ordinal", engine.manualWeather.ordinal)
+            .putBoolean("winter_theme", engine.winterTheme)
             .putBoolean("muted", synth.muted)
             .apply()
         meta.save()
@@ -480,9 +482,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             UiAction.CITY_3 -> syncPresetCity(3)
             UiAction.CITY_4 -> syncPresetCity(4)
             UiAction.SELECT_MODE_ENDLESS -> selectMode(GameMode.ENDLESS)
+            UiAction.SELECT_MODE_DAILY -> selectMode(GameMode.DAILY)
             UiAction.SELECT_MODE_HARDCORE -> selectMode(GameMode.HARDCORE)
             UiAction.SELECT_MODE_BOSS_RUSH -> selectMode(GameMode.BOSS_RUSH)
-            UiAction.SELECT_MODE_WINTER -> selectMode(GameMode.WINTER)
+            UiAction.TOGGLE_WINTER_THEME -> {
+                engine.winterTheme = !engine.winterTheme
+                engine.weatherStatusMsg = if (engine.winterTheme) "Winter Wonderland theme enabled!" else "Classic biomes restored."
+                persistSave()
+                vibrate(12, 60)
+            }
             UiAction.TOGGLE_PAUSE -> {
                 resetTouchPointers()
                 engine.togglePause()

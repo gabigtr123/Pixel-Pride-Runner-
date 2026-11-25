@@ -81,10 +81,11 @@ jobs:
               "### Downloads" \
               "- **Native Android 17 Signed APK (Alpha):** \`${APK}\` (Package ID: \`com.gabigtr123.pixelstride.nativealpha\` — installs side-by-side alongside v3.0.3 without overwriting your saves!)" \
               "" \
-              "### What's New in v4.0.0-beta.4 (Title Screen Shake & State Reset Fix)" \
-              "- **Fixed Stuck Screen Shake on Title Screen:** On a fatal hit (\`screenShake = 7f\`), returning to the Title screen no longer leaves the world behind the menu shaking violently forever. \`screenShake\` now decays cleanly during Game Over and resets to \`0f\` on \`returnToTitle()\` and \`startNewRun()\`." \
-              "- **Complete Run State Cleanup on Return to Title:** \`returnToTitle()\` now also clears leftover particles, floating texts, power-up/invulnerability timers, shield state, and resets level/biome to a clean Title preview." \
-              "- **Includes Full 1:1 v3.0.3 Graphics Parity (from beta.3):** Exact biome hex palettes, all 4 stepped pixel-art landscapes, 16px NES ground masonry + weather-reactive puddles/trickles, orbiting 4-star shield, and screen-edge borders." \
+              "### What's New in v4.0.0-beta.5 (Phase 1: Gameplay & Combat Parity)" \
+              "- **Floating Platforms (1:1 v3.0.3):** Spawning 16px NES masonry platforms with rows of 3–4 coins, one-way landing + Duck drop-through, animated dripping water on Rain/Storm, and hanging 8-bit icicles on Snow/Winter." \
+              "- **Hazard Telegraphs & Upside-Down KO Topple:** Swooper right-edge flashing \`!\` warning badge before entering, cycling Flame Brazier (\`idle -> rising embers telegraph -> 3-color flare\`), Hopper crouch telegraph, and upside-down KO topple for stomped enemies." \
+              "- **Combo Multiplier (\`x1..x8\`) & Retro Banners:** Shrinking combo timer HUD badge that boosts score on coin chains, stomps, and boss hits, plus retro banners for Level-Up, Biome transitions, Boss spawns, and Daily Seed." \
+              "- **Daily Seed Mode + Dedicated Winter Theme Toggle:** Restored deterministic \`DAILY SEED\` (\`YYYY-MM-DD\`) as the 4th game mode alongside \`ENDLESS\`, \`HARDCORE\`, and \`BOSS RUSH\`, and moved \`❄ WINTER\` to a persistent Theme toggle in the Weather & Theme panel." \
               > release-notes-alpha.md
             gh release create "$RELEASE_TAG" "$APK" \
               --title "Pixel Stride Native ${RELEASE_TAG} (Zero WebView Beta)" \

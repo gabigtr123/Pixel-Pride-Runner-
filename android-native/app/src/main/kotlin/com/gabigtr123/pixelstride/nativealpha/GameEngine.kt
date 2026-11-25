@@ -1,5 +1,6 @@
 package com.gabigtr123.pixelstride.nativealpha
 
+import java.time.LocalDate
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.max
@@ -97,10 +98,19 @@ class GameEngine(private val feedback: EngineFeedback) {
     var level: Int = 1
     var zoneIndex: Int = 0
     var screenShake: Float = 0f
+    var winterTheme: Boolean = false
+    var onPlatform: Boolean = false
+    var combo: Int = 1
+    var comboTimer: Float = 0f
+    var bannerText: String? = null
+    var bannerTimer: Float = 0f
+    var bannerColor: Int = 0xFFFFE05C.toInt()
     var lastRun: RunSnapshot? = null
     private var previousBestBeforeRun: Int = 0
+    private var runRng: Random = Random.Default
 
     // World entities
+    val platforms = mutableListOf<PlatformEntity>()
     val hazards = mutableListOf<HazardEntity>()
     val collectibles = mutableListOf<CollectibleEntity>()
     val particles = mutableListOf<Particle>()
@@ -109,6 +119,8 @@ class GameEngine(private val feedback: EngineFeedback) {
 
     private var hazardSpawnTimer: Float = 1.6f
     private var collectibleSpawnTimer: Float = 0.8f
+    private var platformSpawnTimer: Float = 3.6f
+    private var nextPlatformId: Int = 1
     private var nextBossTime: Float = 90f
 
     init {
@@ -134,6 +146,9 @@ class GameEngine(private val feedback: EngineFeedback) {
         if (playerY > groundY - currentPlayerHeight()) {
             playerY = groundY - currentPlayerHeight()
         }
+        for (plat in platforms) {
+            plat.y += delta
+        }
         activeBoss?.let {
             it.y = groundY - it.height
             it.anchorX = if (isPortrait) worldWidth - 78f else worldWidth - 110f
@@ -143,7 +158,7 @@ class GameEngine(private val feedback: EngineFeedback) {
     fun currentPlayerHeight(): Float = if (ducking && onGround) playerDuckHeight else playerStandHeight
 
     fun currentBiome(): BiomePalette {
-        if (mode == GameMode.WINTER) return WINTER_BIOME_PALETTE
+        if (winterTheme) return WINTER_BIOME_PALETTE
         return BIOMES[zoneIndex % BIOMES.size]
     }
 
@@ -151,7 +166,7 @@ class GameEngine(private val feedback: EngineFeedback) {
         return when (weatherSource) {
             WeatherSource.MANUAL -> manualWeather
             WeatherSource.LIVE -> liveWeather ?: WeatherCondition.CLEAR
-            WeatherSource.AUTO -> if (mode == GameMode.WINTER || zoneIndex % BIOMES.size == 4) WeatherCondition.SNOW else WeatherCondition.CLEAR
+            WeatherSource.AUTO -> if (winterTheme || zoneIndex % BIOMES.size == 4) WeatherCondition.SNOW else WeatherCondition.CLEAR
         }
     }
 
@@ -203,20 +218,37 @@ class GameEngine(private val feedback: EngineFeedback) {
         bossesDefeated = 0
         elapsed = 0f
         level = 1
-        zoneIndex = if (mode == GameMode.WINTER) 4 else 0
+        zoneIndex = if (winterTheme) 4 else 0
         currentSpeed = if (mode == GameMode.HARDCORE) 205f else 165f
         previousBestBeforeRun = bestScore
+        runRng = if (mode == GameMode.DAILY) {
+            val dateStr = LocalDate.now().toString()
+            var hash = 2166136261L
+            for (ch in dateStr) {
+                hash = (hash xor ch.code.toLong()) * 16777619L
+            }
+            Random(hash)
+        } else {
+            Random.Default
+        }
 
         playerVy = 0f
         ducking = false
         onGround = true
+        onPlatform = false
         jumpsRemaining = maxJumps
         coyoteTimer = 0f
         jumpBufferTimer = 0f
         invulnTimer = 0f
         screenShake = 0f
+        combo = 1
+        comboTimer = 0f
+        bannerText = if (mode == GameMode.DAILY) "DAILY SEED · ${LocalDate.now()}" else null
+        bannerTimer = if (mode == GameMode.DAILY) 2.2f else 0f
+        bannerColor = 0xFF78E8FF.toInt()
         playerY = groundY - playerStandHeight
 
+        platforms.clear()
         hazards.clear()
         collectibles.clear()
         particles.clear()
@@ -225,6 +257,7 @@ class GameEngine(private val feedback: EngineFeedback) {
 
         hazardSpawnTimer = 1.8f
         collectibleSpawnTimer = 0.7f
+        platformSpawnTimer = 3.4f
         nextBossTime = if (mode == GameMode.BOSS_RUSH) 5f else 90f
         dragonZapTimer = 12f
         dragonBeamTimer = 0f
@@ -249,7 +282,12 @@ class GameEngine(private val feedback: EngineFeedback) {
         if (phase != GamePhase.PLAYING) return
         val wasDuck = ducking
         ducking = active
-        if (active && !onGround && playerVy < 340f) {
+        if (active && onPlatform) {
+            onPlatform = false
+            onGround = false
+            playerY += 4f
+            playerVy = 260f
+        } else if (active && !onGround && playerVy < 340f) {
             playerVy = 390f
         } else if (onGround && active != wasDuck) {
             playerY = groundY - currentPlayerHeight()
@@ -266,6 +304,7 @@ class GameEngine(private val feedback: EngineFeedback) {
 
     fun returnToTitle() {
         phase = GamePhase.TITLE
+        platforms.clear()
         hazards.clear()
         collectibles.clear()
         particles.clear()
@@ -282,10 +321,15 @@ class GameEngine(private val feedback: EngineFeedback) {
         hasShield = false
         ducking = false
         onGround = true
+        onPlatform = false
+        combo = 1
+        comboTimer = 0f
+        bannerText = null
+        bannerTimer = 0f
         playerVy = 0f
         level = 1
         distance = 0f
-        zoneIndex = if (mode == GameMode.WINTER) 4 else 0
+        zoneIndex = if (winterTheme) 4 else 0
         playerY = groundY - playerStandHeight
     }
 
@@ -332,6 +376,14 @@ class GameEngine(private val feedback: EngineFeedback) {
         if (slowMoTimer > 0f) slowMoTimer = max(0f, slowMoTimer - dt)
         if (turboTimer > 0f) turboTimer = max(0f, turboTimer - dt)
         if (dragonBeamTimer > 0f) dragonBeamTimer = max(0f, dragonBeamTimer - dt)
+        if (bannerTimer > 0f) {
+            bannerTimer = max(0f, bannerTimer - dt)
+            if (bannerTimer <= 0f) bannerText = null
+        }
+        if (comboTimer > 0f) {
+            comboTimer = max(0f, comboTimer - dt)
+            if (comboTimer <= 0f) combo = 1
+        }
 
         // Speed ramp & modifiers
         val baseSpeed = (165f + elapsed * 2.2f).coerceAtMost(310f) *
@@ -347,22 +399,32 @@ class GameEngine(private val feedback: EngineFeedback) {
 
         val owlMult = if (pet == PetId.OWL) 1.10f else 1f
         val gadgetScoreMult = if (gadgetScoreBoostActive) 1.15f else 1f
+        val comboMult = 1f + (combo - 1) * 0.15f
         val scoreMult = (if (doubleScoreTimer > 0f) 2f else 1f) *
-            (if (mode == GameMode.HARDCORE) 2f else 1f) * owlMult * gadgetScoreMult
+            (if (mode == GameMode.HARDCORE) 2f else 1f) * owlMult * gadgetScoreMult * comboMult
         score += (currentSpeed * dt * 0.14f) * scoreMult
 
-        // Level & biome progression
+        // Level & biome progression + retro banners
         val newLevel = (elapsed / 90f).toInt() + 1
         if (newLevel > level) {
             level = newLevel
             score += 250f * owlMult
+            val lvlName = LEVEL_NAMES[(level - 1) % LEVEL_NAMES.size]
+            bannerText = "LEVEL $level · $lvlName"
+            bannerTimer = 2.6f
+            bannerColor = 0xFF78F0A8.toInt()
             floatingTexts.add(FloatingText(playerX + 20f, playerY - 18f, "LEVEL $level! +250", 0xFF78F0A8.toInt()))
         }
-        if (mode != GameMode.WINTER) {
+        if (!winterTheme) {
             val nextZone = (distance / 400f).toInt() % BIOMES.size
             if (nextZone != zoneIndex) {
                 zoneIndex = nextZone
                 feedback.onBiomeChanged(zoneIndex)
+                if (bannerTimer <= 0f) {
+                    bannerText = BIOMES[zoneIndex].name
+                    bannerTimer = 2.2f
+                    bannerColor = 0xFFFFE05C.toInt()
+                }
             }
         }
 
@@ -373,11 +435,13 @@ class GameEngine(private val feedback: EngineFeedback) {
                 val target = hazards.firstOrNull { !it.defeated && it.x > playerX + 24f && it.x < worldWidth - 10f }
                 if (target != null) {
                     target.defeated = true
+                    target.stomped = true
                     target.vy = -190f
                     dragonZapTimer = 20f
                     dragonBeamTimer = 0.28f
                     dragonBeamTargetX = target.x + target.width / 2f
                     dragonBeamTargetY = target.y + target.height / 2f
+                    bumpCombo()
                     val zapPts = (75f * scoreMult).toInt()
                     score += zapPts
                     spawnDust(dragonBeamTargetX, dragonBeamTargetY, 12, 0xFFFF9828.toInt())
@@ -387,30 +451,72 @@ class GameEngine(private val feedback: EngineFeedback) {
             }
         }
 
-        // Player vertical physics
+        // Floating platforms scroll & spawn
+        platformSpawnTimer -= dt
+        if (platformSpawnTimer <= 0f) {
+            spawnPlatform()
+            platformSpawnTimer = 4.2f + runRng.nextFloat() * 2.8f
+        }
+        val platIter = platforms.iterator()
+        while (platIter.hasNext()) {
+            val plat = platIter.next()
+            plat.x -= currentSpeed * dt
+            if (plat.x + plat.width < -24f) platIter.remove()
+        }
+
+        // Player vertical physics + one-way floating platform landing
         if (coyoteTimer > 0f) coyoteTimer = max(0f, coyoteTimer - dt)
         if (jumpBufferTimer > 0f) {
             jumpBufferTimer = max(0f, jumpBufferTimer - dt)
             tryConsumeJump()
         }
 
+        val prevBottom = playerY + currentPlayerHeight()
         val gravity = if (ducking && !onGround) 1650f else 1080f
         playerVy += gravity * dt
         playerY += playerVy * dt
+        val pH = currentPlayerHeight()
+        val newBottom = playerY + pH
 
-        val targetGroundTop = groundY - currentPlayerHeight()
-        if (playerY >= targetGroundTop) {
-            if (!onGround) {
-                spawnDust(playerX + 10f, groundY, 5, 0xFFD8E4F8.toInt())
+        var landedOnPlat = false
+        if (playerVy >= 0f && !ducking) {
+            val pLeft = playerX + 4f
+            val pRight = playerX + playerWidth - 4f
+            for (plat in platforms) {
+                val horizOverlap = pRight > plat.x + 2f && pLeft < plat.x + plat.width - 2f
+                if (horizOverlap && prevBottom <= plat.y + 6f && newBottom >= plat.y) {
+                    if (!onGround) {
+                        spawnDust(playerX + 10f, plat.y, 4, 0xFFD8E4F8.toInt())
+                    }
+                    playerY = plat.y - pH
+                    playerVy = 0f
+                    onGround = true
+                    onPlatform = true
+                    landedOnPlat = true
+                    jumpsRemaining = maxJumps
+                    coyoteTimer = 0.11f
+                    tryConsumeJump()
+                    break
+                }
             }
-            playerY = targetGroundTop
-            playerVy = 0f
-            onGround = true
-            jumpsRemaining = maxJumps
-            coyoteTimer = 0.11f
-            tryConsumeJump()
-        } else if (onGround) {
-            onGround = false
+        }
+
+        if (!landedOnPlat) {
+            onPlatform = false
+            val targetGroundTop = groundY - pH
+            if (playerY >= targetGroundTop) {
+                if (!onGround) {
+                    spawnDust(playerX + 10f, groundY, 5, 0xFFD8E4F8.toInt())
+                }
+                playerY = targetGroundTop
+                playerVy = 0f
+                onGround = true
+                jumpsRemaining = maxJumps
+                coyoteTimer = 0.11f
+                tryConsumeJump()
+            } else if (onGround) {
+                onGround = false
+            }
         }
 
         // Boss spawning & update
@@ -424,6 +530,9 @@ class GameEngine(private val feedback: EngineFeedback) {
                 anchorX = anchor,
             )
             feedback.onBossActiveChanged(true)
+            bannerText = "BOSS · ${kind.displayName}"
+            bannerTimer = 2.0f
+            bannerColor = 0xFFFF6880.toInt()
             floatingTexts.add(FloatingText(worldWidth * 0.35f, 110f, "BOSS: ${kind.displayName}!", 0xFFFF6880.toInt(), 1.5f))
         }
         updateBoss(dt, scoreMult)
@@ -434,7 +543,7 @@ class GameEngine(private val feedback: EngineFeedback) {
             if (activeBoss == null) {
                 spawnHazard()
                 val minGap = (1.15f - elapsed * 0.004f).coerceAtLeast(0.62f)
-                hazardSpawnTimer = minGap + Random.nextFloat() * 0.65f
+                hazardSpawnTimer = minGap + runRng.nextFloat() * 0.65f
             } else {
                 hazardSpawnTimer = 1.6f
             }
@@ -444,7 +553,7 @@ class GameEngine(private val feedback: EngineFeedback) {
         collectibleSpawnTimer -= dt
         if (collectibleSpawnTimer <= 0f) {
             spawnCollectible()
-            collectibleSpawnTimer = 0.75f + Random.nextFloat() * 0.7f
+            collectibleSpawnTimer = 0.75f + runRng.nextFloat() * 0.7f
         }
 
         updateHazards(dt, scoreMult)
@@ -452,13 +561,38 @@ class GameEngine(private val feedback: EngineFeedback) {
         updateParticles(dt)
     }
 
+    private fun bumpCombo() {
+        combo = (combo + 1).coerceAtMost(8)
+        comboTimer = 3.2f
+    }
+
+    private fun spawnPlatform() {
+        val platW = (48 + runRng.nextInt(3) * 12).toFloat()
+        val platY = groundY - (48f + runRng.nextFloat() * 24f)
+        val spawnX = worldWidth + 24f
+        platforms.add(PlatformEntity(nextPlatformId++, spawnX, platY, platW, 10f))
+        // Place a neat row of 3-4 coins atop the platform
+        val coinCount = if (platW >= 68f) 4 else 3
+        val spacing = (platW - 16f) / (coinCount - 1).coerceAtLeast(1)
+        for (i in 0 until coinCount) {
+            collectibles.add(
+                CollectibleEntity(
+                    x = spawnX + 8f + i * spacing,
+                    y = platY - 12f,
+                    type = CollectibleType.COIN,
+                    bobPhase = i * 0.55f,
+                ),
+            )
+        }
+    }
+
     private fun spawnHazard() {
-        val roll = Random.nextFloat()
+        val roll = runRng.nextFloat()
         val type = when {
             elapsed < 8f -> if (roll < 0.55f) HazardType.HOPPER else HazardType.SPIKE
-            roll < 0.32f -> HazardType.SPIKE
-            roll < 0.62f -> HazardType.HOPPER
-            roll < 0.84f -> HazardType.SWOOPER
+            roll < 0.30f -> HazardType.SPIKE
+            roll < 0.60f -> HazardType.HOPPER
+            roll < 0.82f -> HazardType.SWOOPER
             else -> HazardType.FLAME
         }
         val spawnX = worldWidth + 24f
@@ -466,20 +600,37 @@ class GameEngine(private val feedback: EngineFeedback) {
             HazardType.SPIKE -> HazardEntity(spawnX, groundY - 16f, 18f, 16f, HazardType.SPIKE)
             HazardType.HOPPER -> HazardEntity(spawnX, groundY - 18f, 20f, 18f, HazardType.HOPPER)
             HazardType.SWOOPER -> {
-                val flyY = groundY - 30f - Random.nextFloat() * 26f
-                HazardEntity(spawnX, flyY, 20f, 14f, HazardType.SWOOPER, baseY = flyY)
+                val flyY = groundY - 30f - runRng.nextFloat() * 26f
+                HazardEntity(
+                    x = worldWidth + 46f,
+                    y = flyY,
+                    width = 20f,
+                    height = 14f,
+                    type = HazardType.SWOOPER,
+                    baseY = flyY,
+                    telegraphTimer = 0.48f,
+                )
             }
-            HazardType.FLAME -> HazardEntity(spawnX, groundY - 18f, 16f, 18f, HazardType.FLAME)
+            HazardType.FLAME -> HazardEntity(
+                x = spawnX,
+                y = groundY - 36f,
+                width = 16f,
+                height = 36f,
+                type = HazardType.FLAME,
+                isActive = false,
+                telegraphTimer = 0.55f,
+                cycleTimer = 0f,
+            )
         }
         hazards.add(entity)
     }
 
     private fun spawnCollectible() {
         val spawnX = worldWidth + 20f
-        val roll = Random.nextFloat()
+        val roll = runRng.nextFloat()
         if (roll < 0.82f) {
             // Line or arc of 3 coins
-            val baseY = groundY - (if (Random.nextBoolean()) 22f else 54f)
+            val baseY = groundY - (if (runRng.nextBoolean()) 22f else 54f)
             for (i in 0 until 3) {
                 val arc = if (i == 1) -8f else 0f
                 collectibles.add(
@@ -492,7 +643,7 @@ class GameEngine(private val feedback: EngineFeedback) {
                 )
             }
         } else {
-            val type = when (Random.nextInt(6)) {
+            val type = when (runRng.nextInt(6)) {
                 0 -> CollectibleType.SHIELD
                 1 -> if (hp < maxHp) CollectibleType.HEART else CollectibleType.SHIELD
                 2 -> CollectibleType.MAGNET
@@ -505,7 +656,7 @@ class GameEngine(private val feedback: EngineFeedback) {
                     x = spawnX,
                     y = groundY - 46f,
                     type = type,
-                    bobPhase = Random.nextFloat() * 3f,
+                    bobPhase = runRng.nextFloat() * 3f,
                 ),
             )
         }
@@ -530,12 +681,42 @@ class GameEngine(private val feedback: EngineFeedback) {
                 continue
             }
 
+            if (h.type == HazardType.SWOOPER && h.telegraphTimer > 0f) {
+                h.telegraphTimer = max(0f, h.telegraphTimer - dt)
+                continue
+            }
+
             h.x -= currentSpeed * dt
-            if (h.type == HazardType.SWOOPER) {
-                h.y = h.baseY + sin(h.animPhase) * 10f
-            } else if (h.type == HazardType.HOPPER) {
-                val hop = abs(sin(h.animPhase * 0.8f))
-                h.y = groundY - h.height - hop * 18f
+            when (h.type) {
+                HazardType.SWOOPER -> {
+                    h.y = h.baseY + sin(h.animPhase) * 10f
+                }
+                HazardType.HOPPER -> {
+                    // Periodic crouch telegraph before each jump cycle
+                    val phaseMod = (h.animPhase * 0.8f) % Math.PI.toFloat()
+                    h.telegraphTimer = if (phaseMod < 0.45f) 0.2f else 0f
+                    val hop = if (phaseMod < 0.45f) 0f else sin((phaseMod - 0.45f) / (Math.PI.toFloat() - 0.45f) * Math.PI.toFloat())
+                    h.y = groundY - h.height - hop * 20f
+                }
+                HazardType.FLAME -> {
+                    // Cycle: 0..0.9s idle -> 0.9..1.45s telegraph embers -> 1.45..2.5s active flare
+                    h.cycleTimer = (h.cycleTimer + dt) % 2.5f
+                    when {
+                        h.cycleTimer < 0.9f -> {
+                            h.telegraphTimer = 0f
+                            h.isActive = false
+                        }
+                        h.cycleTimer < 1.45f -> {
+                            h.telegraphTimer = 1.45f - h.cycleTimer
+                            h.isActive = false
+                        }
+                        else -> {
+                            h.telegraphTimer = 0f
+                            h.isActive = true
+                        }
+                    }
+                }
+                HazardType.SPIKE -> Unit
             }
 
             if (h.x + h.width < -30f) {
@@ -543,24 +724,30 @@ class GameEngine(private val feedback: EngineFeedback) {
                 continue
             }
 
+            // Flame only hurts when flaring (or player hits the brazier base)
+            val hzTop = if (h.type == HazardType.FLAME && !h.isActive) groundY - 12f else h.y + 2f
             val overlap = pRight > h.x + 2f && pLeft < h.x + h.width - 2f &&
-                pBottom > h.y + 2f && pTop < h.y + h.height - 2f
+                pBottom > hzTop && pTop < h.y + h.height - 2f
             if (overlap) {
                 if (turboTimer > 0f) {
                     h.defeated = true
+                    h.stomped = true
                     h.vy = -180f
+                    bumpCombo()
                     score += 60f * scoreMult
                     screenShake = 4f
                     spawnDust(h.x + h.width / 2f, h.y + h.height / 2f, 10, 0xFFFFE05C.toInt())
                     floatingTexts.add(FloatingText(h.x, h.y - 8f, "SMASH!", 0xFFFFE05C.toInt()))
                     feedback.onStomp()
-                } else if (h.type == HazardType.HOPPER && playerVy > 0f && pBottom - playerVy * dt <= h.y + h.height * 0.6f) {
-                    // Stomp KO! (Stride gets +25% stomp bonus)
+                } else if ((h.type == HazardType.HOPPER || h.type == HazardType.SWOOPER) && playerVy > 0f && pBottom - playerVy * dt <= h.y + h.height * 0.65f) {
+                    // Stomp KO with upside-down topple! (Stride gets +25% stomp bonus)
                     h.defeated = true
+                    h.stomped = true
                     h.vy = -140f
                     playerVy = -290f
                     jumpsRemaining = 1
                     stomps++
+                    bumpCombo()
                     val stompPts = (if (hero == HeroId.STRIDE) 62.5f else 50f) * scoreMult
                     score += stompPts
                     screenShake = 3.5f
@@ -618,6 +805,7 @@ class GameEngine(private val feedback: EngineFeedback) {
                 playerVy = -310f
                 jumpsRemaining = 1
                 screenShake = 6f
+                bumpCombo()
                 spawnDust(boss.x + boss.width / 2f, boss.y, 12, 0xFFFFE05C.toInt())
                 if (boss.hp <= 0) {
                     bossesDefeated++
@@ -682,6 +870,7 @@ class GameEngine(private val feedback: EngineFeedback) {
                         val gain = (if (mode == GameMode.HARDCORE) 2 else 1) * (if (doubleCoinsRunActive) 2 else 1)
                         runCoins += gain
                         totalCoins += gain
+                        bumpCombo()
                         score += 15f * scoreMult
                         spawnDust(c.x, c.y, 5, 0xFFFFD838.toInt())
                         feedback.onCoin()
@@ -724,6 +913,8 @@ class GameEngine(private val feedback: EngineFeedback) {
 
     private fun damagePlayer() {
         if (invulnTimer > 0f || turboTimer > 0f) return
+        combo = 1
+        comboTimer = 0f
         if (hasShield) {
             hasShield = false
             invulnTimer = 1.2f
