@@ -39,6 +39,19 @@ enum class BoosterId(val label: String, val desc: String, val price: Int) {
     DOUBLE_COINS("2X COINS", "2X COIN RUN", 75),
 }
 
+enum class TrailId(val label: String, val price: Int, val colors: IntArray) {
+    CLASSIC("CLASSIC", 0, intArrayOf(0xFFE8EEF8.toInt(), 0xFFB8C8E0.toInt())),
+    RAINBOW("RAINBOW", 140, intArrayOf(0xFFFF4868.toInt(), 0xFFFFB838.toInt(), 0xFF78F0A8.toInt(), 0xFF58D8FF.toInt(), 0xFFC878FF.toInt())),
+    BLOSSOM("BLOSSOM", 120, intArrayOf(0xFFFFB8D8.toInt(), 0xFFFF78B4.toInt(), 0xFFFFFFFF.toInt())),
+    EMBER("EMBER", 160, intArrayOf(0xFFFFE05C.toInt(), 0xFFFF8828.toInt(), 0xFFE83828.toInt())),
+}
+
+enum class UpgradeId(val label: String, val desc: String, val basePrice: Int, val maxLevel: Int = 3) {
+    MAGNET_DURATION("MAGNET+", "+3S MAGNET / LV", 100, 3),
+    COIN_VALUE("GOLD LUCK", "+20% COIN PTS / LV", 120, 3),
+    SHIELD_INVULN("AEGIS+", "+0.4S INVULN / LV", 140, 3),
+}
+
 enum class ShopTab(val label: String) {
     WARDROBE("WARDROBE"),
     GADGETS("GADGETS"),
@@ -154,12 +167,19 @@ class MetaProgressionManager(private val prefs: SharedPreferences) {
     val ownedHats = mutableSetOf(HatId.NONE)
     val ownedCapes = mutableSetOf(CapeId.NONE)
     val ownedPets = mutableSetOf(PetId.NONE, PetId.FOX) // Fox starter-friendly or unlockable; Owl/Dragon buyable!
+    val ownedTrails = mutableSetOf(TrailId.CLASSIC)
     val ownedGadgets = mutableSetOf<GadgetId>()
     val equippedGadgets = mutableListOf<GadgetId>()
     var thirdSlotUnlocked: Boolean = false
 
     var equippedHat: HatId = HatId.NONE
     var equippedCape: CapeId = CapeId.NONE
+    var equippedTrail: TrailId = TrailId.CLASSIC
+    val upgradeLevels = mutableMapOf(
+        UpgradeId.MAGNET_DURATION to 0,
+        UpgradeId.COIN_VALUE to 0,
+        UpgradeId.SHIELD_INVULN to 0,
+    )
     val boosters = mutableMapOf(
         BoosterId.HEAD_START to 0,
         BoosterId.EXTRA_HEART to 0,
@@ -167,6 +187,38 @@ class MetaProgressionManager(private val prefs: SharedPreferences) {
     )
     var customHero = CustomHeroConfig()
     val topScores = mutableListOf<LeaderboardEntry>()
+
+    fun upgradeLevel(id: UpgradeId): Int = upgradeLevels[id] ?: 0
+
+    fun upgradePrice(id: UpgradeId): Int = id.basePrice * (upgradeLevel(id) + 1)
+
+    fun buyOrEquipTrail(trail: TrailId, engine: GameEngine): String {
+        if (ownedTrails.contains(trail)) {
+            equippedTrail = trail
+            engine.trailId = trail
+            save()
+            return "EQUIPPED ${trail.label} TRAIL!"
+        }
+        if (engine.totalCoins < trail.price) return "NEED ${trail.price} COINS!"
+        engine.totalCoins -= trail.price
+        ownedTrails.add(trail)
+        equippedTrail = trail
+        engine.trailId = trail
+        evaluateTrophies()
+        save()
+        return "UNLOCKED ${trail.label} TRAIL!"
+    }
+
+    fun buyUpgrade(id: UpgradeId, engine: GameEngine): String {
+        val cur = upgradeLevel(id)
+        if (cur >= id.maxLevel) return "${id.label} MAXED!"
+        val price = upgradePrice(id)
+        if (engine.totalCoins < price) return "NEED $price COINS!"
+        engine.totalCoins -= price
+        upgradeLevels[id] = cur + 1
+        save()
+        return "${id.label} LV ${cur + 1}!"
+    }
 
     // Daily Missions + 7-Day Streak
     var streakDays: Int = 1
@@ -419,11 +471,16 @@ class MetaProgressionManager(private val prefs: SharedPreferences) {
             put("ownedHats", JSONArray(ownedHats.map { it.name }))
             put("ownedCapes", JSONArray(ownedCapes.map { it.name }))
             put("ownedPets", JSONArray(ownedPets.map { it.name }))
+            put("ownedTrails", JSONArray(ownedTrails.map { it.name }))
             put("ownedGadgets", JSONArray(ownedGadgets.map { it.name }))
             put("equippedGadgets", JSONArray(equippedGadgets.map { it.name }))
             put("thirdSlotUnlocked", thirdSlotUnlocked)
             put("equippedHat", equippedHat.name)
             put("equippedCape", equippedCape.name)
+            put("equippedTrail", equippedTrail.name)
+            put("uMag", upgradeLevel(UpgradeId.MAGNET_DURATION))
+            put("uCoin", upgradeLevel(UpgradeId.COIN_VALUE))
+            put("uInvuln", upgradeLevel(UpgradeId.SHIELD_INVULN))
             put("bHead", boosters[BoosterId.HEAD_START] ?: 0)
             put("bHeart", boosters[BoosterId.EXTRA_HEART] ?: 0)
             put("bCoins", boosters[BoosterId.DOUBLE_COINS] ?: 0)
@@ -490,6 +547,9 @@ class MetaProgressionManager(private val prefs: SharedPreferences) {
             j.optJSONArray("ownedPets")?.let { arr ->
                 for (i in 0 until arr.length()) runCatching { ownedPets.add(PetId.valueOf(arr.getString(i))) }
             }
+            j.optJSONArray("ownedTrails")?.let { arr ->
+                for (i in 0 until arr.length()) runCatching { ownedTrails.add(TrailId.valueOf(arr.getString(i))) }
+            }
             j.optJSONArray("ownedGadgets")?.let { arr ->
                 for (i in 0 until arr.length()) runCatching { ownedGadgets.add(GadgetId.valueOf(arr.getString(i))) }
             }
@@ -500,6 +560,10 @@ class MetaProgressionManager(private val prefs: SharedPreferences) {
             thirdSlotUnlocked = j.optBoolean("thirdSlotUnlocked", false)
             runCatching { equippedHat = HatId.valueOf(j.optString("equippedHat", "NONE")) }
             runCatching { equippedCape = CapeId.valueOf(j.optString("equippedCape", "NONE")) }
+            runCatching { equippedTrail = TrailId.valueOf(j.optString("equippedTrail", "CLASSIC")) }
+            upgradeLevels[UpgradeId.MAGNET_DURATION] = j.optInt("uMag", 0).coerceIn(0, UpgradeId.MAGNET_DURATION.maxLevel)
+            upgradeLevels[UpgradeId.COIN_VALUE] = j.optInt("uCoin", 0).coerceIn(0, UpgradeId.COIN_VALUE.maxLevel)
+            upgradeLevels[UpgradeId.SHIELD_INVULN] = j.optInt("uInvuln", 0).coerceIn(0, UpgradeId.SHIELD_INVULN.maxLevel)
             boosters[BoosterId.HEAD_START] = j.optInt("bHead", 0)
             boosters[BoosterId.EXTRA_HEART] = j.optInt("bHeart", 0)
             boosters[BoosterId.DOUBLE_COINS] = j.optInt("bCoins", 0)

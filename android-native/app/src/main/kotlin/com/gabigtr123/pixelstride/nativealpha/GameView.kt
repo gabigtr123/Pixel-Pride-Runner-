@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
@@ -40,6 +41,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     init {
         holder.addCallback(this)
         isFocusable = true
+        isFocusableInTouchMode = true
         loadSave()
     }
 
@@ -54,6 +56,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         engine.manualWeather = WeatherCondition.entries.getOrElse(prefs.getInt("wx_man_ordinal", 1)) { WeatherCondition.RAIN }
         engine.hat = meta.equippedHat
         engine.cape = meta.equippedCape
+        engine.trailId = meta.equippedTrail
         engine.customHero = meta.customHero
         engine.winterTheme = prefs.getBoolean("winter_theme", false)
         synth.muted = prefs.getBoolean("muted", false)
@@ -390,6 +393,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                     vibrate(12, 60)
                 }
             }
+            UiAction.SHOP_TRAIL -> {
+                runCatching {
+                    val t = TrailId.valueOf(hit.payload)
+                    val msg = meta.buyOrEquipTrail(t, engine)
+                    persistSave()
+                    showToast(msg)
+                    vibrate(12, 60)
+                }
+            }
             UiAction.SHOP_GADGET -> {
                 runCatching {
                     val g = GadgetId.valueOf(hit.payload)
@@ -415,6 +427,15 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                     persistSave()
                     showToast(msg)
                     vibrate(12, 60)
+                }
+            }
+            UiAction.SHOP_UPGRADE -> {
+                runCatching {
+                    val u = UpgradeId.valueOf(hit.payload)
+                    val msg = meta.buyUpgrade(u, engine)
+                    persistSave()
+                    showToast(msg)
+                    vibrate(14, 70)
                 }
             }
             UiAction.CREATOR_CYCLE -> {
@@ -633,5 +654,69 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         vibrate(80, 200)
         meta.recordRunCompleted(snapshot)
         persistSave()
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (event.repeatCount > 0) return true
+        return when (keyCode) {
+            KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_W, KeyEvent.KEYCODE_BUTTON_A -> {
+                synchronized(engine) {
+                    when (engine.phase) {
+                        GamePhase.PLAYING -> engine.pressJump()
+                        GamePhase.TITLE, GamePhase.GAME_OVER -> {
+                            runCardPreview?.recycle()
+                            runCardPreview = null
+                            engine.startNewRun(meta)
+                            persistSave()
+                            synth.setBiome(engine.zoneIndex)
+                            synth.setBossMode(false)
+                            synth.startMusic()
+                        }
+                        GamePhase.PAUSED -> {
+                            engine.phase = GamePhase.PLAYING
+                            synth.startMusic()
+                        }
+                        else -> Unit
+                    }
+                }
+                true
+            }
+            KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_S, KeyEvent.KEYCODE_BUTTON_B -> {
+                synchronized(engine) {
+                    if (engine.phase == GamePhase.PLAYING) engine.setDuck(true)
+                }
+                true
+            }
+            KeyEvent.KEYCODE_P, KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_ESCAPE -> {
+                handleBackPress()
+            }
+            KeyEvent.KEYCODE_M -> {
+                synchronized(engine) {
+                    synth.muted = !synth.muted
+                    if (!synth.muted && engine.phase == GamePhase.PLAYING) synth.startMusic()
+                    persistSave()
+                }
+                true
+            }
+            else -> super.onKeyDown(keyCode, event)
+        }
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        return when (keyCode) {
+            KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_W, KeyEvent.KEYCODE_BUTTON_A -> {
+                synchronized(engine) {
+                    if (engine.phase == GamePhase.PLAYING) engine.releaseJump()
+                }
+                true
+            }
+            KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_S, KeyEvent.KEYCODE_BUTTON_B -> {
+                synchronized(engine) {
+                    engine.setDuck(false)
+                }
+                true
+            }
+            else -> super.onKeyUp(keyCode, event)
+        }
     }
 }

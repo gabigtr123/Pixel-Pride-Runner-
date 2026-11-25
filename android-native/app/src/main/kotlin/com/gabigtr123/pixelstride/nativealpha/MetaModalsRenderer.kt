@@ -80,16 +80,16 @@ class MetaModalsRenderer(
         var y = startY
         // Hats
         displayPaint.textAlign = Paint.Align.LEFT
-        displayPaint.textSize = 8f * dp
+        displayPaint.textSize = 7.5f * dp
         displayPaint.color = 0xFF78E8FF.toInt()
         c.drawText("HATS (TAP TO BUY / EQUIP)", leftX, y, displayPaint)
-        y += 8f * dp
+        y += 6f * dp
         val colW = (innerW - 10f * dp) / 3f
         for (i in HatId.entries.indices) {
             val hat = HatId.entries[i]
             val col = i % 3
             val row = i / 3
-            val r = RectF(leftX + col * (colW + 5f * dp), y + row * 34f * dp, leftX + col * (colW + 5f * dp) + colW, y + row * 34f * dp + 29f * dp)
+            val r = RectF(leftX + col * (colW + 5f * dp), y + row * 28f * dp, leftX + col * (colW + 5f * dp) + colW, y + row * 28f * dp + 24f * dp)
             val owned = meta.ownedHats.contains(hat)
             val eq = meta.equippedHat == hat
             val label = if (eq) "✓${hat.label}" else if (owned) hat.label else "${hat.label} ${hat.price}C"
@@ -98,16 +98,16 @@ class MetaModalsRenderer(
         }
 
         // Capes / Back gear
-        y += 84f * dp
+        y += 66f * dp
         displayPaint.color = 0xFF78E8FF.toInt()
         c.drawText("CAPES & WINGS", leftX, y, displayPaint)
-        y += 8f * dp
+        y += 6f * dp
         val capeW = (innerW - 6f * dp) / 2f
         for (i in CapeId.entries.indices) {
             val cape = CapeId.entries[i]
             val col = i % 2
             val row = i / 2
-            val r = RectF(leftX + col * (capeW + 6f * dp), y + row * 34f * dp, leftX + col * (capeW + 6f * dp) + capeW, y + row * 34f * dp + 29f * dp)
+            val r = RectF(leftX + col * (capeW + 6f * dp), y + row * 28f * dp, leftX + col * (capeW + 6f * dp) + capeW, y + row * 28f * dp + 24f * dp)
             val owned = meta.ownedCapes.contains(cape)
             val eq = meta.equippedCape == cape
             val label = if (eq) "✓ ${cape.label}" else if (owned) cape.label else "${cape.label} ${cape.price}C"
@@ -116,21 +116,38 @@ class MetaModalsRenderer(
         }
 
         // Pet Companions
-        y += 84f * dp
+        y += 66f * dp
         displayPaint.color = 0xFF78E8FF.toInt()
         c.drawText("PET COMPANIONS", leftX, y, displayPaint)
-        y += 8f * dp
+        y += 6f * dp
         for (i in PetId.entries.indices) {
             val pet = PetId.entries[i]
             val col = i % 2
             val row = i / 2
-            val r = RectF(leftX + col * (capeW + 6f * dp), y + row * 36f * dp, leftX + col * (capeW + 6f * dp) + capeW, y + row * 36f * dp + 31f * dp)
+            val r = RectF(leftX + col * (capeW + 6f * dp), y + row * 28f * dp, leftX + col * (capeW + 6f * dp) + capeW, y + row * 28f * dp + 24f * dp)
             val owned = meta.ownedPets.contains(pet)
             val eq = engine.pet == pet
             val price = meta.petPrice(pet)
             val label = if (eq) "✓ ${pet.displayName}" else if (owned) pet.displayName else "${pet.displayName} ${price}C"
             drawModePill(c, r, label, eq, dp)
             buttons.add(HitButton(UiAction.SHOP_PET, r, pet.name))
+        }
+
+        // Runner Trails (2x2 grid)
+        y += 66f * dp
+        displayPaint.color = 0xFFFFE05C.toInt()
+        c.drawText("RUNNER TRAILS", leftX, y, displayPaint)
+        y += 6f * dp
+        for (i in TrailId.entries.indices) {
+            val trail = TrailId.entries[i]
+            val col = i % 2
+            val row = i / 2
+            val r = RectF(leftX + col * (capeW + 6f * dp), y + row * 28f * dp, leftX + col * (capeW + 6f * dp) + capeW, y + row * 28f * dp + 24f * dp)
+            val owned = meta.ownedTrails.contains(trail)
+            val eq = meta.equippedTrail == trail
+            val label = if (eq) "✓ ${trail.label}" else if (owned) trail.label else "${trail.label} ${trail.price}C"
+            drawModePill(c, r, label, eq, dp)
+            buttons.add(HitButton(UiAction.SHOP_TRAIL, r, trail.name))
         }
     }
 
@@ -195,15 +212,15 @@ class MetaModalsRenderer(
         meta: MetaProgressionManager,
     ) {
         var y = startY
-        uiPaint.textAlign = Paint.Align.LEFT
-        uiPaint.textSize = 9.5f * dp
-        uiPaint.color = 0xFFB8C4E4.toInt()
-        c.drawText("AUTO-USED ON NEXT RUN START", leftX, y, uiPaint)
-        y += 14f * dp
+        displayPaint.textAlign = Paint.Align.LEFT
+        displayPaint.textSize = 7.5f * dp
+        displayPaint.color = 0xFF78E8FF.toInt()
+        c.drawText("RUN BOOSTERS (AUTO-USED ON START)", leftX, y, displayPaint)
+        y += 8f * dp
 
         for (b in BoosterId.entries) {
             val count = meta.boosters[b] ?: 0
-            val rowRect = RectF(leftX, y, leftX + innerW, y + 60f * dp)
+            val rowRect = RectF(leftX, y, leftX + innerW, y + 42f * dp)
             paint.color = 0xFF12162D.toInt()
             c.drawRect(rowRect, paint)
             strokePaint.color = if (count > 0) 0xFF78F0A8.toInt() else 0xFF3A467A.toInt()
@@ -211,18 +228,56 @@ class MetaModalsRenderer(
             c.drawRect(rowRect, strokePaint)
 
             displayPaint.textAlign = Paint.Align.LEFT
-            displayPaint.textSize = 9.5f * dp
+            displayPaint.textSize = 8.5f * dp
             displayPaint.color = 0xFFFFF4A8.toInt()
-            c.drawText("${b.label} (x$count)", rowRect.left + 10f * dp, rowRect.top + 24f * dp, displayPaint)
+            c.drawText("${b.label} (x$count)", rowRect.left + 8f * dp, rowRect.top + 17f * dp, displayPaint)
             uiPaint.textAlign = Paint.Align.LEFT
-            uiPaint.textSize = 9.5f * dp
+            uiPaint.textSize = 8.5f * dp
             uiPaint.color = 0xFF98ACDC.toInt()
-            c.drawText(b.desc, rowRect.left + 10f * dp, rowRect.top + 44f * dp, uiPaint)
+            c.drawText(b.desc, rowRect.left + 8f * dp, rowRect.top + 33f * dp, uiPaint)
 
-            val btnRect = RectF(rowRect.right - 92f * dp, rowRect.top + 12f * dp, rowRect.right - 10f * dp, rowRect.bottom - 12f * dp)
-            drawPrimaryBtn(c, btnRect, "BUY ${b.price}C", 8.5f * dp, dp)
+            val btnRect = RectF(rowRect.right - 84f * dp, rowRect.top + 7f * dp, rowRect.right - 8f * dp, rowRect.bottom - 7f * dp)
+            drawPrimaryBtn(c, btnRect, "BUY ${b.price}C", 7.8f * dp, dp)
             buttons.add(HitButton(UiAction.SHOP_BOOSTER, btnRect, b.name))
-            y += 70f * dp
+            y += 47f * dp
+        }
+
+        // Permanent Upgrades (3 levels each)
+        y += 8f * dp
+        displayPaint.textAlign = Paint.Align.LEFT
+        displayPaint.textSize = 7.5f * dp
+        displayPaint.color = 0xFFFFE05C.toInt()
+        c.drawText("PERMANENT UPGRADES (LV 0–3)", leftX, y, displayPaint)
+        y += 8f * dp
+
+        for (u in UpgradeId.entries) {
+            val lv = meta.upgradeLevel(u)
+            val maxed = lv >= u.maxLevel
+            val price = meta.upgradePrice(u)
+            val rowRect = RectF(leftX, y, leftX + innerW, y + 42f * dp)
+            paint.color = if (maxed) 0xFF1A2A34.toInt() else 0xFF12162D.toInt()
+            c.drawRect(rowRect, paint)
+            strokePaint.color = if (maxed) 0xFF78F0A8.toInt() else 0xFF3A467A.toInt()
+            strokePaint.strokeWidth = 2f * dp
+            c.drawRect(rowRect, strokePaint)
+
+            displayPaint.textAlign = Paint.Align.LEFT
+            displayPaint.textSize = 8.5f * dp
+            displayPaint.color = if (maxed) 0xFF78F0A8.toInt() else 0xFFFFF4A8.toInt()
+            c.drawText("${u.label} LV $lv/${u.maxLevel}", rowRect.left + 8f * dp, rowRect.top + 17f * dp, displayPaint)
+            uiPaint.textAlign = Paint.Align.LEFT
+            uiPaint.textSize = 8.5f * dp
+            uiPaint.color = 0xFF98ACDC.toInt()
+            c.drawText(u.desc, rowRect.left + 8f * dp, rowRect.top + 33f * dp, uiPaint)
+
+            val btnRect = RectF(rowRect.right - 84f * dp, rowRect.top + 7f * dp, rowRect.right - 8f * dp, rowRect.bottom - 7f * dp)
+            if (maxed) {
+                drawModePill(c, btnRect, "MAXED", true, dp)
+            } else {
+                drawPrimaryBtn(c, btnRect, "${price}C", 8f * dp, dp)
+                buttons.add(HitButton(UiAction.SHOP_UPGRADE, btnRect, u.name))
+            }
+            y += 47f * dp
         }
     }
 

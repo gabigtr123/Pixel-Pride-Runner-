@@ -5,6 +5,7 @@ on:
     tags:
       - "v*-alpha*"
       - "v*-beta*"
+      - "v*-rc*"
   workflow_dispatch:
     inputs:
       tag:
@@ -81,14 +82,13 @@ jobs:
               "### Downloads" \
               "- **Native Android 17 Signed APK (Alpha):** \`${APK}\` (Package ID: \`com.gabigtr123.pixelstride.nativealpha\` — installs side-by-side alongside v3.0.3 without overwriting your saves!)" \
               "" \
-              "### What's New in v4.0.0-beta.5 (Phase 1: Gameplay & Combat Parity)" \
-              "- **Floating Platforms (1:1 v3.0.3):** Spawning 16px NES masonry platforms with rows of 3–4 coins, one-way landing + Duck drop-through, animated dripping water on Rain/Storm, and hanging 8-bit icicles on Snow/Winter." \
-              "- **Hazard Telegraphs & Upside-Down KO Topple:** Swooper right-edge flashing \`!\` warning badge before entering, cycling Flame Brazier (\`idle -> rising embers telegraph -> 3-color flare\`), Hopper crouch telegraph, and upside-down KO topple for stomped enemies." \
-              "- **Combo Multiplier (\`x1..x8\`) & Retro Banners:** Shrinking combo timer HUD badge that boosts score on coin chains, stomps, and boss hits, plus retro banners for Level-Up, Biome transitions, Boss spawns, and Daily Seed." \
-              "- **Daily Seed Mode + Dedicated Winter Theme Toggle:** Restored deterministic \`DAILY SEED\` (\`YYYY-MM-DD\`) as the 4th game mode alongside \`ENDLESS\`, \`HARDCORE\`, and \`BOSS RUSH\`, and moved \`❄ WINTER\` to a persistent Theme toggle in the Weather & Theme panel." \
+              "### What's New in v4.0.0-rc.1 (Phase 2: Runner Trails, Permanent Upgrades & Gamepad Support)" \
+              "- **Runner Trails in Pixel Shop 2.0:** Buy and equip \`CLASSIC\`, \`RAINBOW\`, \`BLOSSOM\`, and \`EMBER\` trails from the Wardrobe tab, emitting crisp 8-bit trail particles behind the runner (plus golden Turbo Dash sparks)." \
+              "- **Permanent Upgrades (LV 0–3):** Added \`MAGNET+\` (+3s magnet duration/lv), \`GOLD LUCK\` (+20% coin score/lv), and \`AEGIS+\` (+0.4s invulnerability/lv) inside the Shop Boosts tab, persisted across restarts." \
+              "- **Hardware Keyboard & Bluetooth Gamepad Controls:** Full \`onKeyDown\` / \`onKeyUp\` support — \`Space\` / \`Up\` / \`W\` / \`Button A\` to Jump (or Start/Retry/Resume), \`Down\` / \`S\` / \`Button B\` to Duck, \`P\` / \`Start\` / \`Esc\` to Pause/Back, and \`M\` to Mute." \
               > release-notes-alpha.md
             gh release create "$RELEASE_TAG" "$APK" \
-              --title "Pixel Stride Native ${RELEASE_TAG} (Zero WebView Beta)" \
+              --title "Pixel Stride Native ${RELEASE_TAG} (Zero WebView RC)" \
               --notes-file release-notes-alpha.md \
               --prerelease
           fi
