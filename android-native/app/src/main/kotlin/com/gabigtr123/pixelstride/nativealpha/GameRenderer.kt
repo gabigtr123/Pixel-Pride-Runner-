@@ -19,6 +19,8 @@ enum class UiAction {
     SELECT_HERO_STRIDE,
     SELECT_HERO_LILY,
     SELECT_HERO_KNIGHT,
+    SELECT_HERO_NINJA,
+    SELECT_HERO_ASTRO,
     SELECT_HERO_CUSTOM,
     OPEN_SHOP,
     OPEN_CREATOR,
@@ -67,6 +69,11 @@ enum class UiAction {
     TOGGLE_SFX,
     TOGGLE_HAPTICS,
     TOGGLE_SWIPE,
+    TOGGLE_LANG,
+    TOGGLE_LEFT_HAND,
+    TOGGLE_TOUCH_BTNS,
+    EXPORT_SAVE,
+    IMPORT_SAVE,
     RESUME,
     RESTART,
     TITLE,
@@ -141,6 +148,9 @@ class GameRenderer(
         sfxMuted: Boolean = muted,
         hapticsEnabled: Boolean = true,
         swipeEnabled: Boolean = true,
+        lang: AppLang = AppLang.EN,
+        leftHanded: Boolean = false,
+        showTouchButtons: Boolean = true,
     ) {
         buttons.clear()
         val vw = viewWidth.toFloat().coerceAtLeast(1f)
@@ -191,18 +201,18 @@ class GameRenderer(
         val topSafe = insetTopPx + 10f
         val bottomSafe = insetBottomPx + 12f
         when (engine.phase) {
-            GamePhase.TITLE -> drawTitleOverlay(canvas, vw, vh, topSafe, bottomSafe, engine, meta, muted)
+            GamePhase.TITLE -> drawTitleOverlay(canvas, vw, vh, topSafe, bottomSafe, engine, meta, muted, lang)
             GamePhase.WEATHER -> drawWeatherModal(canvas, vw, vh, topSafe, bottomSafe, engine)
             GamePhase.SHOP -> metaModals.drawShopModal(canvas, vw, vh, topSafe, bottomSafe, engine, meta, shopTab)
             GamePhase.CREATOR -> metaModals.drawCreatorModal(canvas, vw, vh, topSafe, bottomSafe, engine, meta)
             GamePhase.DAILY -> metaModals.drawDailyModal(canvas, vw, vh, topSafe, bottomSafe, meta)
             GamePhase.TROPHY -> metaModals.drawTrophyModal(canvas, vw, vh, topSafe, bottomSafe, meta, trophyPage)
-            GamePhase.PLAYING -> drawPlayingHud(canvas, vw, vh, topSafe, bottomSafe, engine, muted)
+            GamePhase.PLAYING -> drawPlayingHud(canvas, vw, vh, topSafe, bottomSafe, engine, muted, lang, leftHanded, showTouchButtons)
             GamePhase.PAUSED -> {
-                drawPlayingHud(canvas, vw, vh, topSafe, bottomSafe, engine, muted)
-                drawPauseOverlay(canvas, vw, vh, musicMuted, sfxMuted, hapticsEnabled, swipeEnabled)
+                drawPlayingHud(canvas, vw, vh, topSafe, bottomSafe, engine, muted, lang, leftHanded, showTouchButtons)
+                drawPauseOverlay(canvas, vw, vh, musicMuted, sfxMuted, hapticsEnabled, swipeEnabled, lang, leftHanded, showTouchButtons)
             }
-            GamePhase.GAME_OVER -> drawGameOverOverlay(canvas, vw, vh, topSafe, bottomSafe, engine, meta)
+            GamePhase.GAME_OVER -> drawGameOverOverlay(canvas, vw, vh, topSafe, bottomSafe, engine, meta, lang)
             GamePhase.RUN_CARD -> drawRunCardModal(canvas, vw, vh, topSafe, bottomSafe, runCardPreview)
         }
 
@@ -292,7 +302,7 @@ class GameRenderer(
         val isWet = wx == WeatherCondition.RAIN || wx == WeatherCondition.STORM
         val isSnow = winterTheme || wx == WeatherCondition.SNOW
         val isEmbers = !isWet && !isSnow && wx != WeatherCondition.FOG && baseBiome.weather == "embers"
-        val landscapeIdx = (engine.level - 1).coerceAtLeast(0) % 4
+        val landscapeIdx = (engine.level - 1).coerceAtLeast(0) % 5
 
         // 1. Exact v3.0.3 stepped 3-band 8-bit sky + 2px pixel dither seams
         val band1Y = groundY - 150f
@@ -440,6 +450,34 @@ class GameRenderer(
                         c.drawRect(bx + 68f + step, groundY - 10f - step * 5f, bx + 68f + step + sw, groundY - 4f - step * 5f, paint)
                     }
                 }
+                4 -> {
+                    // Level 5: Cyber Neon Skyway — stepped megatowers with cyan/magenta neon strips & holo billboards
+                    val megaTowers = arrayOf(
+                        floatArrayOf(4f, 26f, 78f, 0f),
+                        floatArrayOf(34f, 32f, 94f, 1f),
+                        floatArrayOf(70f, 22f, 64f, 0f),
+                        floatArrayOf(96f, 22f, 84f, 1f),
+                    )
+                    for (t in megaTowers) {
+                        val tx = bx + t[0]
+                        val tw = t[1]
+                        val th = t[2]
+                        val isCyan = t[3] > 0.5f
+                        paint.color = biome.farMountain
+                        c.drawRect(tx, groundY - th, tx + tw, groundY, paint)
+                        // Neon trim & vertical laser edge
+                        paint.color = if (isCyan) 0xFF58F0FF.toInt() else 0xFFFF48C8.toInt()
+                        c.drawRect(tx, groundY - th, tx + tw, groundY - th + 2f, paint)
+                        c.drawRect(tx + 2f, groundY - th + 4f, tx + 4f, groundY - 8f, paint)
+                        // Glowing holo billboard
+                        paint.color = if (isCyan) 0xFFFF48C8.toInt() else 0xFF58F0FF.toInt()
+                        c.drawRect(tx + 7f, groundY - th + 12f, tx + tw - 5f, groundY - th + 22f, paint)
+                        paint.color = 0xFF121028.toInt()
+                        c.drawRect(tx + 9f, groundY - th + 14f, tx + tw - 7f, groundY - th + 20f, paint)
+                        paint.color = 0xFFFFE478.toInt()
+                        c.drawRect(tx + 11f, groundY - th + 16f, tx + tw - 9f, groundY - th + 18f, paint)
+                    }
+                }
                 else -> {
                     // Level 1: Highland Meadows — stepped 8-bit mountain peaks
                     for (step in 0 until 14) {
@@ -545,6 +583,27 @@ class GameRenderer(
                     c.drawRect(bx + 111f, groundY - 38f, bx + 113f, groundY - 22f, paint)
                     c.drawRect(bx + 135f, groundY - 38f, bx + 137f, groundY - 22f, paint)
                     c.drawRect(bx + 118f, groundY - 51f, bx + 130f, groundY - 49f, paint)
+                }
+                4 -> {
+                    // Level 5: Cyber Neon Skyway — elevated neon monorail deck + glowing data pylons
+                    paint.color = biome.nearHill
+                    c.drawRect(bx + 6f, groundY - 30f, bx + 16f, groundY, paint)
+                    c.drawRect(bx + 74f, groundY - 30f, bx + 84f, groundY, paint)
+                    c.drawRect(bx + 136f, groundY - 30f, bx + 146f, groundY, paint)
+                    // Elevated skyway rail
+                    paint.color = biome.ruinColor
+                    c.drawRect(bx, groundY - 36f, bx + 160f, groundY - 28f, paint)
+                    paint.color = 0xFF58F0FF.toInt()
+                    c.drawRect(bx, groundY - 36f, bx + 160f, groundY - 34f, paint)
+                    paint.color = 0xFFFF48C8.toInt()
+                    c.drawRect(bx + 24f, groundY - 32f, bx + 56f, groundY - 30f, paint)
+                    c.drawRect(bx + 96f, groundY - 32f, bx + 124f, groundY - 30f, paint)
+                    // Data pylon
+                    paint.color = biome.ruinHighlight
+                    c.drawRect(bx + 44f, groundY - 52f, bx + 52f, groundY - 36f, paint)
+                    paint.color = 0xFFFFE05C.toInt()
+                    c.drawRect(bx + 46f, groundY - 48f, bx + 50f, groundY - 46f, paint)
+                    c.drawRect(bx + 46f, groundY - 43f, bx + 50f, groundY - 41f, paint)
                 }
                 else -> {
                     // Level 1: Highland Meadows — rolling hills, pixel pine trees, winter snowman & ancient aqueduct ruin
@@ -801,13 +860,19 @@ class GameRenderer(
             }
         }
 
-        // 10. Active Mini-Boss (ground shadow + telegraph aura + flashing "!" badge + 2x pixel sprite)
+        // 10. Active Mini-Boss (ground shadow + enraged/telegraph aura + flashing "!" badge + 2x pixel sprite)
         engine.activeBoss?.let { boss ->
             val bx = boss.x.roundToInt().toFloat()
             val by = boss.y.roundToInt().toFloat()
             // Ground shadow
             paint.color = Color.argb(115, 12, 14, 30)
             c.drawRect(bx + 4f, groundY - 2f, bx + boss.width - 4f, groundY + 2f, paint)
+
+            if (boss.enraged) {
+                val pulse = if (((engine.elapsed * 14f).toInt() % 2) == 0) 115 else 72
+                paint.color = Color.argb(pulse, 255, 48, 168)
+                c.drawRect(bx - 5f, by - 5f, bx + boss.width + 5f, by + boss.height + 5f, paint)
+            }
 
             if (boss.telegraphing) {
                 paint.color = Color.argb(96, 255, 56, 88)
@@ -833,9 +898,23 @@ class GameRenderer(
             val barY = by - 10f
             paint.color = 0xFF121324.toInt()
             c.drawRect(barX, barY, barX + barW, barY + 5f, paint)
-            paint.color = 0xFFFF4868.toInt()
+            paint.color = if (boss.enraged) 0xFFFF38C8.toInt() else 0xFFFF4868.toInt()
             val fill = (boss.hp.toFloat() / boss.maxHp.toFloat()).coerceIn(0f, 1f)
             c.drawRect(barX + 1f, barY + 1f, barX + 1f + (barW - 2f) * fill, barY + 4f, paint)
+        }
+
+        // 10b. Enraged Boss Energy Orb Projectiles
+        for (proj in engine.bossProjectiles) {
+            val px = proj.x.roundToInt().toFloat()
+            val py = proj.y.roundToInt().toFloat()
+            val half = (proj.size * 0.5f).roundToInt().toFloat()
+            val blinkOrb = ((engine.elapsed * 20f).toInt() % 2) == 0
+            paint.color = 0xFF121324.toInt()
+            c.drawRect(px - half - 1f, py - half - 1f, px + half + 1f, py + half + 1f, paint)
+            paint.color = if (blinkOrb) 0xFFFF38A8.toInt() else 0xFFFF5838.toInt()
+            c.drawRect(px - half, py - half, px + half, py + half, paint)
+            paint.color = 0xFFFFF4A8.toInt()
+            c.drawRect(px - half + 2f, py - half + 2f, px + half - 2f, py + half - 2f, paint)
         }
 
         // 11. Equipped Pet Companion (Fox hops on ground with shadow, Owl/Dragon hover overhead + Dragon Zap beam)
@@ -863,7 +942,7 @@ class GameRenderer(
             }
         }
 
-        // 12. Hero + Contact Shadow + Exact v3.0.3 Turbo Aura, Orbiting 4-Star Shield & Magnet Field
+        // 12. Hero + Contact Shadow + Squash & Stretch + Exact v3.0.3 Turbo Aura, Orbiting 4-Star Shield & Magnet Field
         val blink = engine.invulnTimer > 0f && ((engine.elapsed * 20f).toInt() % 2 == 0)
         if (!blink) {
             val pH = engine.currentPlayerHeight()
@@ -877,6 +956,12 @@ class GameRenderer(
             val spriteScale = 1.35f
             val isDuck = engine.ducking && engine.onGround
             val spriteY = (if (isDuck) engine.playerY - 1f else engine.playerY - 2f).roundToInt().toFloat()
+            c.save()
+            val footX = engine.playerX + engine.playerWidth * 0.5f
+            val footY = engine.playerY + pH
+            c.translate(footX, footY)
+            c.scale(engine.playerScaleX, engine.playerScaleY)
+            c.translate(-footX, -footY)
             PixelSprites.drawHero(
                 canvas = c,
                 hero = engine.hero,
@@ -890,6 +975,7 @@ class GameRenderer(
                 hat = engine.hat,
                 cape = engine.cape,
             )
+            c.restore()
 
             val pCx = (engine.playerX + engine.playerWidth * 0.5f).roundToInt().toFloat()
             val pCy = (engine.playerY + pH * 0.5f).roundToInt().toFloat()
@@ -1017,6 +1103,7 @@ class GameRenderer(
         engine: GameEngine,
         meta: MetaProgressionManager,
         muted: Boolean,
+        lang: AppLang,
     ) {
         val dp = minOf(vw, vh) / 360f
         val cx = vw / 2f
@@ -1068,35 +1155,41 @@ class GameRenderer(
         buttons.add(HitButton(UiAction.TOGGLE_MUTE, muteRect))
 
         // Exact v3.0.3 PixelStrideTitleLogo cartridge plaque in the upper sky (compact in landscape!)
-        val logoW = if (isLandscape) minOf(vw * 0.38f, 220f * dp) else minOf(vw - 24f * dp, 326f * dp)
+        val logoW = if (isLandscape) minOf(vw * 0.36f, 206f * dp) else minOf(vw - 24f * dp, 320f * dp)
         val logoH = logoW * (116f / 420f)
-        val logoY = topSafe + (if (isLandscape) 38f * dp else 46f * dp)
+        val logoY = topSafe + (if (isLandscape) 36f * dp else 44f * dp)
         drawTitleLogo(c, cx - logoW / 2f, logoY, logoW, logoH)
 
-        // Lower underground masonry deck: 4 Hero pills + PERK/EDIT + 4 Mode pills + START RUN
+        // Lower underground masonry deck: 6 Hero pills (2x3) + PERK/EDIT + 4 Mode pills + START RUN
         val stackW = minOf(vw - 18f * dp, 344f * dp)
-        val startH = 50f * dp
-        val modeH = 30f * dp
-        val perkH = 22f * dp
-        val heroH = 38f * dp
+        val startH = 48f * dp
+        val modeH = 29f * dp
+        val perkH = 21f * dp
+        val heroRowH = 31f * dp
+        val heroRowGap = 4f * dp
         val startY = vh - bottomSafe - startH - 6f * dp
-        val modeY = startY - 10f * dp - modeH
-        val perkY = modeY - 8f * dp - perkH
-        val heroY = perkY - 8f * dp - heroH
+        val modeY = startY - 8f * dp - modeH
+        val perkY = modeY - 7f * dp - perkH
+        val heroTopY = perkY - 7f * dp - (heroRowH * 2f + heroRowGap)
 
-        // 4 Compact Horizontal Hero Selector Pills (STRIDE, LILY, KNIGHT, CUSTOM)
+        // 6 Compact Hero Selector Pills in 2x3 Grid (STRIDE, LILY, KNIGHT / NINJA, ASTRO, CUSTOM)
         val heroGap = 4f * dp
-        val heroW = (stackW - heroGap * 3f) / 4f
+        val heroW = (stackW - heroGap * 2f) / 3f
         val heroActions = listOf(
             HeroId.STRIDE to UiAction.SELECT_HERO_STRIDE,
             HeroId.LILY to UiAction.SELECT_HERO_LILY,
             HeroId.KNIGHT to UiAction.SELECT_HERO_KNIGHT,
+            HeroId.NINJA to UiAction.SELECT_HERO_NINJA,
+            HeroId.ASTRO to UiAction.SELECT_HERO_ASTRO,
             HeroId.CUSTOM to UiAction.SELECT_HERO_CUSTOM,
         )
         for (i in heroActions.indices) {
             val (hId, action) = heroActions[i]
-            val rx = cx - stackW / 2f + i * (heroW + heroGap)
-            val rect = RectF(rx, heroY, rx + heroW, heroY + heroH)
+            val col = i % 3
+            val row = i / 3
+            val rx = cx - stackW / 2f + col * (heroW + heroGap)
+            val ry = heroTopY + row * (heroRowH + heroRowGap)
+            val rect = RectF(rx, ry, rx + heroW, ry + heroRowH)
             drawHeroPill(c, rect, hId, engine.hero == hId, engine.elapsed, engine.customHero, dp)
             buttons.add(HitButton(action, rect))
         }
@@ -1113,7 +1206,7 @@ class GameRenderer(
         uiPaint.textAlign = Paint.Align.CENTER
         uiPaint.textSize = 8f * dp
         uiPaint.color = 0xFF78F0A8.toInt()
-        c.drawText(perkText, cx, perkY + 14.5f * dp, uiPaint)
+        c.drawText(perkText, cx, perkY + 14f * dp, uiPaint)
 
         // 4 Game Mode Selector Pills
         val modeGap = 5f * dp
@@ -1134,7 +1227,7 @@ class GameRenderer(
 
         // Golden Pixel START RUN button
         val startRect = RectF(cx - stackW / 2f, startY, cx + stackW / 2f, startY + startH)
-        drawPixelButtonPrimary(c, startRect, "START RUN", 14f * dp, dp)
+        drawPixelButtonPrimary(c, startRect, Strings.startRun(lang), 14f * dp, dp)
         buttons.add(HitButton(UiAction.START_RUN, startRect))
     }
 
@@ -1371,6 +1464,9 @@ class GameRenderer(
         bottomSafe: Float,
         engine: GameEngine,
         muted: Boolean,
+        lang: AppLang,
+        leftHanded: Boolean,
+        showTouchButtons: Boolean,
     ) {
         val dp = minOf(vw, vh) / 360f
 
@@ -1457,16 +1553,20 @@ class GameRenderer(
         buttons.add(HitButton(UiAction.TOGGLE_PAUSE, pauseRect))
         buttons.add(HitButton(UiAction.TOGGLE_MUTE, muteRect))
 
-        // Bottom touch pads: DUCK (left) & JUMP (right)
-        val padW = 108f * dp
-        val padH = 56f * dp
-        val padY = vh - bottomSafe - padH
-        val duckRect = RectF(14f * dp, padY, 14f * dp + padW, padY + padH)
-        val jumpRect = RectF(vw - 14f * dp - padW, padY, vw - 14f * dp, padY + padH)
-        drawPixelButtonSecondary(c, duckRect, "▼ DUCK", 11f * dp, dp)
-        drawPixelButtonPrimary(c, jumpRect, "▲ JUMP", 12f * dp, dp)
-        buttons.add(HitButton(UiAction.DUCK_BTN, duckRect))
-        buttons.add(HitButton(UiAction.JUMP_BTN, jumpRect))
+        // Bottom touch pads (hidden when user toggles BTNS OFF; swapped when Left-Handed is ON)
+        if (showTouchButtons) {
+            val padW = 108f * dp
+            val padH = 56f * dp
+            val padY = vh - bottomSafe - padH
+            val leftRect = RectF(14f * dp, padY, 14f * dp + padW, padY + padH)
+            val rightRect = RectF(vw - 14f * dp - padW, padY, vw - 14f * dp, padY + padH)
+            val duckRect = if (leftHanded) rightRect else leftRect
+            val jumpRect = if (leftHanded) leftRect else rightRect
+            drawPixelButtonSecondary(c, duckRect, Strings.duckBtn(lang), 11f * dp, dp)
+            drawPixelButtonPrimary(c, jumpRect, Strings.jumpBtn(lang), 12f * dp, dp)
+            buttons.add(HitButton(UiAction.DUCK_BTN, duckRect))
+            buttons.add(HitButton(UiAction.JUMP_BTN, jumpRect))
+        }
     }
 
     private fun drawPauseOverlay(
@@ -1477,46 +1577,77 @@ class GameRenderer(
         sfxMuted: Boolean,
         hapticsEnabled: Boolean,
         swipeEnabled: Boolean,
+        lang: AppLang,
+        leftHanded: Boolean,
+        showTouchButtons: Boolean,
     ) {
         paint.color = 0xB80B0D1A.toInt()
         c.drawRect(0f, 0f, vw, vh, paint)
         val dp = minOf(vw, vh) / 360f
         val cx = vw / 2f
-        val cy = vh / 2f
-        val panelW = minOf(vw - 32f * dp, 296f * dp)
-        val panelRect = RectF(cx - panelW / 2f, cy - 134f * dp, cx + panelW / 2f, cy + 148f * dp)
+        val panelW = minOf(vw - 28f * dp, 308f * dp)
+        val panelH = minOf(vh - 20f * dp, 356f * dp)
+        val topY = (vh - panelH) / 2f
+        val panelRect = RectF(cx - panelW / 2f, topY, cx + panelW / 2f, topY + panelH)
         drawPixelPanel(c, panelRect, dp)
 
-        drawShadowDisplayText(c, "PAUSED", cx, panelRect.top + 40f * dp, 18f * dp, 0xFFFFE05C.toInt(), dp)
+        drawShadowDisplayText(c, Strings.paused(lang), cx, topY + 34f * dp, 17f * dp, 0xFFFFE05C.toInt(), dp)
 
-        val innerW = panelW - 36f * dp
-        val resumeRect = RectF(cx - innerW / 2f, panelRect.top + 62f * dp, cx + innerW / 2f, panelRect.top + 108f * dp)
-        val restartRect = RectF(cx - innerW / 2f, panelRect.top + 118f * dp, cx + innerW / 2f, panelRect.top + 160f * dp)
-        val titleRect = RectF(cx - innerW / 2f, panelRect.top + 170f * dp, cx + innerW / 2f, panelRect.top + 212f * dp)
+        val innerW = panelW - 32f * dp
+        val leftX = cx - innerW / 2f
+        val btnH = 38f * dp
+        val resumeRect = RectF(leftX, topY + 52f * dp, leftX + innerW, topY + 52f * dp + btnH)
+        val restartRect = RectF(leftX, topY + 98f * dp, leftX + innerW, topY + 98f * dp + btnH)
+        val titleRect = RectF(leftX, topY + 144f * dp, leftX + innerW, topY + 144f * dp + btnH)
 
-        drawPixelButtonPrimary(c, resumeRect, "▶ RESUME", 12f * dp, dp)
-        drawPixelButtonSecondary(c, restartRect, "↻ RESTART", 11f * dp, dp)
-        drawPixelButtonSecondary(c, titleRect, "⌂ TITLE", 11f * dp, dp)
+        drawPixelButtonPrimary(c, resumeRect, Strings.resume(lang), 11.5f * dp, dp)
+        drawPixelButtonSecondary(c, restartRect, Strings.restart(lang), 10.5f * dp, dp)
+        drawPixelButtonSecondary(c, titleRect, Strings.title(lang), 10.5f * dp, dp)
         buttons.add(HitButton(UiAction.RESUME, resumeRect))
         buttons.add(HitButton(UiAction.RESTART, restartRect))
         buttons.add(HitButton(UiAction.TITLE, titleRect))
 
-        // 4 Granular Settings toggles: MUSIC, SFX, VIB (Haptics), SWIPE
-        val toggleY = panelRect.top + 226f * dp
+        // Row 1 toggles: MUS, SFX, VIB, SWIPE
+        val row1Y = topY + 194f * dp
         val toggleGap = 5f * dp
-        val toggleW = (innerW - toggleGap * 3f) / 4f
-        val toggles = listOf(
+        val toggle4W = (innerW - toggleGap * 3f) / 4f
+        val row1 = listOf(
             Triple(if (musicMuted) "MUS OFF" else "MUS ON", !musicMuted, UiAction.TOGGLE_MUSIC),
             Triple(if (sfxMuted) "SFX OFF" else "SFX ON", !sfxMuted, UiAction.TOGGLE_SFX),
             Triple(if (hapticsEnabled) "VIB ON" else "VIB OFF", hapticsEnabled, UiAction.TOGGLE_HAPTICS),
             Triple(if (swipeEnabled) "SWIPE" else "NO SWP", swipeEnabled, UiAction.TOGGLE_SWIPE),
         )
-        for (i in toggles.indices) {
-            val rx = cx - innerW / 2f + i * (toggleW + toggleGap)
-            val r = RectF(rx, toggleY, rx + toggleW, toggleY + 34f * dp)
-            drawModePill(c, r, toggles[i].first, toggles[i].second, dp)
-            buttons.add(HitButton(toggles[i].third, r))
+        for (i in row1.indices) {
+            val rx = leftX + i * (toggle4W + toggleGap)
+            val r = RectF(rx, row1Y, rx + toggle4W, row1Y + 32f * dp)
+            drawModePill(c, r, row1[i].first, row1[i].second, dp)
+            buttons.add(HitButton(row1[i].third, r))
         }
+
+        // Row 2 toggles: BTNS ON/OFF (hide bottom DUCK/JUMP), L-HAND/R-HAND, EN/RO
+        val row2Y = topY + 234f * dp
+        val toggle3W = (innerW - toggleGap * 2f) / 3f
+        val row2 = listOf(
+            Triple(if (showTouchButtons) "BTNS ON" else "BTNS OFF", showTouchButtons, UiAction.TOGGLE_TOUCH_BTNS),
+            Triple(if (leftHanded) "L-HAND" else "R-HAND", leftHanded, UiAction.TOGGLE_LEFT_HAND),
+            Triple("LANG: ${lang.code}", lang == AppLang.RO, UiAction.TOGGLE_LANG),
+        )
+        for (i in row2.indices) {
+            val rx = leftX + i * (toggle3W + toggleGap)
+            val r = RectF(rx, row2Y, rx + toggle3W, row2Y + 32f * dp)
+            drawModePill(c, r, row2[i].first, row2[i].second, dp)
+            buttons.add(HitButton(row2[i].third, r))
+        }
+
+        // Row 3: Clipboard Save Code Export / Import
+        val row3Y = topY + 276f * dp
+        val halfW = (innerW - toggleGap) / 2f
+        val exportRect = RectF(leftX, row3Y, leftX + halfW, row3Y + 34f * dp)
+        val importRect = RectF(leftX + halfW + toggleGap, row3Y, leftX + innerW, row3Y + 34f * dp)
+        drawPixelButtonSecondary(c, exportRect, Strings.exportSave(lang), 7.5f * dp, dp, textColor = 0xFF78E8FF.toInt())
+        drawPixelButtonSecondary(c, importRect, Strings.importSave(lang), 7.5f * dp, dp, textColor = 0xFF78F0A8.toInt())
+        buttons.add(HitButton(UiAction.EXPORT_SAVE, exportRect))
+        buttons.add(HitButton(UiAction.IMPORT_SAVE, importRect))
     }
 
     private fun drawGameOverOverlay(
@@ -1527,6 +1658,7 @@ class GameRenderer(
         bottomSafe: Float,
         engine: GameEngine,
         meta: MetaProgressionManager,
+        lang: AppLang,
     ) {
         paint.color = 0xC80B0D1A.toInt()
         c.drawRect(0f, 0f, vw, vh, paint)
@@ -1540,7 +1672,7 @@ class GameRenderer(
         val panelRect = RectF(cx - panelW / 2f, topY, cx + panelW / 2f, topY + panelH)
         drawPixelPanel(c, panelRect, dp)
 
-        drawShadowDisplayText(c, "RUN OVER", cx, topY + 42f * dp, 18f * dp, 0xFFFF6878.toInt(), dp)
+        drawShadowDisplayText(c, Strings.runOver(lang), cx, topY + 42f * dp, 16f * dp, 0xFFFF6878.toInt(), dp)
 
         if (meta.newlyUnlockedTrophies.isNotEmpty()) {
             uiPaint.textAlign = Paint.Align.CENTER
@@ -1551,7 +1683,7 @@ class GameRenderer(
             uiPaint.textAlign = Paint.Align.CENTER
             uiPaint.textSize = 11f * dp
             uiPaint.color = 0xFF78F0A8.toInt()
-            c.drawText("★ NEW HIGH SCORE! ★", cx, topY + 64f * dp, uiPaint)
+            c.drawText(Strings.newBest(lang), cx, topY + 64f * dp, uiPaint)
         }
 
         // 3-stat readout row (exact v3.0.3 layout)
@@ -1562,9 +1694,9 @@ class GameRenderer(
 
         val colW = (panelW - 32f * dp) / 3f
         val cols = listOf(
-            Triple("SCORE", "${snap?.score ?: engine.score.toInt()}", 0xFFFFFFFF.toInt()),
-            Triple("BEST", "${snap?.bestScore ?: engine.bestScore}", 0xFFFFE05C.toInt()),
-            Triple("DIST", "${snap?.distance ?: 0}M", 0xFF78E8FF.toInt()),
+            Triple(Strings.score(lang), "${snap?.score ?: engine.score.toInt()}", 0xFFFFFFFF.toInt()),
+            Triple(Strings.best(lang), "${snap?.bestScore ?: engine.bestScore}", 0xFFFFE05C.toInt()),
+            Triple(Strings.dist(lang), "${snap?.distance ?: 0}M", 0xFF78E8FF.toInt()),
         )
         for (i in cols.indices) {
             val colCx = panelRect.left + 16f * dp + colW * (i + 0.5f)
@@ -1590,13 +1722,13 @@ class GameRenderer(
 
         val innerW = panelW - 32f * dp
         val cardBtnRect = RectF(cx - innerW / 2f, statY + 82f * dp, cx + innerW / 2f, statY + 126f * dp)
-        drawPixelButtonSecondary(c, cardBtnRect, "VIEW & SHARE RUN CARD", 9.5f * dp, dp, textColor = 0xFFFFE05C.toInt())
+        drawPixelButtonSecondary(c, cardBtnRect, Strings.viewCard(lang), 9f * dp, dp, textColor = 0xFFFFE05C.toInt())
         buttons.add(HitButton(UiAction.VIEW_RUN_CARD, cardBtnRect))
 
         val retryRect = RectF(cx - innerW / 2f, statY + 140f * dp, cx + innerW / 2f, statY + 190f * dp)
         val titleRect = RectF(cx - innerW / 2f, statY + 202f * dp, cx + innerW / 2f, statY + 244f * dp)
-        drawPixelButtonPrimary(c, retryRect, "▶ TRY AGAIN", 13f * dp, dp)
-        drawPixelButtonSecondary(c, titleRect, "⌂ TITLE", 11f * dp, dp)
+        drawPixelButtonPrimary(c, retryRect, Strings.tryAgain(lang), 13f * dp, dp)
+        drawPixelButtonSecondary(c, titleRect, Strings.title(lang), 11f * dp, dp)
         buttons.add(HitButton(UiAction.RESTART, retryRect))
         buttons.add(HitButton(UiAction.TITLE, titleRect))
     }

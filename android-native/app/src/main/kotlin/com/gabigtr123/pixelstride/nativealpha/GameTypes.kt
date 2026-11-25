@@ -17,6 +17,8 @@ enum class HeroId(val displayName: String, val perk: String, val maxHp: Int, val
     STRIDE("STRIDE", "+25% STOMP", 3, 0xFFFFE05C.toInt()),
     LILY("LILY", "COIN AURA", 3, 0xFFFF78B4.toInt()),
     KNIGHT("KNIGHT", "4 MAX HP", 4, 0xFF78E8FF.toInt()),
+    NINJA("NINJA", "SMOKE DASH", 3, 0xFFC878FF.toInt()),
+    ASTRO("ASTRO", "LOW-G GLIDE", 3, 0xFF58F0FF.toInt()),
     CUSTOM("CUSTOM", "HERO CREATOR", 3, 0xFF78F0A8.toInt()),
 }
 
@@ -247,9 +249,29 @@ val BIOMES: List<BiomePalette> = listOf(
         dirtAccent = 0xFF783430.toInt(),
         weather = "embers",
     ),
+    BiomePalette(
+        name = "CYBER NEON SKYWAY",
+        skyTop = 0xFF0A0820.toInt(),
+        skyMid = 0xFF221048.toInt(),
+        skyHorizon = 0xFF681E78.toInt(),
+        celestialType = CelestialType.MOON,
+        celestialColor = 0xFFFF68D8.toInt(),
+        starAlpha = 0.85f,
+        cloudMain = 0xFF543088.toInt(),
+        cloudShadow = 0xFF281448.toInt(),
+        farMountain = 0xFF1A103C.toInt(),
+        nearHill = 0xFF281854.toInt(),
+        ruinColor = 0xFF342068.toInt(),
+        ruinHighlight = 0xFF58F0FF.toInt(),
+        grassTop = 0xFF48F0FF.toInt(),
+        grassTrim = 0xFF1E88B8.toInt(),
+        dirtMain = 0xFF1C1634.toInt(),
+        dirtDark = 0xFF100C22.toInt(),
+        dirtAccent = 0xFFB848E8.toInt(),
+    ),
 )
 
-val LEVEL_NAMES = listOf("HIGHLAND MEADOWS", "PYRAMID CANYON", "STARLIGHT CITY", "CRYSTAL PEAKS")
+val LEVEL_NAMES = listOf("HIGHLAND MEADOWS", "PYRAMID CANYON", "STARLIGHT CITY", "CRYSTAL PEAKS", "CYBER SKYWAY")
 
 data class PlatformEntity(
     val id: Int,
@@ -257,6 +279,13 @@ data class PlatformEntity(
     var y: Float,
     val width: Float,
     val height: Float = 10f,
+)
+
+data class BossProjectile(
+    var x: Float,
+    var y: Float,
+    val vx: Float,
+    val size: Float = 9f,
 )
 
 data class HazardEntity(
@@ -296,6 +325,8 @@ data class BossEntity(
     var telegraphing: Boolean = false,
     var hurtFlash: Float = 0f,
     var anchorX: Float = 210f,
+    var enraged: Boolean = false,
+    var projTimer: Float = 1.6f,
 )
 
 data class Particle(

@@ -10,7 +10,7 @@ import kotlin.random.Random
 
 interface EngineFeedback {
     fun onJump(isDouble: Boolean)
-    fun onCoin()
+    fun onCoin(combo: Int = 1)
     fun onStomp()
     fun onPowerUp()
     fun onZap()
@@ -103,6 +103,10 @@ class GameEngine(private val feedback: EngineFeedback) {
     var level: Int = 1
     var zoneIndex: Int = 0
     var screenShake: Float = 0f
+    var hitstopTimer: Float = 0f
+    var playerScaleX: Float = 1f
+    var playerScaleY: Float = 1f
+    var holdingJump: Boolean = false
     var winterTheme: Boolean = false
     var onPlatform: Boolean = false
     var combo: Int = 1
@@ -118,6 +122,7 @@ class GameEngine(private val feedback: EngineFeedback) {
     val platforms = mutableListOf<PlatformEntity>()
     val hazards = mutableListOf<HazardEntity>()
     val collectibles = mutableListOf<CollectibleEntity>()
+    val bossProjectiles = mutableListOf<BossProjectile>()
     val particles = mutableListOf<Particle>()
     val floatingTexts = mutableListOf<FloatingText>()
     var activeBoss: BossEntity? = null
@@ -257,6 +262,10 @@ class GameEngine(private val feedback: EngineFeedback) {
         jumpBufferTimer = 0f
         invulnTimer = 0f
         screenShake = 0f
+        hitstopTimer = 0f
+        playerScaleX = 1f
+        playerScaleY = 1f
+        holdingJump = false
         combo = 1
         comboTimer = 0f
         bannerText = if (mode == GameMode.DAILY) "DAILY SEED · ${LocalDate.now()}" else null
@@ -267,6 +276,7 @@ class GameEngine(private val feedback: EngineFeedback) {
         platforms.clear()
         hazards.clear()
         collectibles.clear()
+        bossProjectiles.clear()
         particles.clear()
         floatingTexts.clear()
         activeBoss = null
@@ -283,12 +293,14 @@ class GameEngine(private val feedback: EngineFeedback) {
 
     fun pressJump() {
         if (phase == GamePhase.PLAYING) {
+            holdingJump = true
             jumpBufferTimer = 0.12f
             tryConsumeJump()
         }
     }
 
     fun releaseJump() {
+        holdingJump = false
         if (phase == GamePhase.PLAYING && playerVy < -140f) {
             playerVy *= 0.55f
         }
@@ -323,11 +335,16 @@ class GameEngine(private val feedback: EngineFeedback) {
         platforms.clear()
         hazards.clear()
         collectibles.clear()
+        bossProjectiles.clear()
         particles.clear()
         floatingTexts.clear()
         activeBoss = null
         feedback.onBossActiveChanged(false)
         screenShake = 0f
+        hitstopTimer = 0f
+        playerScaleX = 1f
+        playerScaleY = 1f
+        holdingJump = false
         invulnTimer = 0f
         magnetTimer = 0f
         doubleScoreTimer = 0f
@@ -354,10 +371,13 @@ class GameEngine(private val feedback: EngineFeedback) {
         if (onGround || coyoteTimer > 0f) {
             playerVy = -355f
             onGround = false
+            onPlatform = false
             coyoteTimer = 0f
             jumpsRemaining = maxJumps - 1
             jumpBufferTimer = 0f
             ducking = false
+            playerScaleX = 0.82f
+            playerScaleY = 1.22f
             spawnDust(playerX + 10f, groundY, 6, 0xFFE8EEF8.toInt())
             feedback.onJump(false)
         } else if (jumpsRemaining > 0) {
@@ -365,7 +385,15 @@ class GameEngine(private val feedback: EngineFeedback) {
             jumpsRemaining--
             jumpBufferTimer = 0f
             ducking = false
-            spawnDust(playerX + 10f, playerY + playerStandHeight, 8, hero.accentColor)
+            playerScaleX = 0.84f
+            playerScaleY = 1.18f
+            if (hero == HeroId.NINJA) {
+                // Shadow Ninja perk: Smoke Dash grants brief invulnerability + purple smoke burst!
+                invulnTimer = max(invulnTimer, 0.45f)
+                spawnDust(playerX + 10f, playerY + playerStandHeight * 0.5f, 12, 0xFFC878FF.toInt())
+            } else {
+                spawnDust(playerX + 10f, playerY + playerStandHeight, 8, hero.accentColor)
+            }
             feedback.onJump(true)
         }
     }
@@ -383,6 +411,18 @@ class GameEngine(private val feedback: EngineFeedback) {
             return
         }
         if (phase != GamePhase.PLAYING) return
+
+        // Arcade Hitstop freeze-frame (decays before physics)
+        if (hitstopTimer > 0f) {
+            hitstopTimer = max(0f, hitstopTimer - dt)
+            if (screenShake > 0f) screenShake = max(0f, screenShake - dt * 18f)
+            return
+        }
+
+        // Smooth elastic spring back for Squash & Stretch
+        val springRate = (dt * 14f).coerceAtMost(1f)
+        playerScaleX += (1f - playerScaleX) * springRate
+        playerScaleY += (1f - playerScaleY) * springRate
 
         elapsed += dt
         if (screenShake > 0f) screenShake = max(0f, screenShake - dt * 18f)
@@ -480,7 +520,7 @@ class GameEngine(private val feedback: EngineFeedback) {
             if (plat.x + plat.width < -24f) platIter.remove()
         }
 
-        // Player vertical physics + one-way floating platform landing
+        // Player vertical physics + Astro Bot Low-G Glide + one-way floating platform landing
         if (coyoteTimer > 0f) coyoteTimer = max(0f, coyoteTimer - dt)
         if (jumpBufferTimer > 0f) {
             jumpBufferTimer = max(0f, jumpBufferTimer - dt)
@@ -488,8 +528,16 @@ class GameEngine(private val feedback: EngineFeedback) {
         }
 
         val prevBottom = playerY + currentPlayerHeight()
-        val gravity = if (ducking && !onGround) 1650f else 1080f
+        val astroGliding = hero == HeroId.ASTRO && holdingJump && !onGround && !ducking && playerVy > 0f
+        val gravity = when {
+            ducking && !onGround -> 1650f
+            astroGliding -> 340f
+            else -> 1080f
+        }
         playerVy += gravity * dt
+        if (astroGliding && playerVy > 72f) {
+            playerVy = 72f
+        }
         playerY += playerVy * dt
         val pH = currentPlayerHeight()
         val newBottom = playerY + pH
@@ -502,6 +550,8 @@ class GameEngine(private val feedback: EngineFeedback) {
                 val horizOverlap = pRight > plat.x + 2f && pLeft < plat.x + plat.width - 2f
                 if (horizOverlap && prevBottom <= plat.y + 6f && newBottom >= plat.y) {
                     if (!onGround) {
+                        playerScaleX = 1.24f
+                        playerScaleY = 0.78f
                         spawnDust(playerX + 10f, plat.y, 4, 0xFFD8E4F8.toInt())
                     }
                     playerY = plat.y - pH
@@ -522,6 +572,8 @@ class GameEngine(private val feedback: EngineFeedback) {
             val targetGroundTop = groundY - pH
             if (playerY >= targetGroundTop) {
                 if (!onGround) {
+                    playerScaleX = 1.24f
+                    playerScaleY = 0.78f
                     spawnDust(playerX + 10f, groundY, 5, 0xFFD8E4F8.toInt())
                 }
                 playerY = targetGroundTop
@@ -795,6 +847,9 @@ class GameEngine(private val feedback: EngineFeedback) {
                     val stompPts = (if (hero == HeroId.STRIDE) 62.5f else 50f) * scoreMult
                     score += stompPts
                     screenShake = 3.5f
+                    hitstopTimer = 0.042f
+                    playerScaleX = 0.84f
+                    playerScaleY = 1.20f
                     spawnDust(h.x + h.width / 2f, h.y, 10, 0xFF78F0A8.toInt())
                     floatingTexts.add(FloatingText(h.x, h.y - 10f, "+${stompPts.toInt()} STOMP!", 0xFF78F0A8.toInt()))
                     feedback.onStomp()
@@ -806,18 +861,53 @@ class GameEngine(private val feedback: EngineFeedback) {
     }
 
     private fun updateBoss(dt: Float, scoreMult: Float) {
+        // Always update active boss projectiles even if boss just got KO'd
+        val pH = currentPlayerHeight()
+        val pLeft = playerX + 3f
+        val pRight = playerX + playerWidth - 3f
+        val pTop = playerY + 2f
+        val pBottom = playerY + pH
+
+        val projIter = bossProjectiles.iterator()
+        while (projIter.hasNext()) {
+            val pr = projIter.next()
+            pr.x += pr.vx * dt
+            if (pr.x + pr.size < -20f) {
+                projIter.remove()
+                continue
+            }
+            val hitProj = pRight > pr.x && pLeft < pr.x + pr.size && pBottom > pr.y && pTop < pr.y + pr.size
+            if (hitProj) {
+                projIter.remove()
+                if (turboTimer > 0f) {
+                    spawnDust(pr.x, pr.y, 6, 0xFFFFE05C.toInt())
+                } else {
+                    damagePlayer()
+                }
+            }
+        }
+
         val boss = activeBoss ?: return
         if (boss.hurtFlash > 0f) boss.hurtFlash = max(0f, boss.hurtFlash - dt)
+
+        // Boss Phase 2 (Enraged at <= 50% HP): faster charge + fires telegraphed pixel energy orbs!
+        if (!boss.enraged && boss.hp <= boss.maxHp / 2) {
+            boss.enraged = true
+            floatingTexts.add(FloatingText(boss.x, boss.y - 16f, "ENRAGED!", 0xFFFF48D8.toInt(), 1.2f))
+        }
+
+        val chargeSpeed = if (boss.enraged) 315f else 265f
+        val idleCooldown = if (boss.enraged) 1.45f else 2.0f
 
         // Move into arena
         if (!boss.charging && boss.x > boss.anchorX) {
             boss.x = max(boss.anchorX, boss.x - 110f * dt)
         } else if (boss.charging) {
-            boss.x -= 265f * dt
+            boss.x -= chargeSpeed * dt
             if (boss.x < -boss.width) {
                 boss.charging = false
                 boss.x = worldWidth + 24f
-                boss.stateTimer = 2.0f
+                boss.stateTimer = idleCooldown
             }
         } else {
             boss.stateTimer -= dt
@@ -826,14 +916,16 @@ class GameEngine(private val feedback: EngineFeedback) {
                 boss.telegraphing = false
                 boss.charging = true
             }
+            if (boss.enraged) {
+                boss.projTimer -= dt
+                if (boss.projTimer <= 0f) {
+                    boss.projTimer = 1.65f
+                    val lowShot = runRng.nextBoolean()
+                    val py = if (lowShot) groundY - 14f else groundY - 29f
+                    bossProjectiles.add(BossProjectile(boss.x - 6f, py, -(currentSpeed + 95f)))
+                }
+            }
         }
-
-        // Collision with player
-        val pH = currentPlayerHeight()
-        val pLeft = playerX + 3f
-        val pRight = playerX + playerWidth - 3f
-        val pTop = playerY + 2f
-        val pBottom = playerY + pH
 
         val overlap = pRight > boss.x + 2f && pLeft < boss.x + boss.width - 2f &&
             pBottom > boss.y + 2f && pTop < boss.y + boss.height - 2f
@@ -844,11 +936,12 @@ class GameEngine(private val feedback: EngineFeedback) {
                 boss.hurtFlash = 0.25f
                 boss.charging = false
                 boss.telegraphing = false
-                boss.stateTimer = 1.8f
+                boss.stateTimer = idleCooldown
                 boss.x = max(boss.x + 45f, boss.anchorX)
                 playerVy = -310f
                 jumpsRemaining = 1
                 screenShake = 6f
+                hitstopTimer = 0.05f
                 bumpCombo()
                 spawnDust(boss.x + boss.width / 2f, boss.y, 12, 0xFFFFE05C.toInt())
                 if (boss.hp <= 0) {
@@ -860,6 +953,7 @@ class GameEngine(private val feedback: EngineFeedback) {
                     floatingTexts.add(FloatingText(boss.x - 10f, boss.y - 16f, "+500 BOSS KO! +25C", 0xFFFFE05C.toInt(), 1.4f))
                     spawnDust(boss.x + boss.width / 2f, boss.y + boss.height / 2f, 22, boss.kind.accentColor)
                     activeBoss = null
+                    bossProjectiles.clear()
                     feedback.onBossActiveChanged(false)
                     nextBossTime = elapsed + (if (mode == GameMode.BOSS_RUSH) 4.5f else 90f)
                     feedback.onBossKo()
@@ -917,7 +1011,7 @@ class GameEngine(private val feedback: EngineFeedback) {
                         bumpCombo()
                         score += 15f * scoreMult * coinValueMult
                         spawnDust(c.x, c.y, 5, 0xFFFFD838.toInt())
-                        feedback.onCoin()
+                        feedback.onCoin(combo)
                     }
                     CollectibleType.SHIELD -> {
                         hasShield = true

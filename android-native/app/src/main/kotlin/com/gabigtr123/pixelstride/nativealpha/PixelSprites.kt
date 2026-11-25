@@ -625,6 +625,34 @@ object PixelSprites {
         HeroId.STRIDE -> STRIDE_PALETTE
         HeroId.LILY -> LILY_PALETTE
         HeroId.KNIGHT -> KNIGHT_PALETTE
+        HeroId.NINJA -> mapOf(
+            'K' to 0xFF10101E.toInt(),
+            'H' to 0xFF22243A.toInt(),
+            'h' to 0xFF3E4268.toInt(),
+            'V' to 0xFFFF4868.toInt(),
+            'S' to 0xFFFFCC98.toInt(),
+            'R' to 0xFFC858FF.toInt(),
+            'r' to 0xFF7828B8.toInt(),
+            'T' to 0xFF262842.toInt(),
+            't' to 0xFF181A2E.toInt(),
+            'B' to 0xFF181A2E.toInt(),
+            'O' to 0xFFC858FF.toInt(),
+            'o' to 0xFF6820A0.toInt(),
+        )
+        HeroId.ASTRO -> mapOf(
+            'K' to 0xFF121526.toInt(),
+            'H' to 0xFFDCE8FA.toInt(),
+            'h' to 0xFFFFFFFF.toInt(),
+            'V' to 0xFF48F0FF.toInt(),
+            'S' to 0xFF284868.toInt(),
+            'R' to 0xFFFF8828.toInt(),
+            'r' to 0xFFB84814.toInt(),
+            'T' to 0xFFEAF2FF.toInt(),
+            't' to 0xFFA8BCD8.toInt(),
+            'B' to 0xFF586C94.toInt(),
+            'O' to 0xFFFFE05C.toInt(),
+            'o' to 0xFFB88418.toInt(),
+        )
         HeroId.CUSTOM -> custom.toPalette()
     }
 

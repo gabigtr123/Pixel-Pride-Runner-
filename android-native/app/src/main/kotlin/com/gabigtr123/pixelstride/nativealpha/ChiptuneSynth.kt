@@ -79,6 +79,11 @@ class ChiptuneSynth {
             doubleArrayOf(659.25, 659.25, 0.0, 783.99, 739.99, 659.25, 0.0, 587.33, 659.25, 0.0, 987.77, 880.0, 783.99, 739.99, 659.25, 0.0),
             doubleArrayOf(164.81, 164.81, 164.81, 246.94, 146.83, 146.83, 146.83, 220.0, 130.81, 130.81, 196.0, 130.81, 146.83, 164.81, 196.0, 246.94),
         ),
+        // 6: Cyber Neon Skyway (Synthwave arp)
+        Theme(
+            doubleArrayOf(659.25, 783.99, 987.77, 783.99, 659.25, 587.33, 659.25, 0.0, 523.25, 659.25, 783.99, 987.77, 880.0, 783.99, 659.25, 0.0),
+            doubleArrayOf(164.81, 164.81, 246.94, 164.81, 130.81, 130.81, 196.0, 130.81, 146.83, 146.83, 220.0, 146.83, 164.81, 164.81, 246.94, 196.0),
+        ),
     )
 
     private val bossTheme = Theme(
@@ -193,12 +198,13 @@ class ChiptuneSynth {
         playTone(f0, f1, 0.10, 0.22, square = true)
     }
 
-    fun playCoin() {
+    fun playCoin(combo: Int = 1) {
         if (sfxMuted) return
+        val pitchScale = 1.0 + (combo - 1).coerceIn(0, 7) * 0.055
         playSequence(
             listOf(
-                Triple(987.77, 987.77, 0.055),
-                Triple(1318.51, 1318.51, 0.11),
+                Triple(987.77 * pitchScale, 987.77 * pitchScale, 0.055),
+                Triple(1318.51 * pitchScale, 1318.51 * pitchScale, 0.11),
             ),
             volume = 0.20,
         )

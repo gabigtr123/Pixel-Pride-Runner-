@@ -110,11 +110,11 @@ jobs:
               "- **Web & PWA Bundle:** \`${ZIP}\` (static bundle ready for any host)" \
               "- **Play / Install PWA:** https://gabigtr123.github.io/Pixel-Pride-Runner-/" \
               "" \
-              "### What's New in v4.1.0 (120Hz VSync, Hero Creator 2.0, Swipe & Settings)" \
-              "- **Hardware VSync (\`Choreographer\`) + GPU Hardware Canvas:** Replaced fixed 16ms sleep loop with hardware VSync & \`lockHardwareCanvas()\` for silky-smooth 90Hz / 120Hz / 144Hz gameplay with zero micro-stutter." \
-              "- **Hero Creator 2.0:** Added **Male / Female** body style toggle and **5 Skin Tones** alongside Hair, Tunic, Scarf, and Boots palettes." \
-              "- **Swipe Controls + Granular Audio/Haptics Settings:** Added optional Swipe Up (Jump) / Swipe Down (Duck/Fast-Fall) gestures and separate \`MUSIC\`, \`SFX\`, \`VIB\` (Haptics), and \`SWIPE\` toggles right in the Pause menu." \
-              "- **Google Play Ready (\`.aab\`) + Continuous CI:** Every release now builds & signs both \`.apk\` and \`.aab\`, gated by 26 Web/TS tests and 6 Kotlin JUnit 4 tests." \
+              "### What's New in v4.2.0 (Arcade Feel, Cyber Neon Biome, 2 New Heroes, RO/EN & Hideable Buttons)" \
+              "- **Arcade Game Feel & Boss Phase 2:** Added crisp 42–50ms **Hitstop** on stomps & Boss KOs, elastic **Hero Squash & Stretch**, combo pitch-scaling coin SFX, and **Enraged Boss Phase 2** (<= 50% HP) with pulsing magenta aura and glowing energy orb projectiles." \
+              "- **New Content (7th Biome + 2 Heroes + Save Codes):** Added **CYBER NEON SKYWAY** biome, 5th synthwave parallax skyline & chiptune loop, **NINJA** (*Smoke Dash* invulnerability on double jump) & **ASTRO** (*Low-G Glide* while holding Jump), plus Clipboard Base64 **Export / Import Save Code** (\`PS4:...\`)." \
+              "- **Hideable Touch Buttons, Left-Handed & EN/RO Localization:** Toggle \`BTNS ON / OFF\` in Pause to hide bottom \`▼ DUCK\` / \`▲ JUMP\` buttons completely (use full-screen Tap & Swipe), swap sides with \`L-HAND / R-HAND\`, and switch between **English** and **Romanian** (\`LANG: EN / RO\`)." \
+              "- **Verified Quality:** Gated by 26 Web/TS tests and 10 Kotlin JUnit 4 unit tests, building signed \`.apk\`, Google Play \`.aab\`, and Web \`.zip\`." \
               > release-notes.md
             gh release create "$RELEASE_TAG" "$APK" "$AAB" "$ZIP" \
               --title "Pixel Stride ${RELEASE_TAG} (Native Android 17 + Web)" \

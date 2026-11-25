@@ -10,8 +10,8 @@ android {
         applicationId = "com.gabigtr123.pixelstride"
         minSdk = 26
         targetSdk = 37
-        versionCode = 40100
-        versionName = "4.1.0"
+        versionCode = 40200
+        versionName = "4.2.0"
     }
 
     buildTypes {

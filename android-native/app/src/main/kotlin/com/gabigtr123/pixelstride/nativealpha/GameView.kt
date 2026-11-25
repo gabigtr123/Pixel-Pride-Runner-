@@ -1,5 +1,7 @@
 package com.gabigtr123.pixelstride.nativealpha
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Typeface
@@ -33,6 +35,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     private var trophyPage: Int = 0
     private var hapticsEnabled: Boolean = true
     private var swipeEnabled: Boolean = true
+    private var lang: AppLang = AppLang.EN
+    private var leftHanded: Boolean = false
+    private var showTouchButtons: Boolean = true
 
     var insetTopPx: Float = 48f
     var insetBottomPx: Float = 32f
@@ -70,6 +75,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         synth.sfxMuted = prefs.getBoolean("sfx_muted", legacyMuted)
         hapticsEnabled = prefs.getBoolean("haptics_enabled", true)
         swipeEnabled = prefs.getBoolean("swipe_enabled", true)
+        lang = AppLang.entries.getOrElse(prefs.getInt("lang_ordinal", 0)) { AppLang.EN }
+        leftHanded = prefs.getBoolean("left_handed", false)
+        showTouchButtons = prefs.getBoolean("show_touch_buttons", true)
     }
 
     private fun persistSave() {
@@ -88,6 +96,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             .putBoolean("sfx_muted", synth.sfxMuted)
             .putBoolean("haptics_enabled", hapticsEnabled)
             .putBoolean("swipe_enabled", swipeEnabled)
+            .putInt("lang_ordinal", lang.ordinal)
+            .putBoolean("left_handed", leftHanded)
+            .putBoolean("show_touch_buttons", showTouchButtons)
             .apply()
         meta.save()
     }
@@ -265,6 +276,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                                 sfxMuted = synth.sfxMuted,
                                 hapticsEnabled = hapticsEnabled,
                                 swipeEnabled = swipeEnabled,
+                                lang = lang,
+                                leftHanded = leftHanded,
+                                showTouchButtons = showTouchButtons,
                             )
                         }
                     } finally {
@@ -369,6 +383,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             UiAction.SELECT_HERO_STRIDE -> selectHero(HeroId.STRIDE)
             UiAction.SELECT_HERO_LILY -> selectHero(HeroId.LILY)
             UiAction.SELECT_HERO_KNIGHT -> selectHero(HeroId.KNIGHT)
+            UiAction.SELECT_HERO_NINJA -> selectHero(HeroId.NINJA)
+            UiAction.SELECT_HERO_ASTRO -> selectHero(HeroId.ASTRO)
             UiAction.SELECT_HERO_CUSTOM -> {
                 if (engine.hero == HeroId.CUSTOM) {
                     engine.phase = GamePhase.CREATOR
@@ -602,6 +618,53 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                 persistSave()
                 vibrate(10, 50)
             }
+            UiAction.TOGGLE_LANG -> {
+                lang = if (lang == AppLang.EN) AppLang.RO else AppLang.EN
+                persistSave()
+                vibrate(10, 50)
+                showToast(if (lang == AppLang.RO) "LIMBA: ROMANA" else "LANGUAGE: ENGLISH")
+            }
+            UiAction.TOGGLE_LEFT_HAND -> {
+                leftHanded = !leftHanded
+                persistSave()
+                vibrate(10, 50)
+                showToast(if (leftHanded) "LEFT-HANDED CONTROLS" else "RIGHT-HANDED CONTROLS")
+            }
+            UiAction.TOGGLE_TOUCH_BTNS -> {
+                showTouchButtons = !showTouchButtons
+                persistSave()
+                vibrate(10, 50)
+                showToast(if (showTouchButtons) "TOUCH BUTTONS ON" else "TOUCH BUTTONS HIDDEN (TAP & SWIPE)")
+            }
+            UiAction.EXPORT_SAVE -> {
+                val code = meta.exportSaveCode(engine)
+                post {
+                    runCatching {
+                        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                        cm?.setPrimaryClip(ClipData.newPlainText("Pixel Stride Save", code))
+                        showToast(if (lang == AppLang.RO) "COD SALVARE COPIAT!" else "SAVE CODE COPIED!")
+                    }.onFailure {
+                        showToast("EXPORT FAILED")
+                    }
+                }
+                vibrate(12, 65)
+            }
+            UiAction.IMPORT_SAVE -> {
+                post {
+                    runCatching {
+                        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                        val clip = cm?.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString() ?: ""
+                        synchronized(engine) {
+                            val msg = meta.importSaveCode(clip, engine)
+                            persistSave()
+                            showToast(msg)
+                        }
+                    }.onFailure {
+                        showToast("IMPORT FAILED")
+                    }
+                }
+                vibrate(12, 65)
+            }
             UiAction.JUMP_BTN -> {
                 jumpPointerId = pointerId
                 engine.pressJump()
@@ -678,8 +741,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         vibrate(if (isDouble) 14 else 10, 55)
     }
 
-    override fun onCoin() {
-        synth.playCoin()
+    override fun onCoin(combo: Int) {
+        synth.playCoin(combo)
     }
 
     override fun onStomp() {

@@ -21,7 +21,7 @@ class GameEngineTest {
             if (isDouble) doubleJumps++
         }
 
-        override fun onCoin() {
+        override fun onCoin(combo: Int) {
             coins++
         }
 
@@ -194,5 +194,99 @@ class GameEngineTest {
 
         engine.winterTheme = false
         assertEquals("SUNLIT HIGHLANDS", engine.currentBiome().name)
+    }
+
+    @Test
+    fun squashAndStretchAndHitstopActivateOnJumpAndStomp() {
+        val engine = GameEngine(RecordingFeedback())
+        engine.startNewRun()
+
+        // Jump stretches vertically
+        engine.pressJump()
+        assertTrue(engine.playerScaleY > 1.05f)
+        assertTrue(engine.playerScaleX < 0.95f)
+
+        // Stomping a hopper triggers brief hitstop freeze
+        val hopper = HazardEntity(
+            x = engine.playerX + 2f,
+            y = engine.groundY - 18f,
+            width = 20f,
+            height = 18f,
+            type = HazardType.HOPPER,
+        )
+        engine.hazards.add(hopper)
+        engine.playerY = hopper.y - engine.playerStandHeight + 2f
+        engine.playerVy = 180f
+        engine.onGround = false
+        engine.update(0.016f)
+
+        assertTrue("Stomp should trigger hitstop", engine.hitstopTimer > 0f)
+    }
+
+    @Test
+    fun ninjaDoubleJumpTriggersSmokeDashInvulnerability() {
+        val engine = GameEngine(RecordingFeedback())
+        engine.hero = HeroId.NINJA
+        engine.startNewRun()
+        assertEquals(0f, engine.invulnTimer, 0.001f)
+
+        engine.pressJump()
+        engine.update(0.05f)
+        engine.pressJump() // double jump -> Smoke Dash!
+
+        assertTrue("Ninja double jump should grant Smoke Dash invulnerability", engine.invulnTimer >= 0.4f)
+    }
+
+    @Test
+    fun astroHoldJumpTriggersLowGravityGlide() {
+        val astro = GameEngine(RecordingFeedback()).apply {
+            hero = HeroId.ASTRO
+            startNewRun()
+            playerY = groundY - 90f
+            playerVy = 100f
+            onGround = false
+            holdingJump = true
+        }
+        val stride = GameEngine(RecordingFeedback()).apply {
+            hero = HeroId.STRIDE
+            startNewRun()
+            playerY = groundY - 90f
+            playerVy = 100f
+            onGround = false
+            holdingJump = true
+        }
+
+        repeat(10) {
+            astro.update(0.016f)
+            stride.update(0.016f)
+        }
+
+        assertTrue("Astro Bot holding Jump should fall slower than Stride", astro.playerVy < stride.playerVy)
+    }
+
+    @Test
+    fun bossPhase2EnragesAndFiresProjectilesAndSeventhBiomeExists() {
+        assertEquals(7, BIOMES.size)
+        assertEquals("CYBER NEON SKYWAY", BIOMES[6].name)
+        assertEquals(5, LEVEL_NAMES.size)
+
+        val engine = GameEngine(RecordingFeedback())
+        engine.mode = GameMode.BOSS_RUSH
+        engine.startNewRun()
+
+        // Spawn boss and drop HP to <= 50% to trigger Phase 2 Enraged
+        engine.activeBoss = BossEntity(
+            kind = BossKind.MECHA_BOT,
+            x = engine.worldWidth - 68f,
+            y = engine.groundY - 40f,
+            hp = 2,
+            maxHp = 4,
+            projTimer = 0.05f,
+        )
+        engine.update(0.08f)
+
+        val boss = engine.activeBoss!!
+        assertTrue("Boss at <=50% HP should enter Phase 2 Enraged", boss.enraged)
+        assertTrue("Enraged boss should fire energy orb projectiles", engine.bossProjectiles.isNotEmpty())
     }
 }

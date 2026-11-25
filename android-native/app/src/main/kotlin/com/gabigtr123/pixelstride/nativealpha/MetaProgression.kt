@@ -638,4 +638,43 @@ class MetaProgressionManager(private val prefs: SharedPreferences) {
             // Keep clean defaults if corrupt
         }
     }
+
+    fun exportSaveCode(engine: GameEngine): String {
+        save()
+        val payload = JSONObject().apply {
+            put("v", 420)
+            put("best", engine.bestScore)
+            put("coins", engine.totalCoins)
+            put("meta", prefs.getString("meta_v4_json", "{}"))
+        }.toString()
+        val b64 = android.util.Base64.encodeToString(payload.toByteArray(Charsets.UTF_8), android.util.Base64.NO_WRAP)
+        return "PS4:$b64"
+    }
+
+    fun importSaveCode(raw: String, engine: GameEngine): String {
+        val trimmed = raw.trim()
+        if (!trimmed.startsWith("PS4:")) return "INVALID SAVE CODE!"
+        return try {
+            val bytes = android.util.Base64.decode(trimmed.removePrefix("PS4:"), android.util.Base64.DEFAULT)
+            val obj = JSONObject(String(bytes, Charsets.UTF_8))
+            val best = obj.optInt("best", engine.bestScore).coerceAtLeast(0)
+            val coins = obj.optInt("coins", engine.totalCoins).coerceAtLeast(0)
+            val metaJson = obj.optString("meta", "")
+            if (metaJson.isNotEmpty()) {
+                // Validate JSON before overwriting
+                JSONObject(metaJson)
+                prefs.edit().putString("meta_v4_json", metaJson).apply()
+                load()
+            }
+            engine.bestScore = best
+            engine.totalCoins = coins
+            engine.hat = equippedHat
+            engine.cape = equippedCape
+            engine.trailId = equippedTrail
+            engine.customHero = customHero
+            "SAVE RESTORED! (${coins}C)"
+        } catch (_: Throwable) {
+            "INVALID SAVE CODE!"
+        }
+    }
 }

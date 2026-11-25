@@ -262,7 +262,7 @@ object RunCardExporter {
         textPaint.textSize = 9f
         textPaint.textAlign = Paint.Align.LEFT
         textPaint.color = 0xFF8898C8.toInt()
-        c.drawText("PIXEL STRIDE v4.1.0 · $dateStr", 52f, h - 50f, textPaint)
+        c.drawText("PIXEL STRIDE v4.2.0 · $dateStr", 52f, h - 50f, textPaint)
         textPaint.textAlign = Paint.Align.RIGHT
         textPaint.color = accent
         c.drawText("100% NATIVE ANDROID 17", w - 52f, h - 50f, textPaint)
