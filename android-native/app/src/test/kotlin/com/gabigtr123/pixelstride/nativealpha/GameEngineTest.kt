@@ -276,7 +276,7 @@ class GameEngineTest {
 
         // Spawn boss and drop HP to <= 50% to trigger Phase 2 Enraged
         engine.activeBoss = BossEntity(
-            kind = BossKind.MECHA_BOT,
+            kind = BossKind.NEON_DRONE,
             x = engine.worldWidth - 68f,
             y = engine.groundY - 40f,
             hp = 2,
