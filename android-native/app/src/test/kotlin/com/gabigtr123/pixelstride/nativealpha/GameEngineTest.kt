@@ -274,16 +274,18 @@ class GameEngineTest {
         engine.mode = GameMode.BOSS_RUSH
         engine.startNewRun()
 
-        // Spawn boss and drop HP to <= 50% to trigger Phase 2 Enraged
+        // Spawn boss at arena anchor and drop HP to <= 50% to trigger Phase 2 Enraged
+        val bossX = engine.worldWidth - 80f
         engine.activeBoss = BossEntity(
             kind = BossKind.NEON_DRONE,
-            x = engine.worldWidth - 68f,
+            x = bossX,
             y = engine.groundY - 40f,
+            anchorX = bossX,
             hp = 2,
             maxHp = 4,
-            projTimer = 0.05f,
+            projTimer = 0.04f,
         )
-        engine.update(0.08f)
+        repeat(3) { engine.update(0.03f) }
 
         val boss = engine.activeBoss!!
         assertTrue("Boss at <=50% HP should enter Phase 2 Enraged", boss.enraged)
