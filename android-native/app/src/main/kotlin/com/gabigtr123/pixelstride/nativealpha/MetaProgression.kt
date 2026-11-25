@@ -204,7 +204,7 @@ class MetaProgressionManager(private val prefs: SharedPreferences) {
         ownedTrails.add(trail)
         equippedTrail = trail
         engine.trailId = trail
-        evaluateTrophies()
+        checkShopTrophies()
         save()
         return "UNLOCKED ${trail.label} TRAIL!"
     }
