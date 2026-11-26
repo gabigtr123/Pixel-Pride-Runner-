@@ -294,7 +294,7 @@ data class HazardEntity(
     val width: Float,
     val height: Float,
     val type: HazardType,
-    val baseY: Float = y,
+    var baseY: Float = y,
     var animPhase: Float = 0f,
     var defeated: Boolean = false,
     var vy: Float = 0f,
