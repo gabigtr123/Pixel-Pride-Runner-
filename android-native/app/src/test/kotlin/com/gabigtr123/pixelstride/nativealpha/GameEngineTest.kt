@@ -426,7 +426,7 @@ class GameEngineTest {
     @Test
     fun runnerTrailParticlesRespectMaxParticlesCap() {
         val engine = GameEngine(RecordingFeedback())
-        engine.trailId = TrailId.PRIDE
+        engine.trailId = TrailId.RAINBOW
         engine.startNewRun()
         engine.turboTimer = 4.0f
 
