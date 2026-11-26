@@ -553,6 +553,20 @@ class MetaProgressionManager(private val prefs: SharedPreferences) {
         val raw = prefs.getString("meta_v4_json", null) ?: return
         try {
             val j = JSONObject(raw)
+            ownedHats.clear()
+            ownedHats.add(HatId.NONE)
+            ownedCapes.clear()
+            ownedCapes.add(CapeId.NONE)
+            ownedPets.clear()
+            ownedPets.add(PetId.NONE)
+            ownedPets.add(PetId.FOX)
+            ownedTrails.clear()
+            ownedTrails.add(TrailId.CLASSIC)
+            ownedGadgets.clear()
+            equippedGadgets.clear()
+            unlockedTrophies.clear()
+            claimedTrophies.clear()
+
             j.optJSONArray("ownedHats")?.let { arr ->
                 for (i in 0 until arr.length()) runCatching { ownedHats.add(HatId.valueOf(arr.getString(i))) }
             }
@@ -568,27 +582,26 @@ class MetaProgressionManager(private val prefs: SharedPreferences) {
             j.optJSONArray("ownedGadgets")?.let { arr ->
                 for (i in 0 until arr.length()) runCatching { ownedGadgets.add(GadgetId.valueOf(arr.getString(i))) }
             }
-            equippedGadgets.clear()
             j.optJSONArray("equippedGadgets")?.let { arr ->
                 for (i in 0 until arr.length()) runCatching { equippedGadgets.add(GadgetId.valueOf(arr.getString(i))) }
             }
             thirdSlotUnlocked = j.optBoolean("thirdSlotUnlocked", false)
-            runCatching { equippedHat = HatId.valueOf(j.optString("equippedHat", "NONE")) }
-            runCatching { equippedCape = CapeId.valueOf(j.optString("equippedCape", "NONE")) }
-            runCatching { equippedTrail = TrailId.valueOf(j.optString("equippedTrail", "CLASSIC")) }
+            equippedHat = runCatching { HatId.valueOf(j.optString("equippedHat", "NONE")) }.getOrDefault(HatId.NONE)
+            equippedCape = runCatching { CapeId.valueOf(j.optString("equippedCape", "NONE")) }.getOrDefault(CapeId.NONE)
+            equippedTrail = runCatching { TrailId.valueOf(j.optString("equippedTrail", "CLASSIC")) }.getOrDefault(TrailId.CLASSIC)
             upgradeLevels[UpgradeId.MAGNET_DURATION] = j.optInt("uMag", 0).coerceIn(0, UpgradeId.MAGNET_DURATION.maxLevel)
             upgradeLevels[UpgradeId.COIN_VALUE] = j.optInt("uCoin", 0).coerceIn(0, UpgradeId.COIN_VALUE.maxLevel)
             upgradeLevels[UpgradeId.SHIELD_INVULN] = j.optInt("uInvuln", 0).coerceIn(0, UpgradeId.SHIELD_INVULN.maxLevel)
-            boosters[BoosterId.HEAD_START] = j.optInt("bHead", 0)
-            boosters[BoosterId.EXTRA_HEART] = j.optInt("bHeart", 0)
-            boosters[BoosterId.DOUBLE_COINS] = j.optInt("bCoins", 0)
+            boosters[BoosterId.HEAD_START] = j.optInt("bHead", 0).coerceAtLeast(0)
+            boosters[BoosterId.EXTRA_HEART] = j.optInt("bHeart", 0).coerceAtLeast(0)
+            boosters[BoosterId.DOUBLE_COINS] = j.optInt("bCoins", 0).coerceAtLeast(0)
             customHero = CustomHeroConfig(
-                hairIndex = j.optInt("cHair", 0),
-                tunicIndex = j.optInt("cTunic", 0),
-                scarfIndex = j.optInt("cScarf", 0),
-                bootsIndex = j.optInt("cBoots", 0),
+                hairIndex = j.optInt("cHair", 0).coerceIn(0, CustomHeroConfig.HAIR_COLORS.lastIndex),
+                tunicIndex = j.optInt("cTunic", 0).coerceIn(0, CustomHeroConfig.TUNIC_COLORS.lastIndex),
+                scarfIndex = j.optInt("cScarf", 0).coerceIn(0, CustomHeroConfig.SCARF_COLORS.lastIndex),
+                bootsIndex = j.optInt("cBoots", 0).coerceIn(0, CustomHeroConfig.BOOTS_COLORS.lastIndex),
                 isFemale = j.optBoolean("cFemale", false),
-                skinIndex = j.optInt("cSkin", 0),
+                skinIndex = j.optInt("cSkin", 0).coerceIn(0, CustomHeroConfig.SKIN_COLORS.lastIndex),
             )
             streakDays = j.optInt("streakDays", 1).coerceIn(1, 7)
             lastPlayDate = j.optString("lastPlayDate", "")

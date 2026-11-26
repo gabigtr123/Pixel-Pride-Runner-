@@ -110,11 +110,12 @@ jobs:
               "- **Web & PWA Bundle:** \`${ZIP}\` (static bundle ready for any host)" \
               "- **Play / Install PWA:** https://gabigtr123.github.io/Pixel-Pride-Runner-/" \
               "" \
-              "### What's New in v4.2.0 (Arcade Feel, Cyber Neon Biome, 2 New Heroes, RO/EN & Hideable Buttons)" \
-              "- **Arcade Game Feel & Boss Phase 2:** Added crisp 42–50ms **Hitstop** on stomps & Boss KOs, elastic **Hero Squash & Stretch**, combo pitch-scaling coin SFX, and **Enraged Boss Phase 2** (<= 50% HP) with pulsing magenta aura and glowing energy orb projectiles." \
-              "- **New Content (7th Biome + 2 Heroes + Save Codes):** Added **CYBER NEON SKYWAY** biome, 5th synthwave parallax skyline & chiptune loop, **NINJA** (*Smoke Dash* invulnerability on double jump) & **ASTRO** (*Low-G Glide* while holding Jump), plus Clipboard Base64 **Export / Import Save Code** (\`PS4:...\`)." \
-              "- **Hideable Touch Buttons, Left-Handed & EN/RO Localization:** Toggle \`BTNS ON / OFF\` in Pause to hide bottom \`▼ DUCK\` / \`▲ JUMP\` buttons completely (use full-screen Tap & Swipe), swap sides with \`L-HAND / R-HAND\`, and switch between **English** and **Romanian** (\`LANG: EN / RO\`)." \
-              "- **Verified Quality:** Gated by 26 Web/TS tests and 10 Kotlin JUnit 4 unit tests, building signed \`.apk\`, Google Play \`.aab\`, and Web \`.zip\`." \
+              "### What's New in v4.2.1 (Bug Fixes, Swipe Polish & Audio/Lifecycle Stability)" \
+              "- **Zero-Hop Swipe Down (\`BTNS OFF\` & Full-Screen Gestures):** Quickly swiping down to duck now cleanly cancels any accidental initial tap-jump impulse while keeping 0ms jump latency on taps." \
+              "- **Persistent 8-Voice Streaming SFX Mixer:** Replaced per-sound \`AudioTrack\` allocation with a single low-latency 8-voice PCM mixer with automatic idle sleep — zero audio lag or dropped coin SFX under heavy Magnet pickups." \
+              "- **Portrait ↔ Landscape Entity Sync:** Rotating the device mid-run now shifts hazards, collectibles, boss projectiles, particles, and floating text seamlessly with \`groundY\`." \
+              "- **Background Battery & Input State Fixes:** Pauses \`Choreographer\` cleanly in \`onPause()\` and resumes in \`onResume()\`, clears stuck \`ducking\`/\`holdingJump\` pointers on pause/game-over, and resets collections cleanly during \`IMPORT SAVE\`." \
+              "- **Verified Quality:** Gated by 26 Web/TS tests and 13 Kotlin JUnit 4 unit tests." \
               > release-notes.md
             gh release create "$RELEASE_TAG" "$APK" "$AAB" "$ZIP" \
               --title "Pixel Stride ${RELEASE_TAG} (Native Android 17 + Web)" \

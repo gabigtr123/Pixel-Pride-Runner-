@@ -47,7 +47,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     private var jumpPointerId: Int = MotionEvent.INVALID_POINTER_ID
     private var swipePointerId: Int = MotionEvent.INVALID_POINTER_ID
     private var swipeStartY: Float = 0f
+    private var swipeStartTimeMs: Long = 0L
     private var swipeTriggered: Boolean = false
+    private var swipeInitiatedJump: Boolean = false
 
     init {
         holder.addCallback(this)
@@ -133,6 +135,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     private fun resetTouchPointers() {
         duckPointerId = MotionEvent.INVALID_POINTER_ID
         jumpPointerId = MotionEvent.INVALID_POINTER_ID
+        swipePointerId = MotionEvent.INVALID_POINTER_ID
+        swipeTriggered = false
+        swipeInitiatedJump = false
+        engine.releaseJump()
         engine.setDuck(false)
     }
 
@@ -169,6 +175,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         }
     }
 
+    fun onHostResume() {
+        if (holder.surface?.isValid == true) {
+            startLoop()
+        }
+    }
+
     fun onHostPause() {
         synchronized(engine) {
             resetTouchPointers()
@@ -176,6 +188,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                 engine.phase = GamePhase.PAUSED
             }
         }
+        stopLoop()
         synth.stopMusic()
         persistSave()
     }
@@ -325,7 +338,9 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                     if (engine.phase == GamePhase.PLAYING) {
                         swipePointerId = pointerId
                         swipeStartY = y
+                        swipeStartTimeMs = System.currentTimeMillis()
                         swipeTriggered = false
+                        swipeInitiatedJump = true
                         jumpPointerId = pointerId
                         engine.pressJump()
                     }
@@ -335,12 +350,19 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                         val ptrIdx = event.findPointerIndex(swipePointerId)
                         if (ptrIdx >= 0) {
                             val dy = event.getY(ptrIdx) - swipeStartY
-                            val threshold = resources.displayMetrics.density * 28f
+                            val threshold = resources.displayMetrics.density * 24f
                             if (dy > threshold) {
-                                // Swipe Down -> Duck / Fast-Fall / Platform Drop-Through
+                                // Swipe Down -> Duck / Fast-Fall / Platform Drop-Through (cancels accidental tap-jump if quick!)
                                 swipeTriggered = true
+                                if (jumpPointerId == swipePointerId) {
+                                    jumpPointerId = MotionEvent.INVALID_POINTER_ID
+                                }
                                 duckPointerId = swipePointerId
-                                engine.setDuck(true)
+                                if (swipeInitiatedJump && (System.currentTimeMillis() - swipeStartTimeMs) <= 95L) {
+                                    engine.cancelRecentJumpAndDuck()
+                                } else {
+                                    engine.setDuck(true)
+                                }
                             } else if (dy < -threshold) {
                                 // Swipe Up -> Extra Jump / Double Jump
                                 swipeTriggered = true
@@ -353,6 +375,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                     if (pointerId == swipePointerId) {
                         swipePointerId = MotionEvent.INVALID_POINTER_ID
                         swipeTriggered = false
+                        swipeInitiatedJump = false
                     }
                     if (pointerId == duckPointerId) {
                         duckPointerId = MotionEvent.INVALID_POINTER_ID

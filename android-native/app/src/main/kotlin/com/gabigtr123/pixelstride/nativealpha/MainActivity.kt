@@ -88,6 +88,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        gameView.onHostResume()
+    }
+
     override fun onPause() {
         super.onPause()
         gameView.onHostPause()

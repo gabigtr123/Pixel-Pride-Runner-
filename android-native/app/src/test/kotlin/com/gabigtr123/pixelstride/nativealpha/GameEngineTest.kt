@@ -291,4 +291,57 @@ class GameEngineTest {
         assertTrue("Boss at <=50% HP should enter Phase 2 Enraged", boss.enraged)
         assertTrue("Enraged boss should fire energy orb projectiles", engine.bossProjectiles.isNotEmpty())
     }
+
+    @Test
+    fun configureViewportShiftsAllActiveEntitiesOnOrientationChange() {
+        val engine = GameEngine(RecordingFeedback())
+        engine.configureViewport(isPortrait = true)
+        engine.startNewRun()
+        val oldGround = engine.groundY
+
+        val hz = HazardEntity(x = 180f, y = oldGround - 16f, width = 18f, height = 16f, type = HazardType.SPIKE, baseY = oldGround - 16f)
+        val col = CollectibleEntity(x = 200f, y = oldGround - 24f, type = CollectibleType.COIN)
+        val proj = BossProjectile(x = 220f, y = oldGround - 14f, vx = -200f)
+        engine.hazards.add(hz)
+        engine.collectibles.add(col)
+        engine.bossProjectiles.add(proj)
+
+        engine.configureViewport(isPortrait = false)
+        val newGround = engine.groundY
+        assertEquals(newGround - 16f, hz.y, 0.1f)
+        assertEquals(newGround - 16f, hz.baseY, 0.1f)
+        assertEquals(newGround - 24f, col.y, 0.1f)
+        assertEquals(newGround - 14f, proj.y, 0.1f)
+    }
+
+    @Test
+    fun cancelRecentJumpAndDuckPreventsAccidentalSwipeHop() {
+        val engine = GameEngine(RecordingFeedback())
+        engine.startNewRun()
+        val groundPlayerY = engine.playerY
+
+        // Simulate tap-down triggering jump, then quick Swipe Down within 32ms
+        engine.pressJump()
+        engine.update(0.016f)
+        assertFalse(engine.onGround)
+
+        engine.cancelRecentJumpAndDuck()
+        assertTrue("Player should remain grounded in Duck after quick Swipe Down", engine.onGround)
+        assertTrue("Player should be ducking", engine.ducking)
+        assertEquals(engine.groundY - engine.playerDuckHeight, engine.playerY, 0.5f)
+        assertTrue(engine.playerY > groundPlayerY)
+    }
+
+    @Test
+    fun setDuckFalseAlwaysClearsDuckingOutsidePlayingPhase() {
+        val engine = GameEngine(RecordingFeedback())
+        engine.startNewRun()
+        engine.setDuck(true)
+        assertTrue(engine.ducking)
+
+        engine.togglePause()
+        assertEquals(GamePhase.PAUSED, engine.phase)
+        engine.setDuck(false)
+        assertFalse("Releasing duck while paused should still clear ducking state", engine.ducking)
+    }
 }

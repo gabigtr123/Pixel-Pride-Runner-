@@ -152,12 +152,30 @@ class GameEngine(private val feedback: EngineFeedback) {
             playerX = 76f
         }
         val delta = groundY - oldGround
-        playerY += delta
-        if (playerY > groundY - currentPlayerHeight()) {
-            playerY = groundY - currentPlayerHeight()
-        }
-        for (plat in platforms) {
-            plat.y += delta
+        if (delta != 0f) {
+            playerY += delta
+            if (playerY > groundY - currentPlayerHeight()) {
+                playerY = groundY - currentPlayerHeight()
+            }
+            for (plat in platforms) {
+                plat.y += delta
+            }
+            for (hz in hazards) {
+                hz.y += delta
+                hz.baseY += delta
+            }
+            for (col in collectibles) {
+                col.y += delta
+            }
+            for (proj in bossProjectiles) {
+                proj.y += delta
+            }
+            for (p in particles) {
+                p.y += delta
+            }
+            for (ft in floatingTexts) {
+                ft.y += delta
+            }
         }
         activeBoss?.let {
             it.y = groundY - it.height
@@ -306,20 +324,54 @@ class GameEngine(private val feedback: EngineFeedback) {
         }
     }
 
+    private var preJumpY: Float = 0f
+    private var preJumpOnGround: Boolean = true
+    private var preJumpOnPlatform: Boolean = false
+    private var preJumpJumps: Int = 2
+    private var lastGroundJumpElapsed: Float = -10f
+
     fun setDuck(active: Boolean) {
+        if (!active) {
+            val wasDuck = ducking
+            ducking = false
+            if (phase == GamePhase.PLAYING && onGround && wasDuck) {
+                playerY = groundY - currentPlayerHeight()
+            }
+            return
+        }
         if (phase != GamePhase.PLAYING) return
         val wasDuck = ducking
-        ducking = active
-        if (active && onPlatform) {
+        ducking = true
+        if (onPlatform) {
             onPlatform = false
             onGround = false
             playerY += 4f
             playerVy = 260f
-        } else if (active && !onGround && playerVy < 340f) {
+        } else if (!onGround && playerVy < 340f) {
             playerVy = 390f
-        } else if (onGround && active != wasDuck) {
+        } else if (onGround && !wasDuck) {
             playerY = groundY - currentPlayerHeight()
         }
+    }
+
+    /**
+     * Cancels a jump that fired within the last 95ms (e.g. when the user starts a Swipe-Down gesture)
+     * and transitions directly into Duck / platform drop-through without an accidental hop.
+     */
+    fun cancelRecentJumpAndDuck() {
+        if (phase != GamePhase.PLAYING) return
+        holdingJump = false
+        jumpBufferTimer = 0f
+        if (elapsed - lastGroundJumpElapsed <= 0.10f && playerVy < 0f) {
+            onGround = preJumpOnGround
+            onPlatform = preJumpOnPlatform
+            jumpsRemaining = preJumpJumps
+            playerY = preJumpY
+            playerVy = 0f
+            playerScaleX = 1f
+            playerScaleY = 1f
+        }
+        setDuck(true)
     }
 
     fun togglePause() {
@@ -369,6 +421,11 @@ class GameEngine(private val feedback: EngineFeedback) {
     private fun tryConsumeJump() {
         if (jumpBufferTimer <= 0f) return
         if (onGround || coyoteTimer > 0f) {
+            preJumpY = playerY
+            preJumpOnGround = onGround
+            preJumpOnPlatform = onPlatform
+            preJumpJumps = jumpsRemaining
+            lastGroundJumpElapsed = elapsed
             playerVy = -355f
             onGround = false
             onPlatform = false

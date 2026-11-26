@@ -3,7 +3,6 @@ package com.gabigtr123.pixelstride.nativealpha
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
-import java.util.concurrent.Executors
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sin
@@ -15,8 +14,15 @@ import kotlin.random.Random
  */
 class ChiptuneSynth {
     private val sampleRate = 22050
-    private val sfxExecutor = Executors.newFixedThreadPool(4)
     private val musicLock = Any()
+    private val sfxLock = Any()
+
+    private class SfxVoice(val pcm: ShortArray, var pos: Int = 0)
+    private val activeVoices = ArrayList<SfxVoice>(8)
+
+    @Volatile
+    private var sfxRunning: Boolean = false
+    private var sfxThread: Thread? = null
 
     @Volatile
     var musicMuted: Boolean = false
@@ -276,102 +282,181 @@ class ChiptuneSynth {
         volume: Double,
         square: Boolean,
     ) {
-        sfxExecutor.execute {
-            val count = (sampleRate * durationSec).toInt().coerceAtLeast(1)
-            val pcm = ShortArray(count)
-            var phase = 0.0
-            for (i in 0 until count) {
-                val t = i.toDouble() / count
-                val freq = startFreq + (endFreq - startFreq) * t
-                val env = (1.0 - t).coerceIn(0.0, 1.0)
-                phase += 2.0 * PI * freq / sampleRate
-                val sample = if (square) {
-                    if (sin(phase) >= 0.0) 1.0 else -1.0
-                } else {
-                    sin(phase)
-                }
-                pcm[i] = (sample * volume * env * Short.MAX_VALUE).toInt().toShort()
+        val count = (sampleRate * durationSec).toInt().coerceAtLeast(1)
+        val pcm = ShortArray(count)
+        var phase = 0.0
+        for (i in 0 until count) {
+            val t = i.toDouble() / count
+            val freq = startFreq + (endFreq - startFreq) * t
+            val env = (1.0 - t).coerceIn(0.0, 1.0)
+            phase += freq / sampleRate
+            if (phase >= 1.0) phase -= 1.0
+            val sample = if (square) {
+                if (phase < 0.5) 1.0 else -1.0
+            } else {
+                sin(2.0 * PI * phase)
             }
-            writeSfxPcm(pcm)
+            pcm[i] = (sample * volume * env * Short.MAX_VALUE).toInt().toShort()
         }
+        enqueueSfxPcm(pcm)
     }
 
     private fun playSequence(notes: List<Triple<Double, Double, Double>>, volume: Double) {
-        sfxExecutor.execute {
-            val totalSamples = notes.sumOf { (sampleRate * it.third).toInt().coerceAtLeast(1) }
-            val pcm = ShortArray(totalSamples)
-            var offset = 0
-            for ((f0, f1, dur) in notes) {
-                val count = (sampleRate * dur).toInt().coerceAtLeast(1)
-                var phase = 0.0
-                for (i in 0 until count) {
-                    val t = i.toDouble() / count
-                    val freq = f0 + (f1 - f0) * t
-                    val env = (1.0 - t * 0.85).coerceIn(0.0, 1.0)
-                    phase += 2.0 * PI * freq / sampleRate
-                    val wave = if (sin(phase) >= 0.0) 1.0 else -1.0
-                    if (offset + i < pcm.size) {
-                        pcm[offset + i] = (wave * volume * env * Short.MAX_VALUE).toInt().toShort()
-                    }
+        val totalSamples = notes.sumOf { (sampleRate * it.third).toInt().coerceAtLeast(1) }
+        val pcm = ShortArray(totalSamples)
+        var offset = 0
+        for ((f0, f1, dur) in notes) {
+            val count = (sampleRate * dur).toInt().coerceAtLeast(1)
+            var phase = 0.0
+            for (i in 0 until count) {
+                val t = i.toDouble() / count
+                val freq = f0 + (f1 - f0) * t
+                val env = (1.0 - t * 0.85).coerceIn(0.0, 1.0)
+                phase += freq / sampleRate
+                if (phase >= 1.0) phase -= 1.0
+                val wave = if (phase < 0.5) 1.0 else -1.0
+                if (offset + i < pcm.size) {
+                    pcm[offset + i] = (wave * volume * env * Short.MAX_VALUE).toInt().toShort()
                 }
-                offset += count
             }
-            writeSfxPcm(pcm)
+            offset += count
         }
+        enqueueSfxPcm(pcm)
     }
 
     private fun playNoise(durationSec: Double, volume: Double) {
-        sfxExecutor.execute {
-            val count = (sampleRate * durationSec).toInt().coerceAtLeast(1)
-            val pcm = ShortArray(count)
-            for (i in 0 until count) {
-                val t = i.toDouble() / count
-                val env = (1.0 - t) * (1.0 - t)
-                val n = Random.nextDouble(-1.0, 1.0)
-                pcm[i] = (n * volume * env * Short.MAX_VALUE).toInt().toShort()
+        val count = (sampleRate * durationSec).toInt().coerceAtLeast(1)
+        val pcm = ShortArray(count)
+        for (i in 0 until count) {
+            val t = i.toDouble() / count
+            val env = (1.0 - t) * (1.0 - t)
+            val n = Random.nextDouble(-1.0, 1.0)
+            pcm[i] = (n * volume * env * Short.MAX_VALUE).toInt().toShort()
+        }
+        enqueueSfxPcm(pcm)
+    }
+
+    private fun enqueueSfxPcm(pcm: ShortArray) {
+        synchronized(sfxLock) {
+            if (activeVoices.size >= 8) {
+                activeVoices.removeAt(0)
             }
-            writeSfxPcm(pcm)
+            activeVoices.add(SfxVoice(pcm))
+            if (!sfxRunning) {
+                startSfxMixerLocked()
+            }
         }
     }
 
-    private fun writeSfxPcm(pcm: ShortArray) {
+    private fun startSfxMixerLocked() {
+        sfxRunning = true
+        sfxThread = Thread {
+            var track: AudioTrack? = null
+            try {
+                val chunkSamples = 441 // ~20ms low-latency mixing slice at 22050Hz
+                val minBuf = AudioTrack.getMinBufferSize(
+                    sampleRate,
+                    AudioFormat.CHANNEL_OUT_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT,
+                )
+                val bufBytes = maxOf(minBuf, chunkSamples * 4)
+                track = AudioTrack.Builder()
+                    .setAudioAttributes(
+                        AudioAttributes.Builder()
+                            .setUsage(AudioAttributes.USAGE_GAME)
+                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build(),
+                    )
+                    .setAudioFormat(
+                        AudioFormat.Builder()
+                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                            .setSampleRate(sampleRate)
+                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                            .build(),
+                    )
+                    .setBufferSizeInBytes(bufBytes)
+                    .setTransferMode(AudioTrack.MODE_STREAM)
+                    .build()
+                track.play()
+
+                val mixBuf = ShortArray(chunkSamples)
+                var silentChunks = 0
+                while (sfxRunning) {
+                    var hasAudio = false
+                    synchronized(sfxLock) {
+                        if (activeVoices.isNotEmpty() && !sfxMuted) {
+                            hasAudio = true
+                            for (i in 0 until chunkSamples) {
+                                var sum = 0
+                                for (vIdx in activeVoices.lastIndex downTo 0) {
+                                    val v = activeVoices[vIdx]
+                                    if (v.pos < v.pcm.size) {
+                                        sum += v.pcm[v.pos++].toInt()
+                                    } else {
+                                        activeVoices.removeAt(vIdx)
+                                    }
+                                }
+                                mixBuf[i] = sum.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+                            }
+                        } else {
+                            if (sfxMuted) activeVoices.clear()
+                            mixBuf.fill(0)
+                        }
+                    }
+                    if (hasAudio) {
+                        silentChunks = 0
+                        track.write(mixBuf, 0, mixBuf.size)
+                    } else {
+                        silentChunks++
+                        if (silentChunks > 75) {
+                            // Auto-sleep after ~1.5s of silence to save battery
+                            synchronized(sfxLock) {
+                                if (activeVoices.isEmpty()) {
+                                    sfxRunning = false
+                                    sfxThread = null
+                                    break
+                                }
+                            }
+                        } else {
+                            track.write(mixBuf, 0, mixBuf.size)
+                        }
+                    }
+                }
+            } catch (_: Throwable) {
+                synchronized(sfxLock) {
+                    sfxRunning = false
+                    sfxThread = null
+                }
+            } finally {
+                try {
+                    track?.stop()
+                    track?.release()
+                } catch (_: Throwable) {
+                }
+            }
+        }.apply {
+            name = "PixelStrideSfxMixer"
+            start()
+        }
+    }
+
+    private fun stopSfxMixer() {
+        val t: Thread?
+        synchronized(sfxLock) {
+            sfxRunning = false
+            activeVoices.clear()
+            t = sfxThread
+            sfxThread = null
+        }
+        t?.interrupt()
         try {
-            val minBuf = AudioTrack.getMinBufferSize(
-                sampleRate,
-                AudioFormat.CHANNEL_OUT_MONO,
-                AudioFormat.ENCODING_PCM_16BIT,
-            )
-            val byteLen = pcm.size * 2
-            val track = AudioTrack.Builder()
-                .setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_GAME)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build(),
-                )
-                .setAudioFormat(
-                    AudioFormat.Builder()
-                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                        .setSampleRate(sampleRate)
-                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                        .build(),
-                )
-                .setBufferSizeInBytes(maxOf(minBuf, byteLen))
-                .setTransferMode(AudioTrack.MODE_STATIC)
-                .build()
-            track.write(pcm, 0, pcm.size)
-            track.play()
-            val sleepMs = (pcm.size * 1000L / sampleRate) + 25L
-            Thread.sleep(sleepMs)
-            track.stop()
-            track.release()
-        } catch (_: Throwable) {
-            // Ignore audio hardware transient failures
+            t?.join(120)
+        } catch (_: InterruptedException) {
         }
     }
 
     fun release() {
         stopMusic()
-        sfxExecutor.shutdownNow()
+        stopSfxMixer()
     }
 }
