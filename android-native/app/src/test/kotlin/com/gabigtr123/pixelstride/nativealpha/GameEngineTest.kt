@@ -372,18 +372,18 @@ class GameEngineTest {
         engine.startNewRun()
         val startHp = engine.hp
 
-        // Position charging boss so that even after stomp knockback (+45px), AABB still overlaps player on next frame
+        // Position charging boss (width=38) so Frame 1 stomps its back edge and +45px knockback still overlaps player on bounce
         val boss = BossEntity(
             kind = BossKind.IRON_BEETLE,
-            x = engine.playerX - 40f,
+            x = engine.playerX - 26f,
             y = engine.groundY - 32f,
-            anchorX = engine.playerX + 4f,
+            anchorX = engine.playerX,
             hp = 3,
             maxHp = 3,
             charging = true,
         )
         engine.activeBoss = boss
-        engine.playerY = boss.y - engine.playerStandHeight + 3f
+        engine.playerY = boss.y - engine.playerStandHeight + 4f
         engine.playerVy = 210f
         engine.onGround = false
 
@@ -393,7 +393,7 @@ class GameEngineTest {
         assertTrue("Boss stomp should grant grace invulnerability", engine.invulnTimer >= 0.30f)
 
         // Subsequent frames (past hitstop) while bouncing upward through boss AABB must NOT deal contact damage
-        repeat(6) { engine.update(0.02f) }
+        repeat(8) { engine.update(0.01f) }
         assertEquals("Player must not take phantom contact damage after stomping boss", startHp, engine.hp)
         assertEquals(0, fb.hits)
 
