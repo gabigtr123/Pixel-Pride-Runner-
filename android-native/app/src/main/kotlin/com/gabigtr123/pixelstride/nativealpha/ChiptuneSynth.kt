@@ -22,6 +22,8 @@ class ChiptuneSynth {
 
     @Volatile
     private var sfxRunning: Boolean = false
+    @Volatile
+    private var sfxGen: Int = 0
     private var sfxThread: Thread? = null
 
     @Volatile
@@ -49,6 +51,8 @@ class ChiptuneSynth {
 
     @Volatile
     private var musicRunning: Boolean = false
+    @Volatile
+    private var musicGen: Int = 0
     private var musicThread: Thread? = null
 
     private data class Theme(val lead: DoubleArray, val bass: DoubleArray)
@@ -109,6 +113,7 @@ class ChiptuneSynth {
         synchronized(musicLock) {
             if (musicMuted || musicRunning) return
             musicRunning = true
+            val myGen = ++musicGen
             musicThread = Thread {
                 var track: AudioTrack? = null
                 try {
@@ -143,7 +148,7 @@ class ChiptuneSynth {
                     var leadPhase = 0.0
                     var bassPhase = 0.0
 
-                    while (musicRunning && !musicMuted) {
+                    while (musicRunning && musicGen == myGen && !musicMuted) {
                         val theme = if (bossMode) bossTheme else biomeThemes[biomeIndex]
                         val leadFreq = theme.lead[step % theme.lead.size]
                         val bassFreq = theme.bass[step % theme.bass.size]
@@ -168,7 +173,9 @@ class ChiptuneSynth {
                             }
                             pcm[i] = (mix.coerceIn(-0.9, 0.9) * Short.MAX_VALUE).toInt().toShort()
                         }
-                        track.write(pcm, 0, pcm.size)
+                        if (musicGen == myGen && musicRunning && !musicMuted) {
+                            track.write(pcm, 0, pcm.size)
+                        }
                     }
                 } catch (_: Throwable) {
                 } finally {
@@ -179,7 +186,7 @@ class ChiptuneSynth {
                     }
                 }
             }.apply {
-                name = "PixelStrideMusicThread"
+                name = "PixelStrideMusicThread-$myGen"
                 start()
             }
         }
@@ -189,14 +196,11 @@ class ChiptuneSynth {
         val t: Thread?
         synchronized(musicLock) {
             musicRunning = false
+            musicGen++
             t = musicThread
             musicThread = null
         }
         t?.interrupt()
-        try {
-            t?.join(120)
-        } catch (_: InterruptedException) {
-        }
     }
 
     fun playJump(isDouble: Boolean = false) {
@@ -352,6 +356,7 @@ class ChiptuneSynth {
 
     private fun startSfxMixerLocked() {
         sfxRunning = true
+        val myGen = ++sfxGen
         sfxThread = Thread {
             var track: AudioTrack? = null
             try {
@@ -383,7 +388,7 @@ class ChiptuneSynth {
 
                 val mixBuf = ShortArray(chunkSamples)
                 var silentChunks = 0
-                while (sfxRunning) {
+                while (sfxRunning && sfxGen == myGen) {
                     var hasAudio = false
                     synchronized(sfxLock) {
                         if (activeVoices.isNotEmpty() && !sfxMuted) {
@@ -405,6 +410,7 @@ class ChiptuneSynth {
                             mixBuf.fill(0)
                         }
                     }
+                    if (sfxGen != myGen || !sfxRunning) break
                     if (hasAudio) {
                         silentChunks = 0
                         track.write(mixBuf, 0, mixBuf.size)
@@ -413,7 +419,7 @@ class ChiptuneSynth {
                         if (silentChunks > 75) {
                             // Auto-sleep after ~1.5s of silence to save battery
                             synchronized(sfxLock) {
-                                if (activeVoices.isEmpty()) {
+                                if (activeVoices.isEmpty() && sfxGen == myGen) {
                                     sfxRunning = false
                                     sfxThread = null
                                     break
@@ -426,8 +432,10 @@ class ChiptuneSynth {
                 }
             } catch (_: Throwable) {
                 synchronized(sfxLock) {
-                    sfxRunning = false
-                    sfxThread = null
+                    if (sfxGen == myGen) {
+                        sfxRunning = false
+                        sfxThread = null
+                    }
                 }
             } finally {
                 try {
@@ -437,7 +445,7 @@ class ChiptuneSynth {
                 }
             }
         }.apply {
-            name = "PixelStrideSfxMixer"
+            name = "PixelStrideSfxMixer-$myGen"
             start()
         }
     }
@@ -446,15 +454,12 @@ class ChiptuneSynth {
         val t: Thread?
         synchronized(sfxLock) {
             sfxRunning = false
+            sfxGen++
             activeVoices.clear()
             t = sfxThread
             sfxThread = null
         }
         t?.interrupt()
-        try {
-            t?.join(120)
-        } catch (_: InterruptedException) {
-        }
     }
 
     fun release() {

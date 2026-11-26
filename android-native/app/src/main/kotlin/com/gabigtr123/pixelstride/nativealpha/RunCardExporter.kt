@@ -50,7 +50,7 @@ object RunCardExporter {
                 Quad("COMMON", 0xFF98A8D8.toInt(), 0xFF485888.toInt(), 0xFFD8E2FF.toInt())
         }
 
-        val biome = BIOMES[snapshot.zoneIndex % BIOMES.size]
+        val biome = if (snapshot.winterTheme) WINTER_BIOME_PALETTE else BIOMES[kotlin.math.abs(snapshot.zoneIndex) % BIOMES.size]
         val nf = NumberFormat.getIntegerInstance(Locale.US)
 
         // 1. Trading card outer frame & corner rivets
@@ -262,7 +262,7 @@ object RunCardExporter {
         textPaint.textSize = 9f
         textPaint.textAlign = Paint.Align.LEFT
         textPaint.color = 0xFF8898C8.toInt()
-        c.drawText("PIXEL STRIDE v4.2.2 · $dateStr", 52f, h - 50f, textPaint)
+        c.drawText("PIXEL STRIDE v4.2.3 · $dateStr", 52f, h - 50f, textPaint)
         textPaint.textAlign = Paint.Align.RIGHT
         textPaint.color = accent
         c.drawText("100% NATIVE ANDROID 17", w - 52f, h - 50f, textPaint)
@@ -270,21 +270,32 @@ object RunCardExporter {
         return bmp
     }
 
-    fun shareCard(context: Context, snapshot: RunSnapshot): Boolean {
+    /**
+     * Renders and compresses the PNG Run Card on a background thread and returns the ready-to-launch chooser Intent.
+     */
+    fun prepareShareIntent(context: Context, snapshot: RunSnapshot): Intent? {
+        val bmp = try {
+            renderCardBitmap(context, snapshot)
+        } catch (_: Throwable) {
+            return null
+        }
         return try {
-            val bmp = renderCardBitmap(context, snapshot)
             val dir = File(context.cacheDir, "runcards").apply { mkdirs() }
-            val file = File(dir, "pixel-stride-card-${snapshot.score}.png")
-            FileOutputStream(file).use { out ->
-                bmp.compress(Bitmap.CompressFormat.PNG, 100, out)
+            // Prune older cached PNGs so app cache never grows unbounded
+            dir.listFiles()?.sortedByDescending { it.lastModified() }?.drop(4)?.forEach {
+                runCatching { it.delete() }
             }
-            bmp.recycle()
+            val stamp = System.currentTimeMillis() % 100000L
+            val file = File(dir, "pixel-stride-card-${snapshot.score}-$stamp.png")
+            FileOutputStream(file).use { out ->
+                if (!bmp.compress(Bitmap.CompressFormat.PNG, 100, out)) return null
+            }
             val uri = FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",
                 file,
             )
-            val intent = Intent(Intent.ACTION_SEND).apply {
+            val send = Intent(Intent.ACTION_SEND).apply {
                 type = "image/png"
                 putExtra(Intent.EXTRA_STREAM, uri)
                 putExtra(
@@ -293,7 +304,18 @@ object RunCardExporter {
                 )
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            context.startActivity(Intent.createChooser(intent, "Share Run Card"))
+            Intent.createChooser(send, "Share Run Card")
+        } catch (_: Throwable) {
+            null
+        } finally {
+            bmp.recycle()
+        }
+    }
+
+    fun shareCard(context: Context, snapshot: RunSnapshot): Boolean {
+        val chooser = prepareShareIntent(context, snapshot) ?: return false
+        return try {
+            context.startActivity(chooser)
             true
         } catch (_: Throwable) {
             false
@@ -301,9 +323,16 @@ object RunCardExporter {
     }
 
     fun saveCardToGallery(context: Context, snapshot: RunSnapshot): Boolean {
+        val bmp = try {
+            renderCardBitmap(context, snapshot)
+        } catch (_: Throwable) {
+            return false
+        }
+        val resolver = context.contentResolver
+        var insertedUri: android.net.Uri? = null
         return try {
-            val bmp = renderCardBitmap(context, snapshot)
-            val fileName = "pixel-stride-card-${snapshot.score}.png"
+            val stamp = System.currentTimeMillis() % 100000L
+            val fileName = "pixel-stride-card-${snapshot.score}-$stamp.png"
             val values = ContentValues().apply {
                 put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
                 put(MediaStore.Images.Media.MIME_TYPE, "image/png")
@@ -315,21 +344,27 @@ object RunCardExporter {
                     put(MediaStore.Images.Media.IS_PENDING, 1)
                 }
             }
-            val resolver = context.contentResolver
             val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
                 ?: return false
-            resolver.openOutputStream(uri)?.use { out ->
+            insertedUri = uri
+            val wroteOk = resolver.openOutputStream(uri)?.use { out ->
                 bmp.compress(Bitmap.CompressFormat.PNG, 100, out)
+            } ?: false
+            if (!wroteOk) {
+                runCatching { resolver.delete(uri, null, null) }
+                return false
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 values.clear()
                 values.put(MediaStore.Images.Media.IS_PENDING, 0)
                 resolver.update(uri, values, null, null)
             }
-            bmp.recycle()
             true
         } catch (_: Throwable) {
+            insertedUri?.let { runCatching { resolver.delete(it, null, null) } }
             false
+        } finally {
+            bmp.recycle()
         }
     }
 

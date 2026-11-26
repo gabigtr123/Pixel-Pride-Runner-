@@ -223,7 +223,8 @@ class GameEngine(private val feedback: EngineFeedback) {
 
     fun startNewRun(meta: MetaProgressionManager? = null) {
         phase = GamePhase.PLAYING
-        val (headStart, extraHeart, doubleCoins) = meta?.consumeRunBoosters() ?: Triple(false, false, false)
+        val isHardcore = mode == GameMode.HARDCORE
+        val (headStart, extraHeart, doubleCoins) = meta?.consumeRunBoosters(isHardcore = isHardcore) ?: Triple(false, false, false)
         val streak = meta?.streakDays ?: 1
         maxJumps = if (meta?.hasGadget(GadgetId.TRIPLE_JUMP) == true) 3 else 2
         secondWindReady = meta?.hasGadget(GadgetId.SECOND_WIND) == true
@@ -231,7 +232,10 @@ class GameEngine(private val feedback: EngineFeedback) {
         gadgetScoreBoostActive = meta?.hasGadget(GadgetId.SCORE_BOOST) == true
         doubleCoinsRunActive = doubleCoins
         if (meta != null) {
+            hat = meta.equippedHat
+            cape = meta.equippedCape
             trailId = meta.equippedTrail
+            customHero = meta.customHero
             magnetBonusSec = meta.upgradeLevel(UpgradeId.MAGNET_DURATION) * 3f
             coinValueMult = 1f + meta.upgradeLevel(UpgradeId.COIN_VALUE) * 0.20f
             invulnBonusSec = meta.upgradeLevel(UpgradeId.SHIELD_INVULN) * 0.4f
@@ -242,8 +246,8 @@ class GameEngine(private val feedback: EngineFeedback) {
         }
         trailTimer = 0f
 
-        val baseHp = if (mode == GameMode.HARDCORE) 1 else hero.maxHp
-        maxHp = if (extraHeart && mode != GameMode.HARDCORE) baseHp + 1 else baseHp
+        val baseHp = if (isHardcore) 1 else hero.maxHp
+        maxHp = if (extraHeart && !isHardcore) baseHp + 1 else baseHp
         hp = maxHp
         hasShield = (meta?.hasGadget(GadgetId.SHIELD_START) == true) || streak >= 3
         magnetTimer = if (streak >= 5) 8f + magnetBonusSec else 0f
@@ -258,7 +262,7 @@ class GameEngine(private val feedback: EngineFeedback) {
         elapsed = 0f
         level = 1
         zoneIndex = if (winterTheme) 4 else 0
-        currentSpeed = if (mode == GameMode.HARDCORE) 205f else 165f
+        currentSpeed = if (isHardcore) 205f else 165f
         previousBestBeforeRun = bestScore
         runRng = if (mode == GameMode.DAILY) {
             val dateStr = LocalDate.now().toString()
@@ -334,7 +338,7 @@ class GameEngine(private val feedback: EngineFeedback) {
         if (!active) {
             val wasDuck = ducking
             ducking = false
-            if (phase == GamePhase.PLAYING && onGround && wasDuck) {
+            if (phase == GamePhase.PLAYING && onGround && !onPlatform && wasDuck) {
                 playerY = groundY - currentPlayerHeight()
             }
             return
@@ -349,7 +353,7 @@ class GameEngine(private val feedback: EngineFeedback) {
             playerVy = 260f
         } else if (!onGround && playerVy < 340f) {
             playerVy = 390f
-        } else if (onGround && !wasDuck) {
+        } else if (onGround && !onPlatform && !wasDuck) {
             playerY = groundY - currentPlayerHeight()
         }
     }
@@ -570,11 +574,10 @@ class GameEngine(private val feedback: EngineFeedback) {
             spawnPlatform()
             platformSpawnTimer = 4.2f + runRng.nextFloat() * 2.8f
         }
-        val platIter = platforms.iterator()
-        while (platIter.hasNext()) {
-            val plat = platIter.next()
+        for (i in platforms.lastIndex downTo 0) {
+            val plat = platforms[i]
             plat.x -= currentSpeed * dt
-            if (plat.x + plat.width < -24f) platIter.remove()
+            if (plat.x + plat.width < -24f) platforms.removeAt(i)
         }
 
         // Player vertical physics + Astro Bot Low-G Glide + one-way floating platform landing
@@ -689,14 +692,10 @@ class GameEngine(private val feedback: EngineFeedback) {
             trailTimer -= dt
             if (trailTimer <= 0f) {
                 trailTimer = if (turboTimer > 0f) 0.03f else 0.065f
-                val palette = if (turboTimer > 0f) {
-                    intArrayOf(0xFFFFFFFF.toInt(), 0xFFFFE848.toInt(), 0xFFFF9820.toInt())
-                } else {
-                    trailId.colors
-                }
+                val palette = if (turboTimer > 0f) TURBO_TRAIL_COLORS else trailId.colors
                 val color = palette[Random.nextInt(palette.size)]
                 val py = playerY + currentPlayerHeight() * (0.35f + Random.nextFloat() * 0.55f)
-                particles.add(
+                addParticle(
                     Particle(
                         x = playerX - 2f,
                         y = py,
@@ -822,15 +821,14 @@ class GameEngine(private val feedback: EngineFeedback) {
         val pTop = playerY + 2f
         val pBottom = playerY + pH
 
-        val iter = hazards.iterator()
-        while (iter.hasNext()) {
-            val h = iter.next()
+        for (i in hazards.lastIndex downTo 0) {
+            val h = hazards[i]
             h.animPhase += dt * 6f
             if (h.defeated) {
                 h.vy += 800f * dt
                 h.y += h.vy * dt
                 h.x += 55f * dt
-                if (h.y > worldHeight + 40f) iter.remove()
+                if (h.y > worldHeight + 40f) hazards.removeAt(i)
                 continue
             }
 
@@ -873,7 +871,7 @@ class GameEngine(private val feedback: EngineFeedback) {
             }
 
             if (h.x + h.width < -30f) {
-                iter.remove()
+                hazards.removeAt(i)
                 continue
             }
 
@@ -925,17 +923,18 @@ class GameEngine(private val feedback: EngineFeedback) {
         val pTop = playerY + 2f
         val pBottom = playerY + pH
 
-        val projIter = bossProjectiles.iterator()
-        while (projIter.hasNext()) {
-            val pr = projIter.next()
+        for (i in bossProjectiles.lastIndex downTo 0) {
+            val pr = bossProjectiles[i]
             pr.x += pr.vx * dt
-            if (pr.x + pr.size < -20f) {
-                projIter.remove()
+            val half = pr.size * 0.5f
+            if (pr.x + half < -20f) {
+                bossProjectiles.removeAt(i)
                 continue
             }
-            val hitProj = pRight > pr.x && pLeft < pr.x + pr.size && pBottom > pr.y && pTop < pr.y + pr.size
+            // Exact center-anchored AABB matching GameRenderer's (px - half .. px + half) visual orb!
+            val hitProj = pRight > pr.x - half && pLeft < pr.x + half && pBottom > pr.y - half && pTop < pr.y + half
             if (hitProj) {
-                projIter.remove()
+                bossProjectiles.removeAt(i)
                 if (turboTimer > 0f) {
                     spawnDust(pr.x, pr.y, 6, 0xFFFFE05C.toInt())
                 } else {
@@ -997,6 +996,7 @@ class GameEngine(private val feedback: EngineFeedback) {
                 boss.x = max(boss.x + 45f, boss.anchorX)
                 playerVy = -310f
                 jumpsRemaining = 1
+                invulnTimer = max(invulnTimer, 0.35f) // Grace invuln prevents phantom contact damage on bounce-up!
                 screenShake = 6f
                 hitstopTimer = 0.05f
                 bumpCombo()
@@ -1028,9 +1028,8 @@ class GameEngine(private val feedback: EngineFeedback) {
         val pCx = playerX + playerWidth / 2f
         val pCy = playerY + currentPlayerHeight() / 2f
 
-        val iter = collectibles.iterator()
-        while (iter.hasNext()) {
-            val c = iter.next()
+        for (i in collectibles.lastIndex downTo 0) {
+            val c = collectibles[i]
             c.bobPhase += dt * 5f
             c.x -= currentSpeed * dt
 
@@ -1054,7 +1053,7 @@ class GameEngine(private val feedback: EngineFeedback) {
             }
 
             if (c.x < -24f) {
-                iter.remove()
+                collectibles.removeAt(i)
                 continue
             }
 
@@ -1101,7 +1100,7 @@ class GameEngine(private val feedback: EngineFeedback) {
                         feedback.onPowerUp()
                     }
                 }
-                iter.remove()
+                collectibles.removeAt(i)
             }
         }
     }
@@ -1155,6 +1154,7 @@ class GameEngine(private val feedback: EngineFeedback) {
                 customHero = customHero,
                 mode = mode,
                 isNewBest = isNewBest,
+                winterTheme = winterTheme,
             )
             lastRun = snap
             phase = GamePhase.GAME_OVER
@@ -1163,15 +1163,19 @@ class GameEngine(private val feedback: EngineFeedback) {
         }
     }
 
+    private fun addParticle(p: Particle) {
+        if (particles.size >= MAX_PARTICLES) {
+            particles.removeAt(0)
+        }
+        particles.add(p)
+    }
+
     private fun spawnDust(x: Float, y: Float, count: Int, color: Int) {
         for (i in 0 until count) {
-            if (particles.size >= MAX_PARTICLES) {
-                particles.removeAt(0)
-            }
             val vx = Random.nextFloat() * 110f - 55f
             val vy = -Random.nextFloat() * 120f - 20f
             val life = 0.25f + Random.nextFloat() * 0.25f
-            particles.add(Particle(x, y, vx, vy, life, life, 2f + Random.nextFloat() * 2f, color))
+            addParticle(Particle(x, y, vx, vy, life, life, 2f + Random.nextFloat() * 2f, color))
         }
     }
 
@@ -1201,5 +1205,6 @@ class GameEngine(private val feedback: EngineFeedback) {
     companion object {
         const val MAX_PARTICLES = 96
         const val MAX_FLOATING_TEXTS = 24
+        private val TURBO_TRAIL_COLORS = intArrayOf(0xFFFFFFFF.toInt(), 0xFFFFE848.toInt(), 0xFFFF9820.toInt())
     }
 }

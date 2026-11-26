@@ -22,22 +22,27 @@ class MetaModalsRenderer(
         vh: Float,
         topSafe: Float,
         bottomSafe: Float,
+        leftSafe: Float,
+        rightSafe: Float,
         engine: GameEngine,
         meta: MetaProgressionManager,
         activeTab: ShopTab,
+        lang: AppLang = AppLang.EN,
     ) {
         paint.color = 0xCC0B0D1A.toInt()
         c.drawRect(0f, 0f, vw, vh, paint)
-        val dp = minOf(vw, vh) / 360f
-        val cx = vw / 2f
-        val panelW = minOf(vw - 20f * dp, 344f * dp)
-        val panelH = minOf(vh - topSafe - bottomSafe - 16f * dp, 470f * dp)
-        val topY = (vh - panelH) / 2f
+        val availW = (vw - leftSafe - rightSafe - 16f).coerceAtLeast(200f)
+        val availH = (vh - topSafe - bottomSafe - 12f).coerceAtLeast(180f)
+        val dp = minOf(availW / 344f, availH / 470f)
+        val cx = leftSafe + (vw - leftSafe - rightSafe) / 2f
+        val panelW = 344f * dp
+        val panelH = 470f * dp
+        val topY = topSafe + (vh - topSafe - bottomSafe - panelH) / 2f
         val panelRect = RectF(cx - panelW / 2f, topY, cx + panelW / 2f, topY + panelH)
         drawPixelPanel(c, panelRect, dp)
 
         // Header + Coin Bank + X
-        drawShadowTitle(c, "PIXEL SHOP 2.0", panelRect.left + 16f * dp, topY + 32f * dp, 12f * dp, 0xFFFFE05C.toInt(), dp, Paint.Align.LEFT)
+        drawShadowTitle(c, Strings.shopTitle(lang), panelRect.left + 16f * dp, topY + 32f * dp, 12f * dp, 0xFFFFE05C.toInt(), dp, Paint.Align.LEFT)
         uiPaint.textAlign = Paint.Align.LEFT
         uiPaint.textSize = 10f * dp
         uiPaint.color = 0xFF78F0A8.toInt()
@@ -128,7 +133,8 @@ class MetaModalsRenderer(
             val owned = meta.ownedPets.contains(pet)
             val eq = engine.pet == pet
             val price = meta.petPrice(pet)
-            val label = if (eq) "✓ ${pet.displayName}" else if (owned) pet.displayName else "${pet.displayName} ${price}C"
+            val priceStr = if (price == 0) "FREE" else "${price}C"
+            val label = if (eq) "✓ ${pet.displayName}" else if (owned) pet.displayName else "${pet.displayName} $priceStr"
             drawModePill(c, r, label, eq, dp)
             buttons.add(HitButton(UiAction.SHOP_PET, r, pet.name))
         }
@@ -332,20 +338,25 @@ class MetaModalsRenderer(
         vh: Float,
         topSafe: Float,
         bottomSafe: Float,
+        leftSafe: Float,
+        rightSafe: Float,
         engine: GameEngine,
         meta: MetaProgressionManager,
+        lang: AppLang = AppLang.EN,
     ) {
         paint.color = 0xCC0B0D1A.toInt()
         c.drawRect(0f, 0f, vw, vh, paint)
-        val dp = minOf(vw, vh) / 360f
-        val cx = vw / 2f
-        val panelW = minOf(vw - 24f * dp, 336f * dp)
-        val panelH = minOf(vh - topSafe - bottomSafe - 20f * dp, 430f * dp)
-        val topY = (vh - panelH) / 2f
+        val availW = (vw - leftSafe - rightSafe - 16f).coerceAtLeast(200f)
+        val availH = (vh - topSafe - bottomSafe - 12f).coerceAtLeast(180f)
+        val dp = minOf(availW / 336f, availH / 430f)
+        val cx = leftSafe + (vw - leftSafe - rightSafe) / 2f
+        val panelW = 336f * dp
+        val panelH = 430f * dp
+        val topY = topSafe + (vh - topSafe - bottomSafe - panelH) / 2f
         val panelRect = RectF(cx - panelW / 2f, topY, cx + panelW / 2f, topY + panelH)
         drawPixelPanel(c, panelRect, dp)
 
-        drawShadowTitle(c, "HERO CREATOR", panelRect.left + 16f * dp, topY + 34f * dp, 13f * dp, 0xFF78F0A8.toInt(), dp, Paint.Align.LEFT)
+        drawShadowTitle(c, Strings.creatorTitle(lang), panelRect.left + 16f * dp, topY + 34f * dp, 12.5f * dp, 0xFF78F0A8.toInt(), dp, Paint.Align.LEFT)
         val closeRect = RectF(panelRect.right - 44f * dp, topY + 12f * dp, panelRect.right - 14f * dp, topY + 40f * dp)
         drawSecondaryBtn(c, closeRect, "X", 10f * dp, dp, 0xFFF8F6EE.toInt())
         buttons.add(HitButton(UiAction.CLOSE_MODAL, closeRect))
@@ -410,7 +421,7 @@ class MetaModalsRenderer(
         }
 
         val doneRect = RectF(leftX, panelRect.bottom - 52f * dp, leftX + innerW, panelRect.bottom - 14f * dp)
-        drawPrimaryBtn(c, doneRect, "USE CUSTOM HERO", 10.5f * dp, dp)
+        drawPrimaryBtn(c, doneRect, Strings.useCustomHero(lang), 10f * dp, dp)
         buttons.add(HitButton(UiAction.CREATOR_USE, doneRect))
     }
 
@@ -420,19 +431,24 @@ class MetaModalsRenderer(
         vh: Float,
         topSafe: Float,
         bottomSafe: Float,
+        leftSafe: Float,
+        rightSafe: Float,
         meta: MetaProgressionManager,
+        lang: AppLang = AppLang.EN,
     ) {
         paint.color = 0xCC0B0D1A.toInt()
         c.drawRect(0f, 0f, vw, vh, paint)
-        val dp = minOf(vw, vh) / 360f
-        val cx = vw / 2f
-        val panelW = minOf(vw - 24f * dp, 336f * dp)
-        val panelH = minOf(vh - topSafe - bottomSafe - 20f * dp, 430f * dp)
-        val topY = (vh - panelH) / 2f
+        val availW = (vw - leftSafe - rightSafe - 16f).coerceAtLeast(200f)
+        val availH = (vh - topSafe - bottomSafe - 12f).coerceAtLeast(180f)
+        val dp = minOf(availW / 336f, availH / 430f)
+        val cx = leftSafe + (vw - leftSafe - rightSafe) / 2f
+        val panelW = 336f * dp
+        val panelH = 430f * dp
+        val topY = topSafe + (vh - topSafe - bottomSafe - panelH) / 2f
         val panelRect = RectF(cx - panelW / 2f, topY, cx + panelW / 2f, topY + panelH)
         drawPixelPanel(c, panelRect, dp)
 
-        drawShadowTitle(c, "DAILY QUESTS", panelRect.left + 16f * dp, topY + 34f * dp, 13f * dp, 0xFFFFE05C.toInt(), dp, Paint.Align.LEFT)
+        drawShadowTitle(c, Strings.dailyTitle(lang), panelRect.left + 16f * dp, topY + 34f * dp, 12.5f * dp, 0xFFFFE05C.toInt(), dp, Paint.Align.LEFT)
         val closeRect = RectF(panelRect.right - 44f * dp, topY + 12f * dp, panelRect.right - 14f * dp, topY + 40f * dp)
         drawSecondaryBtn(c, closeRect, "X", 10f * dp, dp, 0xFFF8F6EE.toInt())
         buttons.add(HitButton(UiAction.CLOSE_MODAL, closeRect))
@@ -513,20 +529,25 @@ class MetaModalsRenderer(
         vh: Float,
         topSafe: Float,
         bottomSafe: Float,
+        leftSafe: Float,
+        rightSafe: Float,
         meta: MetaProgressionManager,
         page: Int,
+        lang: AppLang = AppLang.EN,
     ) {
         paint.color = 0xCC0B0D1A.toInt()
         c.drawRect(0f, 0f, vw, vh, paint)
-        val dp = minOf(vw, vh) / 360f
-        val cx = vw / 2f
-        val panelW = minOf(vw - 20f * dp, 344f * dp)
-        val panelH = minOf(vh - topSafe - bottomSafe - 16f * dp, 480f * dp)
-        val topY = (vh - panelH) / 2f
+        val availW = (vw - leftSafe - rightSafe - 16f).coerceAtLeast(200f)
+        val availH = (vh - topSafe - bottomSafe - 12f).coerceAtLeast(180f)
+        val dp = minOf(availW / 344f, availH / 480f)
+        val cx = leftSafe + (vw - leftSafe - rightSafe) / 2f
+        val panelW = 344f * dp
+        val panelH = 480f * dp
+        val topY = topSafe + (vh - topSafe - bottomSafe - panelH) / 2f
         val panelRect = RectF(cx - panelW / 2f, topY, cx + panelW / 2f, topY + panelH)
         drawPixelPanel(c, panelRect, dp)
 
-        drawShadowTitle(c, "TROPHY ROOM", panelRect.left + 16f * dp, topY + 32f * dp, 12.5f * dp, 0xFFFFE05C.toInt(), dp, Paint.Align.LEFT)
+        drawShadowTitle(c, Strings.trophyTitle(lang), panelRect.left + 16f * dp, topY + 32f * dp, 12f * dp, 0xFFFFE05C.toInt(), dp, Paint.Align.LEFT)
         val closeRect = RectF(panelRect.right - 44f * dp, topY + 12f * dp, panelRect.right - 14f * dp, topY + 40f * dp)
         drawSecondaryBtn(c, closeRect, "X", 10f * dp, dp, 0xFFF8F6EE.toInt())
         buttons.add(HitButton(UiAction.CLOSE_MODAL, closeRect))

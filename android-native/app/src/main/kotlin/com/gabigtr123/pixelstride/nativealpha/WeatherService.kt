@@ -11,6 +11,9 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.roundToInt
 
 data class PresetCity(
@@ -28,7 +31,11 @@ data class LiveWeatherResult(
 )
 
 object WeatherService {
-    private val ioExecutor = Executors.newSingleThreadExecutor()
+    private val ioExecutor = Executors.newSingleThreadScheduledExecutor()
+    private val requestSeq = AtomicInteger(0)
+
+    @Volatile
+    private var activeGpsCancel: CancellationSignal? = null
 
     val PRESET_CITIES = listOf(
         PresetCity("Bucharest", "BUCHAREST", 44.4268, 26.1025),
@@ -53,7 +60,12 @@ object WeatherService {
         onSuccess: (LiveWeatherResult) -> Unit,
         onError: (String) -> Unit,
     ) {
+        activeGpsCancel?.let { runCatching { it.cancel() } }
+        activeGpsCancel = null
+        val mySeq = requestSeq.incrementAndGet()
         ioExecutor.execute {
+            if (requestSeq.get() != mySeq) return@execute
+            var conn: HttpURLConnection? = null
             try {
                 val urlStr = String.format(
                     Locale.US,
@@ -61,19 +73,18 @@ object WeatherService {
                     lat,
                     lon,
                 )
-                val conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
+                conn = (URL(urlStr).openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
                     connectTimeout = 8000
                     readTimeout = 8000
                 }
                 val code = conn.responseCode
                 if (code !in 200..299) {
-                    conn.disconnect()
-                    onError("Weather API error ($code)")
+                    if (requestSeq.get() == mySeq) onError("Weather API error ($code)")
                     return@execute
                 }
                 val body = conn.inputStream.bufferedReader().use { it.readText() }
-                conn.disconnect()
+                if (requestSeq.get() != mySeq) return@execute
 
                 val json = JSONObject(body)
                 val current = json.optJSONObject("current")
@@ -89,13 +100,18 @@ object WeatherService {
                     ),
                 )
             } catch (_: Throwable) {
-                onError("Could not reach Open-Meteo. Check internet!")
+                if (requestSeq.get() == mySeq) {
+                    onError("Could not reach Open-Meteo. Check internet!")
+                }
+            } finally {
+                runCatching { conn?.disconnect() }
             }
         }
     }
 
     /**
-     * Requests a fresh live GPS/Fused fix on Android 11+ (API 30+), falling back to cached lastKnownLocation.
+     * Requests a fresh live GPS/Fused fix on Android 11+ (API 30+) with a 10s indoor timeout,
+     * falling back cleanly to cached lastKnownLocation or a clear prompt.
      */
     @SuppressLint("MissingPermission")
     fun requestCurrentLocation(
@@ -103,6 +119,9 @@ object WeatherService {
         onLocation: (Location) -> Unit,
         onError: (String) -> Unit,
     ) {
+        activeGpsCancel?.let { runCatching { it.cancel() } }
+        activeGpsCancel = null
+
         val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
         if (lm == null) {
             onError("Location service unavailable. Pick a city below!")
@@ -116,7 +135,7 @@ object WeatherService {
             return
         }
 
-        // Active single-shot fix on Android 11+ (API 30+)
+        // Active single-shot fix on Android 11+ (API 30+) with 10s indoor timeout
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val provider = when {
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && lm.isProviderEnabled(LocationManager.FUSED_PROVIDER) ->
@@ -127,8 +146,27 @@ object WeatherService {
             }
             if (provider != null) {
                 try {
+                    val mySeq = requestSeq.incrementAndGet()
+                    val resolved = AtomicBoolean(false)
                     val cancel = CancellationSignal()
+                    activeGpsCancel = cancel
+
+                    ioExecutor.schedule({
+                        if (resolved.compareAndSet(false, true)) {
+                            runCatching { cancel.cancel() }
+                            if (requestSeq.get() == mySeq) {
+                                if (cached != null) {
+                                    onLocation(cached)
+                                } else {
+                                    onError("GPS timed out indoors. Pick a city below!")
+                                }
+                            }
+                        }
+                    }, 10L, TimeUnit.SECONDS)
+
                     lm.getCurrentLocation(provider, cancel, ioExecutor) { loc ->
+                        if (!resolved.compareAndSet(false, true)) return@getCurrentLocation
+                        if (requestSeq.get() != mySeq) return@getCurrentLocation
                         if (loc != null) {
                             onLocation(loc)
                         } else if (cached != null) {

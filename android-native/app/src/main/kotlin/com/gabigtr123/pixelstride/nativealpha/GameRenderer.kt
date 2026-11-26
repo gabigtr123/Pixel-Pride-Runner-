@@ -174,6 +174,8 @@ class GameRenderer(
         lang: AppLang = AppLang.EN,
         leftHanded: Boolean = false,
         showTouchButtons: Boolean = true,
+        insetLeftPx: Float = 0f,
+        insetRightPx: Float = 0f,
     ) {
         buttons.clear()
         val vw = viewWidth.toFloat().coerceAtLeast(1f)
@@ -223,20 +225,23 @@ class GameRenderer(
 
         val topSafe = insetTopPx + 10f
         val bottomSafe = insetBottomPx + 12f
+        val leftSafe = insetLeftPx + 8f
+        val rightSafe = insetRightPx + 8f
         when (engine.phase) {
-            GamePhase.TITLE -> drawTitleOverlay(canvas, vw, vh, topSafe, bottomSafe, engine, meta, muted, lang)
-            GamePhase.WEATHER -> drawWeatherModal(canvas, vw, vh, topSafe, bottomSafe, engine)
-            GamePhase.SHOP -> metaModals.drawShopModal(canvas, vw, vh, topSafe, bottomSafe, engine, meta, shopTab)
-            GamePhase.CREATOR -> metaModals.drawCreatorModal(canvas, vw, vh, topSafe, bottomSafe, engine, meta)
-            GamePhase.DAILY -> metaModals.drawDailyModal(canvas, vw, vh, topSafe, bottomSafe, meta)
-            GamePhase.TROPHY -> metaModals.drawTrophyModal(canvas, vw, vh, topSafe, bottomSafe, meta, trophyPage)
-            GamePhase.PLAYING -> drawPlayingHud(canvas, vw, vh, topSafe, bottomSafe, engine, muted, lang, leftHanded, showTouchButtons)
+            GamePhase.TITLE -> drawTitleOverlay(canvas, vw, vh, topSafe, bottomSafe, leftSafe, rightSafe, engine, meta, muted, lang)
+            GamePhase.WEATHER -> drawWeatherModal(canvas, vw, vh, topSafe, bottomSafe, leftSafe, rightSafe, engine, lang)
+            GamePhase.SHOP -> metaModals.drawShopModal(canvas, vw, vh, topSafe, bottomSafe, leftSafe, rightSafe, engine, meta, shopTab, lang)
+            GamePhase.CREATOR -> metaModals.drawCreatorModal(canvas, vw, vh, topSafe, bottomSafe, leftSafe, rightSafe, engine, meta, lang)
+            GamePhase.DAILY -> metaModals.drawDailyModal(canvas, vw, vh, topSafe, bottomSafe, leftSafe, rightSafe, meta, lang)
+            GamePhase.TROPHY -> metaModals.drawTrophyModal(canvas, vw, vh, topSafe, bottomSafe, leftSafe, rightSafe, meta, trophyPage, lang)
+            GamePhase.PLAYING -> drawPlayingHud(canvas, vw, vh, topSafe, bottomSafe, leftSafe, rightSafe, engine, muted, lang, leftHanded, showTouchButtons)
             GamePhase.PAUSED -> {
-                drawPlayingHud(canvas, vw, vh, topSafe, bottomSafe, engine, muted, lang, leftHanded, showTouchButtons)
-                drawPauseOverlay(canvas, vw, vh, musicMuted, sfxMuted, hapticsEnabled, swipeEnabled, lang, leftHanded, showTouchButtons)
+                drawPlayingHud(canvas, vw, vh, topSafe, bottomSafe, leftSafe, rightSafe, engine, muted, lang, leftHanded, showTouchButtons)
+                buttons.clear() // Prevent background HUD buttons from intercepting Pause modal taps!
+                drawPauseOverlay(canvas, vw, vh, topSafe, bottomSafe, leftSafe, rightSafe, musicMuted, sfxMuted, hapticsEnabled, swipeEnabled, lang, leftHanded, showTouchButtons)
             }
-            GamePhase.GAME_OVER -> drawGameOverOverlay(canvas, vw, vh, topSafe, bottomSafe, engine, meta, lang)
-            GamePhase.RUN_CARD -> drawRunCardModal(canvas, vw, vh, topSafe, bottomSafe, runCardPreview)
+            GamePhase.GAME_OVER -> drawGameOverOverlay(canvas, vw, vh, topSafe, bottomSafe, leftSafe, rightSafe, engine, meta, lang)
+            GamePhase.RUN_CARD -> drawRunCardModal(canvas, vw, vh, topSafe, bottomSafe, leftSafe, rightSafe, runCardPreview, lang)
         }
 
         if (toastMessage != null && toastTimer > 0f) {
@@ -896,7 +901,8 @@ class GameRenderer(
             }
 
             val flash = boss.hurtFlash > 0f
-            PixelSprites.drawBoss(c, boss.kind, bx - 2f, by + 2f, 2.0f, flash)
+            val bossDrawY = PixelSprites.bossSpriteY(boss.kind, by, groundY, 2.0f)
+            PixelSprites.drawBoss(c, boss.kind, bx - 2f, bossDrawY, 2.0f, flash)
 
             val barW = boss.width + 8f
             val barX = bx - 4f
@@ -1105,81 +1111,62 @@ class GameRenderer(
         vh: Float,
         topSafe: Float,
         bottomSafe: Float,
+        leftSafe: Float,
+        rightSafe: Float,
         engine: GameEngine,
         meta: MetaProgressionManager,
         muted: Boolean,
         lang: AppLang,
     ) {
-        val dp = minOf(vw, vh) / 360f
-        val cx = vw / 2f
+        val barDp = minOf(vw, vh) / 360f
+        val safeW = (vw - leftSafe - rightSafe).coerceAtLeast(220f)
+        val cx = leftSafe + safeW / 2f
 
-        // Exact v3.0.3 top HUD bar: DAY X | COINS SHOP | TROPHY | WX | SFX (responsive to screen width!)
+        // Exact v3.0.3 top HUD bar: DAY X | COINS SHOP | TROPHY | WX | SFX (cutout-safe!)
         val isLandscape = vw > vh
-        val h = 34f * dp
-        val margin = 8f * dp
-        val gap = 4f * dp
-        val availBarW = minOf(vw - margin * 2f, 440f * dp)
-        val muteW = 44f * dp
-        val leftBarW = availBarW - muteW - gap
+        val h = 34f * barDp
+        val gap = 4f * barDp
+        val availBarW = safeW
+        val muteW = 44f * barDp
+        val leftBarW = minOf(availBarW - muteW - gap, 400f * barDp)
         val dailyW = leftBarW * 0.24f
         val shopW = leftBarW * 0.30f
         val trophyW = leftBarW * 0.20f
         val wxW = leftBarW - dailyW - shopW - trophyW - gap * 3f
 
-        var bx = margin
+        var bx = leftSafe
         val dailyRect = RectF(bx, topSafe, bx + dailyW, topSafe + h)
-        drawPixelButtonSecondary(c, dailyRect, "D${meta.streakDays} ${meta.completedDailyCount()}/3", 7.2f * dp, dp, textColor = 0xFFFFE05C.toInt())
+        drawPixelButtonSecondary(c, dailyRect, "D${meta.streakDays} ${meta.completedDailyCount()}/3", 7.2f * barDp, barDp, textColor = 0xFFFFE05C.toInt())
         if (meta.hasUnclaimedDaily()) {
             paint.color = 0xFF78F0A8.toInt()
-            c.drawRect(dailyRect.right - 8f * dp, dailyRect.top + 3f * dp, dailyRect.right - 2f * dp, dailyRect.top + 9f * dp, paint)
+            c.drawRect(dailyRect.right - 8f * barDp, dailyRect.top + 3f * barDp, dailyRect.right - 2f * barDp, dailyRect.top + 9f * barDp, paint)
         }
         buttons.add(HitButton(UiAction.OPEN_DAILY, dailyRect))
 
         bx += dailyW + gap
         val shopRect = RectF(bx, topSafe, bx + shopW, topSafe + h)
         val shopLabel = if (engine.totalCoins >= 1000) "${engine.totalCoins}C" else "${engine.totalCoins}C SHOP"
-        drawPixelButtonSecondary(c, shopRect, shopLabel, 7.2f * dp, dp, textColor = 0xFFFFF4A8.toInt())
+        drawPixelButtonSecondary(c, shopRect, shopLabel, 7.2f * barDp, barDp, textColor = 0xFFFFF4A8.toInt())
         buttons.add(HitButton(UiAction.OPEN_SHOP, shopRect))
 
         bx += shopW + gap
         val trophyRect = RectF(bx, topSafe, bx + trophyW, topSafe + h)
-        drawPixelButtonSecondary(c, trophyRect, "🏆${meta.unlockedTrophies.size}", 7.8f * dp, dp, textColor = 0xFFFFE05C.toInt())
+        drawPixelButtonSecondary(c, trophyRect, "🏆${meta.unlockedTrophies.size}", 7.8f * barDp, barDp, textColor = 0xFFFFE05C.toInt())
         if (meta.hasUnclaimedTrophy()) {
             paint.color = 0xFF78F0A8.toInt()
-            c.drawRect(trophyRect.right - 8f * dp, trophyRect.top + 3f * dp, trophyRect.right - 2f * dp, trophyRect.top + 9f * dp, paint)
+            c.drawRect(trophyRect.right - 8f * barDp, trophyRect.top + 3f * barDp, trophyRect.right - 2f * barDp, trophyRect.top + 9f * barDp, paint)
         }
         buttons.add(HitButton(UiAction.OPEN_TROPHY, trophyRect))
 
         bx += trophyW + gap
         val wxRect = RectF(bx, topSafe, bx + wxW, topSafe + h)
-        drawPixelButtonSecondary(c, wxRect, engine.weatherBadgeLabel(), 7.2f * dp, dp, textColor = 0xFF78E8FF.toInt())
+        drawPixelButtonSecondary(c, wxRect, engine.weatherBadgeLabel(), 7.2f * barDp, barDp, textColor = 0xFF78E8FF.toInt())
         buttons.add(HitButton(UiAction.OPEN_WEATHER, wxRect))
 
-        val muteRect = RectF(vw - margin - muteW, topSafe, vw - margin, topSafe + h)
-        drawPixelButtonSecondary(c, muteRect, if (muted) "OFF" else "SFX", 7.5f * dp, dp)
+        val muteRect = RectF(vw - rightSafe - muteW, topSafe, vw - rightSafe, topSafe + h)
+        drawPixelButtonSecondary(c, muteRect, if (muted) "OFF" else "SFX", 7.5f * barDp, barDp)
         buttons.add(HitButton(UiAction.TOGGLE_MUTE, muteRect))
 
-        // Exact v3.0.3 PixelStrideTitleLogo cartridge plaque in the upper sky (compact in landscape!)
-        val logoW = if (isLandscape) minOf(vw * 0.36f, 206f * dp) else minOf(vw - 24f * dp, 320f * dp)
-        val logoH = logoW * (116f / 420f)
-        val logoY = topSafe + (if (isLandscape) 36f * dp else 44f * dp)
-        drawTitleLogo(c, cx - logoW / 2f, logoY, logoW, logoH)
-
-        // Lower underground masonry deck: 6 Hero pills (2x3) + PERK/EDIT + 4 Mode pills + START RUN
-        val stackW = minOf(vw - 18f * dp, 344f * dp)
-        val startH = 48f * dp
-        val modeH = 29f * dp
-        val perkH = 21f * dp
-        val heroRowH = 31f * dp
-        val heroRowGap = 4f * dp
-        val startY = vh - bottomSafe - startH - 6f * dp
-        val modeY = startY - 8f * dp - modeH
-        val perkY = modeY - 7f * dp - perkH
-        val heroTopY = perkY - 7f * dp - (heroRowH * 2f + heroRowGap)
-
-        // 6 Compact Hero Selector Pills in 2x3 Grid (STRIDE, LILY, KNIGHT / NINJA, ASTRO, CUSTOM)
-        val heroGap = 4f * dp
-        val heroW = (stackW - heroGap * 2f) / 3f
         val heroActions = listOf(
             HeroId.STRIDE to UiAction.SELECT_HERO_STRIDE,
             HeroId.LILY to UiAction.SELECT_HERO_LILY,
@@ -1188,52 +1175,135 @@ class GameRenderer(
             HeroId.ASTRO to UiAction.SELECT_HERO_ASTRO,
             HeroId.CUSTOM to UiAction.SELECT_HERO_CUSTOM,
         )
-        for (i in heroActions.indices) {
-            val (hId, action) = heroActions[i]
-            val col = i % 3
-            val row = i / 3
-            val rx = cx - stackW / 2f + col * (heroW + heroGap)
-            val ry = heroTopY + row * (heroRowH + heroRowGap)
-            val rect = RectF(rx, ry, rx + heroW, ry + heroRowH)
-            drawHeroPill(c, rect, hId, engine.hero == hId, engine.elapsed, engine.customHero, dp)
-            buttons.add(HitButton(action, rect))
-        }
-
-        // Active Hero PERK / EDIT HERO badge
-        val perkText = when {
-            engine.hero == HeroId.CUSTOM -> "TAP CUSTOM AGAIN TO EDIT HERO · BEST ${engine.bestScore}"
-            engine.pet != PetId.NONE -> "PERK: ${engine.hero.perk} · PET: ${engine.pet.displayName}"
-            else -> "PERK: ${engine.hero.perk} · BEST: ${engine.bestScore}"
-        }
-        val perkW = minOf(stackW, 316f * dp)
-        paint.color = 0xC0111324.toInt()
-        c.drawRect(cx - perkW / 2f, perkY, cx + perkW / 2f, perkY + perkH, paint)
-        uiPaint.textAlign = Paint.Align.CENTER
-        uiPaint.textSize = 8f * dp
-        uiPaint.color = 0xFF78F0A8.toInt()
-        c.drawText(perkText, cx, perkY + 14f * dp, uiPaint)
-
-        // 4 Game Mode Selector Pills
-        val modeGap = 5f * dp
-        val modeW = (stackW - modeGap * 3f) / 4f
         val modeActions = listOf(
             GameMode.ENDLESS to UiAction.SELECT_MODE_ENDLESS,
             GameMode.DAILY to UiAction.SELECT_MODE_DAILY,
             GameMode.HARDCORE to UiAction.SELECT_MODE_HARDCORE,
             GameMode.BOSS_RUSH to UiAction.SELECT_MODE_BOSS_RUSH,
         )
-        for (i in modeActions.indices) {
-            val (m, action) = modeActions[i]
-            val rx = cx - stackW / 2f + i * (modeW + modeGap)
-            val rect = RectF(rx, modeY, rx + modeW, modeY + modeH)
-            drawModePill(c, rect, m.shortLabel, engine.mode == m, dp)
-            buttons.add(HitButton(action, rect))
+        val perkText = if (engine.hero == HeroId.CUSTOM) {
+            Strings.tapCustomEdit(lang, engine.bestScore)
+        } else {
+            Strings.heroPerkLine(lang, engine.hero, engine.pet, engine.bestScore)
         }
 
-        // Golden Pixel START RUN button
-        val startRect = RectF(cx - stackW / 2f, startY, cx + stackW / 2f, startY + startH)
-        drawPixelButtonPrimary(c, startRect, Strings.startRun(lang), 14f * dp, dp)
-        buttons.add(HitButton(UiAction.START_RUN, startRect))
+        val bodyTop = topSafe + h + 8f * barDp
+        val bodyAvailH = (vh - bodyTop - bottomSafe).coerceAtLeast(140f)
+
+        if (isLandscape) {
+            // Clean 2-column Landscape Arcade Deck: Left (Logo + Perk + Start) | Right (6 Heroes + 4 Modes)
+            val ldp = minOf(safeW / 560f, bodyAvailH / 172f)
+            val colGap = 14f * ldp
+            val leftW = (safeW - colGap) * 0.44f
+            val rightW = safeW - colGap - leftW
+            val leftCx = leftSafe + leftW / 2f
+            val rightLeft = leftSafe + leftW + colGap
+
+            val logoW = minOf(leftW, 236f * ldp)
+            val logoH = logoW * (116f / 420f)
+            val perkH = 21f * ldp
+            val startH = 46f * ldp
+            val leftStackH = logoH + 8f * ldp + perkH + 8f * ldp + startH
+            val leftTopY = bodyTop + (bodyAvailH - leftStackH) / 2f
+
+            drawTitleLogo(c, leftCx - logoW / 2f, leftTopY, logoW, logoH)
+
+            val perkY = leftTopY + logoH + 8f * ldp
+            paint.color = 0xC0111324.toInt()
+            c.drawRect(leftSafe, perkY, leftSafe + leftW, perkY + perkH, paint)
+            uiPaint.textAlign = Paint.Align.CENTER
+            uiPaint.textSize = 7.4f * ldp
+            uiPaint.color = 0xFF78F0A8.toInt()
+            c.drawText(perkText, leftCx, perkY + 14f * ldp, uiPaint)
+
+            val startY = perkY + perkH + 8f * ldp
+            val startRect = RectF(leftSafe, startY, leftSafe + leftW, startY + startH)
+            drawPixelButtonPrimary(c, startRect, Strings.startRun(lang), 13f * ldp, ldp)
+            buttons.add(HitButton(UiAction.START_RUN, startRect))
+
+            val heroRowH = 34f * ldp
+            val heroRowGap = 5f * ldp
+            val modeH = 30f * ldp
+            val rightStackH = heroRowH * 2f + heroRowGap + 10f * ldp + modeH
+            val rightTopY = bodyTop + (bodyAvailH - rightStackH) / 2f
+
+            val heroGap = 4f * ldp
+            val heroW = (rightW - heroGap * 2f) / 3f
+            for (i in heroActions.indices) {
+                val (hId, action) = heroActions[i]
+                val col = i % 3
+                val row = i / 3
+                val rx = rightLeft + col * (heroW + heroGap)
+                val ry = rightTopY + row * (heroRowH + heroRowGap)
+                val rect = RectF(rx, ry, rx + heroW, ry + heroRowH)
+                drawHeroPill(c, rect, hId, engine.hero == hId, engine.elapsed, engine.customHero, ldp)
+                buttons.add(HitButton(action, rect))
+            }
+
+            val modeY = rightTopY + heroRowH * 2f + heroRowGap + 10f * ldp
+            val modeGap = 4f * ldp
+            val modeW = (rightW - modeGap * 3f) / 4f
+            for (i in modeActions.indices) {
+                val (m, action) = modeActions[i]
+                val rx = rightLeft + i * (modeW + modeGap)
+                val rect = RectF(rx, modeY, rx + modeW, modeY + modeH)
+                drawModePill(c, rect, m.shortLabel, engine.mode == m, ldp)
+                buttons.add(HitButton(action, rect))
+            }
+        } else {
+            // Portrait layout with adaptive vertical scaling so Split-Screen never overlaps Logo & Heroes!
+            val dp = minOf(safeW / 344f, bodyAvailH / 330f)
+            val logoW = minOf(safeW - 12f * dp, 320f * dp)
+            val logoH = logoW * (116f / 420f)
+            val logoY = bodyTop + 4f * dp
+            drawTitleLogo(c, cx - logoW / 2f, logoY, logoW, logoH)
+
+            val stackW = minOf(safeW - 6f * dp, 344f * dp)
+            val startH = 48f * dp
+            val modeH = 29f * dp
+            val perkH = 21f * dp
+            val heroRowH = 31f * dp
+            val heroRowGap = 4f * dp
+            val startY = vh - bottomSafe - startH - 6f * dp
+            val modeY = startY - 8f * dp - modeH
+            val perkY = modeY - 7f * dp - perkH
+            val heroTopY = perkY - 7f * dp - (heroRowH * 2f + heroRowGap)
+
+            val heroGap = 4f * dp
+            val heroW = (stackW - heroGap * 2f) / 3f
+            for (i in heroActions.indices) {
+                val (hId, action) = heroActions[i]
+                val col = i % 3
+                val row = i / 3
+                val rx = cx - stackW / 2f + col * (heroW + heroGap)
+                val ry = heroTopY + row * (heroRowH + heroRowGap)
+                val rect = RectF(rx, ry, rx + heroW, ry + heroRowH)
+                drawHeroPill(c, rect, hId, engine.hero == hId, engine.elapsed, engine.customHero, dp)
+                buttons.add(HitButton(action, rect))
+            }
+
+            val perkW = minOf(stackW, 316f * dp)
+            paint.color = 0xC0111324.toInt()
+            c.drawRect(cx - perkW / 2f, perkY, cx + perkW / 2f, perkY + perkH, paint)
+            uiPaint.textAlign = Paint.Align.CENTER
+            uiPaint.textSize = 8f * dp
+            uiPaint.color = 0xFF78F0A8.toInt()
+            c.drawText(perkText, cx, perkY + 14f * dp, uiPaint)
+
+            val modeGap = 5f * dp
+            val modeW = (stackW - modeGap * 3f) / 4f
+            for (i in modeActions.indices) {
+                val (m, action) = modeActions[i]
+                val rx = cx - stackW / 2f + i * (modeW + modeGap)
+                val rect = RectF(rx, modeY, rx + modeW, modeY + modeH)
+                drawModePill(c, rect, m.shortLabel, engine.mode == m, dp)
+                buttons.add(HitButton(action, rect))
+            }
+
+            val startRect = RectF(cx - stackW / 2f, startY, cx + stackW / 2f, startY + startH)
+            drawPixelButtonPrimary(c, startRect, Strings.startRun(lang), 14f * dp, dp)
+            buttons.add(HitButton(UiAction.START_RUN, startRect))
+        }
     }
 
     private fun drawWeatherModal(
@@ -1242,20 +1312,25 @@ class GameRenderer(
         vh: Float,
         topSafe: Float,
         bottomSafe: Float,
+        leftSafe: Float,
+        rightSafe: Float,
         engine: GameEngine,
+        lang: AppLang,
     ) {
         paint.color = 0xC80B0D1A.toInt()
         c.drawRect(0f, 0f, vw, vh, paint)
-        val dp = minOf(vw, vh) / 360f
-        val cx = vw / 2f
-        val panelW = minOf(vw - 24f * dp, 336f * dp)
-        val panelH = minOf(vh - topSafe - bottomSafe - 20f * dp, 456f * dp)
-        val topY = (vh - panelH) / 2f
+        val availW = (vw - leftSafe - rightSafe - 16f).coerceAtLeast(200f)
+        val availH = (vh - topSafe - bottomSafe - 12f).coerceAtLeast(180f)
+        val dp = minOf(availW / 336f, availH / 456f)
+        val cx = leftSafe + (vw - leftSafe - rightSafe) / 2f
+        val panelW = 336f * dp
+        val panelH = 456f * dp
+        val topY = topSafe + (vh - topSafe - bottomSafe - panelH) / 2f
         val panelRect = RectF(cx - panelW / 2f, topY, cx + panelW / 2f, topY + panelH)
         drawPixelPanel(c, panelRect, dp)
 
         // Header + Winter Theme toggle + X close
-        drawShadowDisplayText(c, "WEATHER & THEME", panelRect.left + 16f * dp, topY + 34f * dp, 11f * dp, 0xFF78E8FF.toInt(), dp, Paint.Align.LEFT)
+        drawShadowDisplayText(c, Strings.weatherTitle(lang), panelRect.left + 16f * dp, topY + 34f * dp, 11f * dp, 0xFF78E8FF.toInt(), dp, Paint.Align.LEFT)
         val winterRect = RectF(panelRect.right - 132f * dp, topY + 12f * dp, panelRect.right - 52f * dp, topY + 42f * dp)
         drawModePill(c, winterRect, if (engine.winterTheme) "❄ WINTER" else "CLASSIC", engine.winterTheme, dp)
         buttons.add(HitButton(UiAction.TOGGLE_WINTER_THEME, winterRect))
@@ -1467,6 +1542,8 @@ class GameRenderer(
         vh: Float,
         topSafe: Float,
         bottomSafe: Float,
+        leftSafe: Float,
+        rightSafe: Float,
         engine: GameEngine,
         muted: Boolean,
         lang: AppLang,
@@ -1474,18 +1551,21 @@ class GameRenderer(
         showTouchButtons: Boolean,
     ) {
         val dp = minOf(vw, vh) / 360f
+        val hudLeft = leftSafe + 8f * dp
+        val hudRight = vw - rightSafe - 4f * dp
+        val hudCx = leftSafe + (vw - leftSafe - rightSafe) / 2f
 
-        // Top-left Score + Level + Hearts
-        drawShadowDisplayText(c, "${engine.score.toInt()}", 16f * dp, topSafe + 22f * dp, 16f * dp, 0xFFFFFFFF.toInt(), dp, Paint.Align.LEFT)
+        // Top-left Score + Level + Hearts (respects camera cutout in Landscape!)
+        drawShadowDisplayText(c, "${engine.score.toInt()}", hudLeft, topSafe + 22f * dp, 16f * dp, 0xFFFFFFFF.toInt(), dp, Paint.Align.LEFT)
 
         uiPaint.textAlign = Paint.Align.LEFT
         uiPaint.textSize = 11f * dp
         uiPaint.color = 0xFFFFE05C.toInt()
-        c.drawText("LV ${engine.level} · ${engine.distance.toInt()}M · ${engine.runCoins}C", 16f * dp, topSafe + 42f * dp, uiPaint)
+        c.drawText("LV ${engine.level} · ${engine.distance.toInt()}M · ${engine.runCoins}C", hudLeft, topSafe + 42f * dp, uiPaint)
 
         // Crisp pixel heart sprites in HUD!
         for (i in 0 until engine.maxHp) {
-            val hx = 16f * dp + i * 22f * dp
+            val hx = hudLeft + i * 22f * dp
             val hy = topSafe + 50f * dp
             if (i < engine.hp) {
                 PixelSprites.drawCollectible(c, CollectibleType.HEART, hx, hy, 1.8f * dp, 0f)
@@ -1495,7 +1575,7 @@ class GameRenderer(
             }
         }
         if (engine.hasShield) {
-            val sx = 16f * dp + engine.maxHp * 22f * dp + 4f * dp
+            val sx = hudLeft + engine.maxHp * 22f * dp + 4f * dp
             PixelSprites.drawCollectible(c, CollectibleType.SHIELD, sx, topSafe + 49f * dp, 1.6f * dp, 0f)
         }
 
@@ -1516,14 +1596,14 @@ class GameRenderer(
         if (activePillsBuilder.isNotEmpty()) {
             uiPaint.textSize = 10f * dp
             uiPaint.color = 0xFF78E8FF.toInt()
-            c.drawText(activePillsBuilder, 0, activePillsBuilder.length, 16f * dp, topSafe + 80f * dp, uiPaint)
+            c.drawText(activePillsBuilder, 0, activePillsBuilder.length, hudLeft, topSafe + 80f * dp, uiPaint)
         }
 
         // Combo Multiplier pill + shrinking timer bar
         if (engine.combo > 1 && engine.comboTimer > 0f) {
             val cbW = 64f * dp
             val cbH = 22f * dp
-            val cbX = vw - 12f * dp - cbW
+            val cbX = hudRight - cbW
             val cbY = topSafe + 46f * dp
             paint.color = 0xD8141830.toInt()
             c.drawRect(cbX, cbY, cbX + cbW, cbY + cbH, paint)
@@ -1542,9 +1622,9 @@ class GameRenderer(
         // Retro Level-Up / Biome / Boss / Daily Seed Banner
         engine.bannerText?.let { bTxt ->
             if (engine.bannerTimer > 0f) {
-                val bW = minOf(vw - 32f * dp, 260f * dp)
+                val bW = minOf(vw - leftSafe - rightSafe - 16f * dp, 260f * dp)
                 val bH = 28f * dp
-                val bX = (vw - bW) / 2f
+                val bX = hudCx - bW / 2f
                 val bY = topSafe + 78f * dp
                 paint.color = 0xE6121526.toInt()
                 c.drawRect(bX, bY, bX + bW, bY + bH, paint)
@@ -1555,13 +1635,13 @@ class GameRenderer(
                 displayPaint.textSize = 9.5f * dp
                 displayPaint.color = engine.bannerColor
                 val baseline = bY + bH / 2f - (displayPaint.descent() + displayPaint.ascent()) / 2f
-                c.drawText(bTxt, vw / 2f, baseline, displayPaint)
+                c.drawText(bTxt, hudCx, baseline, displayPaint)
             }
         }
 
-        // Top-right Pause & Mute
-        val pauseRect = RectF(vw - 52f * dp, topSafe, vw - 12f * dp, topSafe + 38f * dp)
-        val muteRect = RectF(vw - 102f * dp, topSafe, vw - 58f * dp, topSafe + 38f * dp)
+        // Top-right Pause & Mute (respects right camera cutout in Landscape!)
+        val pauseRect = RectF(hudRight - 40f * dp, topSafe, hudRight, topSafe + 38f * dp)
+        val muteRect = RectF(hudRight - 90f * dp, topSafe, hudRight - 46f * dp, topSafe + 38f * dp)
         drawPixelButtonSecondary(c, pauseRect, "II", 11f * dp, dp)
         drawPixelButtonSecondary(c, muteRect, if (muted) "OFF" else "SFX", 9f * dp, dp)
         buttons.add(HitButton(UiAction.TOGGLE_PAUSE, pauseRect))
@@ -1572,8 +1652,10 @@ class GameRenderer(
             val padW = 108f * dp
             val padH = 56f * dp
             val padY = vh - bottomSafe - padH
-            val leftRect = RectF(14f * dp, padY, 14f * dp + padW, padY + padH)
-            val rightRect = RectF(vw - 14f * dp - padW, padY, vw - 14f * dp, padY + padH)
+            val leftPadX = leftSafe + 6f * dp
+            val rightPadX = vw - rightSafe - 6f * dp - padW
+            val leftRect = RectF(leftPadX, padY, leftPadX + padW, padY + padH)
+            val rightRect = RectF(rightPadX, padY, rightPadX + padW, padY + padH)
             val duckRect = if (leftHanded) rightRect else leftRect
             val jumpRect = if (leftHanded) leftRect else rightRect
             drawPixelButtonSecondary(c, duckRect, Strings.duckBtn(lang), 11f * dp, dp)
@@ -1587,6 +1669,10 @@ class GameRenderer(
         c: Canvas,
         vw: Float,
         vh: Float,
+        topSafe: Float,
+        bottomSafe: Float,
+        leftSafe: Float,
+        rightSafe: Float,
         musicMuted: Boolean,
         sfxMuted: Boolean,
         hapticsEnabled: Boolean,
@@ -1597,11 +1683,13 @@ class GameRenderer(
     ) {
         paint.color = 0xB80B0D1A.toInt()
         c.drawRect(0f, 0f, vw, vh, paint)
-        val dp = minOf(vw, vh) / 360f
-        val cx = vw / 2f
-        val panelW = minOf(vw - 28f * dp, 308f * dp)
-        val panelH = minOf(vh - 20f * dp, 356f * dp)
-        val topY = (vh - panelH) / 2f
+        val availW = (vw - leftSafe - rightSafe - 16f).coerceAtLeast(180f)
+        val availH = (vh - topSafe - bottomSafe - 12f).coerceAtLeast(180f)
+        val dp = minOf(availW / 308f, availH / 332f)
+        val cx = leftSafe + (vw - leftSafe - rightSafe) / 2f
+        val panelW = 308f * dp
+        val panelH = 332f * dp
+        val topY = topSafe + (vh - topSafe - bottomSafe - panelH) / 2f
         val panelRect = RectF(cx - panelW / 2f, topY, cx + panelW / 2f, topY + panelH)
         drawPixelPanel(c, panelRect, dp)
 
@@ -1670,17 +1758,21 @@ class GameRenderer(
         vh: Float,
         topSafe: Float,
         bottomSafe: Float,
+        leftSafe: Float,
+        rightSafe: Float,
         engine: GameEngine,
         meta: MetaProgressionManager,
         lang: AppLang,
     ) {
         paint.color = 0xC80B0D1A.toInt()
         c.drawRect(0f, 0f, vw, vh, paint)
-        val dp = minOf(vw, vh) / 360f
-        val cx = vw / 2f
-        val panelW = minOf(vw - 28f * dp, 330f * dp)
-        val panelH = minOf(vh - topSafe - bottomSafe - 24f * dp, 368f * dp)
-        val topY = (vh - panelH) / 2f
+        val availW = (vw - leftSafe - rightSafe - 16f).coerceAtLeast(180f)
+        val availH = (vh - topSafe - bottomSafe - 12f).coerceAtLeast(180f)
+        val dp = minOf(availW / 330f, availH / 352f)
+        val cx = leftSafe + (vw - leftSafe - rightSafe) / 2f
+        val panelW = 330f * dp
+        val panelH = 352f * dp
+        val topY = topSafe + (vh - topSafe - bottomSafe - panelH) / 2f
         val snap = engine.lastRun
 
         val panelRect = RectF(cx - panelW / 2f, topY, cx + panelW / 2f, topY + panelH)
@@ -1692,7 +1784,7 @@ class GameRenderer(
             uiPaint.textAlign = Paint.Align.CENTER
             uiPaint.textSize = 10f * dp
             uiPaint.color = 0xFFFFE05C.toInt()
-            c.drawText("🏆 TROPHY UNLOCKED: ${meta.newlyUnlockedTrophies.first().title}!", cx, topY + 64f * dp, uiPaint)
+            c.drawText(Strings.trophyUnlocked(lang, meta.newlyUnlockedTrophies.first().title), cx, topY + 64f * dp, uiPaint)
         } else if (snap?.isNewBest == true) {
             uiPaint.textAlign = Paint.Align.CENTER
             uiPaint.textSize = 11f * dp
@@ -1728,7 +1820,7 @@ class GameRenderer(
         uiPaint.textSize = 11f * dp
         uiPaint.color = 0xFFE4EAF8.toInt()
         c.drawText(
-            "${snap?.coins ?: 0} COINS  ·  ${snap?.stomps ?: 0} STOMPS  ·  ${snap?.bossesDefeated ?: 0} BOSS KO",
+            Strings.runStatsSummary(lang, snap?.coins ?: 0, snap?.stomps ?: 0, snap?.bossesDefeated ?: 0),
             cx,
             statY + 66f * dp,
             uiPaint,
@@ -1753,24 +1845,29 @@ class GameRenderer(
         vh: Float,
         topSafe: Float,
         bottomSafe: Float,
+        leftSafe: Float,
+        rightSafe: Float,
         preview: Bitmap?,
+        lang: AppLang,
     ) {
         paint.color = 0xDC0B0D1A.toInt()
         c.drawRect(0f, 0f, vw, vh, paint)
-        val dp = minOf(vw, vh) / 360f
-        val cx = vw / 2f
-        val panelW = minOf(vw - 24f * dp, 330f * dp)
-        val panelH = minOf(vh - topSafe - bottomSafe - 16f * dp, 500f * dp)
-        val topY = (vh - panelH) / 2f
+        val availW = (vw - leftSafe - rightSafe - 16f).coerceAtLeast(180f)
+        val availH = (vh - topSafe - bottomSafe - 12f).coerceAtLeast(180f)
+        val dp = minOf(availW / 330f, availH / 500f)
+        val cx = leftSafe + (vw - leftSafe - rightSafe) / 2f
+        val panelW = 330f * dp
+        val panelH = 500f * dp
+        val topY = topSafe + (vh - topSafe - bottomSafe - panelH) / 2f
 
         val panelRect = RectF(cx - panelW / 2f, topY, cx + panelW / 2f, topY + panelH)
         drawPixelPanel(c, panelRect, dp)
 
         // Preview bitmap inside modal (preserving 640:900 aspect ratio)
-        val availH = panelH - 124f * dp
-        val availW = panelW - 28f * dp
+        val imgAvailH = panelH - 120f * dp
+        val imgAvailW = panelW - 28f * dp
         val aspect = 640f / 900f
-        val drawH = minOf(availH, availW / aspect)
+        val drawH = minOf(imgAvailH, imgAvailW / aspect)
         val drawW = drawH * aspect
         val imgRect = RectF(cx - drawW / 2f, topY + 14f * dp, cx + drawW / 2f, topY + 14f * dp + drawH)
         if (preview != null && !preview.isRecycled) {
@@ -1786,8 +1883,8 @@ class GameRenderer(
         val halfW = (innerW - 10f * dp) / 2f
         val shareRect = RectF(cx - innerW / 2f, btnRowY, cx - innerW / 2f + halfW, btnRowY + 44f * dp)
         val saveRect = RectF(cx + 5f * dp, btnRowY, cx + innerW / 2f, btnRowY + 44f * dp)
-        drawPixelButtonPrimary(c, shareRect, "SHARE PNG", 9.5f * dp, dp)
-        drawPixelButtonSecondary(c, saveRect, "SAVE PNG", 9.5f * dp, dp, textColor = 0xFFFFE05C.toInt())
+        drawPixelButtonPrimary(c, shareRect, Strings.sharePng(lang), 9.5f * dp, dp)
+        drawPixelButtonSecondary(c, saveRect, Strings.savePng(lang), 9.5f * dp, dp, textColor = 0xFFFFE05C.toInt())
         buttons.add(HitButton(UiAction.SHARE_CARD, shareRect))
         buttons.add(HitButton(UiAction.SAVE_CARD, saveRect))
 
@@ -1796,7 +1893,7 @@ class GameRenderer(
         uiPaint.textAlign = Paint.Align.CENTER
         uiPaint.textSize = 11f * dp
         uiPaint.color = 0xFFB8C4E4.toInt()
-        c.drawText("← BACK TO SUMMARY", backRect.centerX(), backRect.centerY() + 4f * dp, uiPaint)
+        c.drawText(Strings.backToSummary(lang), backRect.centerX(), backRect.centerY() + 4f * dp, uiPaint)
         buttons.add(HitButton(UiAction.CLOSE_RUN_CARD, backRect))
     }
 

@@ -67,13 +67,13 @@ data class CustomHeroConfig(
     val isFemale: Boolean = false,
     val skinIndex: Int = 0,
 ) {
-    fun toPalette(): Map<Char, Int> {
-        val hair = HAIR_COLORS[hairIndex % HAIR_COLORS.size]
-        val tunic = TUNIC_COLORS[tunicIndex % TUNIC_COLORS.size]
-        val scarf = SCARF_COLORS[scarfIndex % SCARF_COLORS.size]
-        val boots = BOOTS_COLORS[bootsIndex % BOOTS_COLORS.size]
-        val skin = SKIN_COLORS[skinIndex % SKIN_COLORS.size]
-        return mapOf(
+    private val cachedPalette: Map<Char, Int> = run {
+        val hair = HAIR_COLORS[hairIndex.mod(HAIR_COLORS.size)]
+        val tunic = TUNIC_COLORS[tunicIndex.mod(TUNIC_COLORS.size)]
+        val scarf = SCARF_COLORS[scarfIndex.mod(SCARF_COLORS.size)]
+        val boots = BOOTS_COLORS[bootsIndex.mod(BOOTS_COLORS.size)]
+        val skin = SKIN_COLORS[skinIndex.mod(SKIN_COLORS.size)]
+        mapOf(
             'K' to 0xFF121324.toInt(),
             'H' to hair.first,
             'h' to hair.second,
@@ -91,6 +91,8 @@ data class CustomHeroConfig(
             'o' to boots.second,
         )
     }
+
+    fun toPalette(): Map<Char, Int> = cachedPalette
 
     companion object {
         val SKIN_COLORS = listOf(
@@ -179,7 +181,7 @@ class MetaProgressionManager(private val prefs: SharedPreferences) {
     // Wardrobe & Shop 2.0
     val ownedHats = mutableSetOf(HatId.NONE)
     val ownedCapes = mutableSetOf(CapeId.NONE)
-    val ownedPets = mutableSetOf(PetId.NONE, PetId.FOX) // Fox starter-friendly or unlockable; Owl/Dragon buyable!
+    val ownedPets = mutableSetOf(PetId.NONE) // Fox is FREE (0C) to adopt in Shop; Owl/Dragon buyable!
     val ownedTrails = mutableSetOf(TrailId.CLASSIC)
     val ownedGadgets = mutableSetOf<GadgetId>()
     val equippedGadgets = mutableListOf<GadgetId>()
@@ -312,9 +314,9 @@ class MetaProgressionManager(private val prefs: SharedPreferences) {
         }
     }
 
-    fun consumeRunBoosters(): Triple<Boolean, Boolean, Boolean> {
+    fun consumeRunBoosters(isHardcore: Boolean = false): Triple<Boolean, Boolean, Boolean> {
         val headStart = (boosters[BoosterId.HEAD_START] ?: 0) > 0
-        val extraHeart = (boosters[BoosterId.EXTRA_HEART] ?: 0) > 0
+        val extraHeart = !isHardcore && (boosters[BoosterId.EXTRA_HEART] ?: 0) > 0
         val doubleCoins = (boosters[BoosterId.DOUBLE_COINS] ?: 0) > 0
         if (headStart) boosters[BoosterId.HEAD_START] = (boosters[BoosterId.HEAD_START] ?: 1) - 1
         if (extraHeart) boosters[BoosterId.EXTRA_HEART] = (boosters[BoosterId.EXTRA_HEART] ?: 1) - 1
@@ -357,6 +359,7 @@ class MetaProgressionManager(private val prefs: SharedPreferences) {
 
         // Evaluate 12 Trophies
         newlyUnlockedTrophies.clear()
+        val wardrobeOwnedCount = (ownedHats.size - 1) + (ownedCapes.size - 1) + (ownedTrails.size - 1)
         val checks = mapOf(
             "first_run" to (careerRuns >= 1),
             "score_2500" to (snap.score >= 2500),
@@ -368,8 +371,8 @@ class MetaProgressionManager(private val prefs: SharedPreferences) {
             "hardcore_2k" to (snap.mode == GameMode.HARDCORE && snap.score >= 2000),
             "boss_rush_ko" to (snap.mode == GameMode.BOSS_RUSH && snap.bossesDefeated >= 2),
             "gadget_fan" to (ownedGadgets.size >= 2),
-            "wardrobe_fan" to ((ownedHats.size - 1) + (ownedCapes.size - 1) >= 2),
-            "pet_lover" to (ownedPets.size >= 2),
+            "wardrobe_fan" to (wardrobeOwnedCount >= 2),
+            "pet_lover" to ownedPets.any { it != PetId.NONE },
         )
         for (def in ALL_ACHIEVEMENTS) {
             if (checks[def.id] == true && !unlockedTrophies.contains(def.id)) {
@@ -475,8 +478,8 @@ class MetaProgressionManager(private val prefs: SharedPreferences) {
 
     private fun checkShopTrophies() {
         if (ownedGadgets.size >= 2) unlockedTrophies.add("gadget_fan")
-        if ((ownedHats.size - 1) + (ownedCapes.size - 1) >= 2) unlockedTrophies.add("wardrobe_fan")
-        if (ownedPets.size >= 2) unlockedTrophies.add("pet_lover")
+        if ((ownedHats.size - 1) + (ownedCapes.size - 1) + (ownedTrails.size - 1) >= 2) unlockedTrophies.add("wardrobe_fan")
+        if (ownedPets.any { it != PetId.NONE }) unlockedTrophies.add("pet_lover")
     }
 
     fun save() {
@@ -559,7 +562,6 @@ class MetaProgressionManager(private val prefs: SharedPreferences) {
             ownedCapes.add(CapeId.NONE)
             ownedPets.clear()
             ownedPets.add(PetId.NONE)
-            ownedPets.add(PetId.FOX)
             ownedTrails.clear()
             ownedTrails.add(TrailId.CLASSIC)
             ownedGadgets.clear()
@@ -655,9 +657,12 @@ class MetaProgressionManager(private val prefs: SharedPreferences) {
     fun exportSaveCode(engine: GameEngine): String {
         save()
         val payload = JSONObject().apply {
-            put("v", 420)
+            put("v", 423)
             put("best", engine.bestScore)
             put("coins", engine.totalCoins)
+            put("hero", engine.hero.name)
+            put("pet", engine.pet.name)
+            put("mode", engine.mode.name)
             put("meta", prefs.getString("meta_v4_json", "{}"))
         }.toString()
         val b64 = android.util.Base64.encodeToString(payload.toByteArray(Charsets.UTF_8), android.util.Base64.NO_WRAP)
@@ -681,6 +686,18 @@ class MetaProgressionManager(private val prefs: SharedPreferences) {
             }
             engine.bestScore = best
             engine.totalCoins = coins
+            obj.optString("hero", "").takeIf { it.isNotEmpty() }?.let { h ->
+                runCatching { engine.hero = HeroId.valueOf(h) }
+            }
+            obj.optString("pet", "").takeIf { it.isNotEmpty() }?.let { p ->
+                runCatching {
+                    val parsedPet = PetId.valueOf(p)
+                    if (ownedPets.contains(parsedPet)) engine.pet = parsedPet
+                }
+            }
+            obj.optString("mode", "").takeIf { it.isNotEmpty() }?.let { m ->
+                runCatching { engine.mode = GameMode.valueOf(m) }
+            }
             engine.hat = equippedHat
             engine.cape = equippedCape
             engine.trailId = equippedTrail

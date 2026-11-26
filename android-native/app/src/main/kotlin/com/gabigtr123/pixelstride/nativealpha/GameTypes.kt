@@ -365,6 +365,7 @@ data class RunSnapshot(
     val customHero: CustomHeroConfig = CustomHeroConfig(),
     val mode: GameMode,
     val isNewBest: Boolean,
+    val winterTheme: Boolean = false,
 )
 
 data class SaveData(

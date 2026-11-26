@@ -11,16 +11,28 @@ import android.graphics.RectF
  * per-frame JNI draw calls by >90% while preserving 100% crisp pixel art.
  */
 object PixelSprites {
-    private val paint = Paint().apply {
-        isAntiAlias = false
-        style = Paint.Style.FILL
+    private data class SpriteCacheKey(
+        val grid: List<String>,
+        val palette: Map<Char, Int>,
+        val whiteFlash: Boolean,
+    )
+
+    private val fillPaintTl = object : ThreadLocal<Paint>() {
+        override fun initialValue(): Paint = Paint().apply {
+            isAntiAlias = false
+            style = Paint.Style.FILL
+        }
     }
-    private val bmpPaint = Paint().apply {
-        isAntiAlias = false
-        isFilterBitmap = false
+    private val bmpPaintTl = object : ThreadLocal<Paint>() {
+        override fun initialValue(): Paint = Paint().apply {
+            isAntiAlias = false
+            isFilterBitmap = false
+        }
     }
-    private val dstRect = RectF()
-    private val spriteCache = HashMap<Int, Bitmap>(128)
+    private val dstRectTl = object : ThreadLocal<RectF>() {
+        override fun initialValue(): RectF = RectF()
+    }
+    private val spriteCache = HashMap<SpriteCacheKey, Bitmap>(128)
 
     private val STRIDE_PALETTE = mapOf(
         'K' to 0xFF121324.toInt(),
@@ -631,38 +643,42 @@ object PixelSprites {
         "..KK..........KK..",
     )
 
+    private val NINJA_PALETTE = mapOf(
+        'K' to 0xFF10101E.toInt(),
+        'H' to 0xFF22243A.toInt(),
+        'h' to 0xFF3E4268.toInt(),
+        'V' to 0xFFFF4868.toInt(),
+        'S' to 0xFFFFCC98.toInt(),
+        'R' to 0xFFC858FF.toInt(),
+        'r' to 0xFF7828B8.toInt(),
+        'T' to 0xFF262842.toInt(),
+        't' to 0xFF181A2E.toInt(),
+        'B' to 0xFF181A2E.toInt(),
+        'O' to 0xFFC858FF.toInt(),
+        'o' to 0xFF6820A0.toInt(),
+    )
+
+    private val ASTRO_PALETTE = mapOf(
+        'K' to 0xFF121526.toInt(),
+        'H' to 0xFFDCE8FA.toInt(),
+        'h' to 0xFFFFFFFF.toInt(),
+        'V' to 0xFF48F0FF.toInt(),
+        'S' to 0xFF284868.toInt(),
+        'R' to 0xFFFF8828.toInt(),
+        'r' to 0xFFB84814.toInt(),
+        'T' to 0xFFEAF2FF.toInt(),
+        't' to 0xFFA8BCD8.toInt(),
+        'B' to 0xFF586C94.toInt(),
+        'O' to 0xFFFFE05C.toInt(),
+        'o' to 0xFFB88418.toInt(),
+    )
+
     fun paletteFor(hero: HeroId, custom: CustomHeroConfig = CustomHeroConfig()): Map<Char, Int> = when (hero) {
         HeroId.STRIDE -> STRIDE_PALETTE
         HeroId.LILY -> LILY_PALETTE
         HeroId.KNIGHT -> KNIGHT_PALETTE
-        HeroId.NINJA -> mapOf(
-            'K' to 0xFF10101E.toInt(),
-            'H' to 0xFF22243A.toInt(),
-            'h' to 0xFF3E4268.toInt(),
-            'V' to 0xFFFF4868.toInt(),
-            'S' to 0xFFFFCC98.toInt(),
-            'R' to 0xFFC858FF.toInt(),
-            'r' to 0xFF7828B8.toInt(),
-            'T' to 0xFF262842.toInt(),
-            't' to 0xFF181A2E.toInt(),
-            'B' to 0xFF181A2E.toInt(),
-            'O' to 0xFFC858FF.toInt(),
-            'o' to 0xFF6820A0.toInt(),
-        )
-        HeroId.ASTRO -> mapOf(
-            'K' to 0xFF121526.toInt(),
-            'H' to 0xFFDCE8FA.toInt(),
-            'h' to 0xFFFFFFFF.toInt(),
-            'V' to 0xFF48F0FF.toInt(),
-            'S' to 0xFF284868.toInt(),
-            'R' to 0xFFFF8828.toInt(),
-            'r' to 0xFFB84814.toInt(),
-            'T' to 0xFFEAF2FF.toInt(),
-            't' to 0xFFA8BCD8.toInt(),
-            'B' to 0xFF586C94.toInt(),
-            'O' to 0xFFFFE05C.toInt(),
-            'o' to 0xFFB88418.toInt(),
-        )
+        HeroId.NINJA -> NINJA_PALETTE
+        HeroId.ASTRO -> ASTRO_PALETTE
         HeroId.CUSTOM -> custom.toPalette()
     }
 
@@ -724,6 +740,7 @@ object PixelSprites {
         spriteH: Int,
         s: Float,
     ) {
+        val paint = fillPaintTl.get()!!
         val backX = anchorX - (spriteW * s) / 2f - s
         val bodyY = feetY - spriteH * s + 6f * s
 
@@ -914,6 +931,12 @@ object PixelSprites {
         }
     }
 
+    fun bossSpriteY(kind: BossKind, bossY: Float, groundY: Float, scale: Float): Float = when (kind) {
+        BossKind.IRON_BEETLE -> groundY - BOSS_BEETLE_SPRITE.size * scale
+        BossKind.SAND_GOLEM -> groundY - BOSS_GOLEM_SPRITE.size * scale
+        BossKind.NEON_DRONE, BossKind.CRYSTAL_WYRM -> bossY + 2f
+    }
+
     fun drawBoss(canvas: Canvas, kind: BossKind, x: Float, y: Float, scale: Float, whiteFlash: Boolean) {
         val (grid, pal) = when (kind) {
             BossKind.IRON_BEETLE -> BOSS_BEETLE_SPRITE to BOSS_BEETLE_PALETTE
@@ -938,29 +961,33 @@ object PixelSprites {
         val cols = grid[0].length
         if (cols == 0) return
 
-        val key = (System.identityHashCode(grid) * 31 + palette.hashCode()) * 31 + (if (whiteFlash) 1 else 0)
-        var bmp = spriteCache[key]
-        if (bmp == null) {
-            if (spriteCache.size >= 256) {
-                for (old in spriteCache.values) old.recycle()
-                spriteCache.clear()
-            }
-            val baked = Bitmap.createBitmap(cols, rows, Bitmap.Config.ARGB_8888)
-            for (r in 0 until rows) {
-                val line = grid[r]
-                val limit = minOf(cols, line.length)
-                for (c in 0 until limit) {
-                    val ch = line[c]
-                    if (ch == '.' || ch == ' ') continue
-                    val color = if (whiteFlash) 0xFFFFFFFF.toInt() else (palette[ch] ?: continue)
-                    baked.setPixel(c, r, color)
+        val key = SpriteCacheKey(grid, palette, whiteFlash)
+        val bmp = synchronized(spriteCache) {
+            var cached = spriteCache[key]
+            if (cached == null) {
+                if (spriteCache.size >= 256) {
+                    // Evict without calling recycle() in case another thread is mid-drawBitmap
+                    spriteCache.clear()
                 }
+                val baked = Bitmap.createBitmap(cols, rows, Bitmap.Config.ARGB_8888)
+                for (r in 0 until rows) {
+                    val line = grid[r]
+                    val limit = minOf(cols, line.length)
+                    for (c in 0 until limit) {
+                        val ch = line[c]
+                        if (ch == '.' || ch == ' ') continue
+                        val color = if (whiteFlash) 0xFFFFFFFF.toInt() else (palette[ch] ?: continue)
+                        baked.setPixel(c, r, color)
+                    }
+                }
+                spriteCache[key] = baked
+                cached = baked
             }
-            spriteCache[key] = baked
-            bmp = baked
+            cached
         }
 
-        dstRect.set(startX, startY, startX + cols * scale, startY + rows * scale)
-        canvas.drawBitmap(bmp, null, dstRect, bmpPaint)
+        val rect = dstRectTl.get()!!
+        rect.set(startX, startY, startX + cols * scale, startY + rows * scale)
+        canvas.drawBitmap(bmp, null, rect, bmpPaintTl.get()!!)
     }
 }

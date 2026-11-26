@@ -41,7 +41,12 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
     var insetTopPx: Float = 48f
     var insetBottomPx: Float = 32f
+    var insetLeftPx: Float = 0f
+    var insetRightPx: Float = 0f
     var onRequestGpsLocation: (() -> Unit)? = null
+
+    @Volatile
+    private var cardExportBusy: Boolean = false
 
     private var duckPointerId: Int = MotionEvent.INVALID_POINTER_ID
     private var jumpPointerId: Int = MotionEvent.INVALID_POINTER_ID
@@ -292,6 +297,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                                 lang = lang,
                                 leftHanded = leftHanded,
                                 showTouchButtons = showTouchButtons,
+                                insetLeftPx = insetLeftPx,
+                                insetRightPx = insetRightPx,
                             )
                         }
                     } finally {
@@ -320,6 +327,17 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         Choreographer.getInstance().removeFrameCallback(frameCallback)
     }
 
+    private fun beginRun() {
+        resetTouchPointers()
+        runCardPreview?.recycle()
+        runCardPreview = null
+        engine.startNewRun(meta)
+        persistSave()
+        synth.setBiome(engine.zoneIndex)
+        synth.setBossMode(engine.activeBoss != null)
+        synth.startMusic()
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val action = event.actionMasked
         val index = event.actionIndex
@@ -330,7 +348,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         synchronized(engine) {
             when (action) {
                 MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
-                    val hit = renderer.buttons.firstOrNull { it.rect.contains(x, y) }
+                    val hit = renderer.buttons.lastOrNull { it.rect.contains(x, y) }
                     if (hit != null) {
                         handleButtonPress(hit, pointerId)
                         return true
@@ -371,7 +389,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                         }
                     }
                 }
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_CANCEL -> {
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                     if (pointerId == swipePointerId) {
                         swipePointerId = MotionEvent.INVALID_POINTER_ID
                         swipeTriggered = false
@@ -386,6 +404,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                         engine.releaseJump()
                     }
                 }
+                MotionEvent.ACTION_CANCEL -> {
+                    // System gesture / palm rejection cancels ALL active pointers simultaneously
+                    resetTouchPointers()
+                }
             }
         }
         return true
@@ -394,13 +416,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     private fun handleButtonPress(hit: HitButton, pointerId: Int) {
         when (hit.action) {
             UiAction.START_RUN, UiAction.RESTART -> {
-                runCardPreview?.recycle()
-                runCardPreview = null
-                engine.hat = meta.equippedHat
-                engine.cape = meta.equippedCape
-                engine.customHero = meta.customHero
-                engine.startNewRun(meta)
-                synth.startMusic()
+                beginRun()
                 vibrate(14, 70)
             }
             UiAction.SELECT_HERO_STRIDE -> selectHero(HeroId.STRIDE)
@@ -708,17 +724,48 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             }
             UiAction.SHARE_CARD -> {
                 val snap = engine.lastRun ?: return
-                post {
-                    val ok = RunCardExporter.shareCard(context, snap)
-                    showToast(if (ok) "OPENING SHARE SHEET..." else "SHARE FAILED")
-                }
+                if (cardExportBusy) return
+                cardExportBusy = true
+                showToast(if (lang == AppLang.RO) "SE PREGATESTE PNG..." else "PREPARING PNG...")
+                val appCtx = context.applicationContext
+                Thread({
+                    val chooser = RunCardExporter.prepareShareIntent(appCtx, snap)
+                    cardExportBusy = false
+                    post {
+                        if (chooser != null) {
+                            val ok = runCatching { context.startActivity(chooser) }.isSuccess
+                            showToast(
+                                if (ok) {
+                                    if (lang == AppLang.RO) "TRIMITE RUN CARD..." else "OPENING SHARE SHEET..."
+                                } else {
+                                    "SHARE FAILED"
+                                },
+                            )
+                        } else {
+                            showToast("SHARE FAILED")
+                        }
+                    }
+                }, "PixelStride-ShareCard").apply { isDaemon = true }.start()
             }
             UiAction.SAVE_CARD -> {
                 val snap = engine.lastRun ?: return
-                post {
-                    val ok = RunCardExporter.saveCardToGallery(context, snap)
-                    showToast(if (ok) "SAVED TO GALLERY (PICTURES/PIXELSTRIDE)!" else "SAVE FAILED")
-                }
+                if (cardExportBusy) return
+                cardExportBusy = true
+                showToast(if (lang == AppLang.RO) "SE SALVEAZA PNG..." else "SAVING PNG...")
+                val appCtx = context.applicationContext
+                Thread({
+                    val ok = RunCardExporter.saveCardToGallery(appCtx, snap)
+                    cardExportBusy = false
+                    post {
+                        showToast(
+                            if (ok) {
+                                if (lang == AppLang.RO) "SALVAT IN GALERIE (PICTURES/PIXELSTRIDE)!" else "SAVED TO GALLERY (PICTURES/PIXELSTRIDE)!"
+                            } else {
+                                "SAVE FAILED"
+                            },
+                        )
+                    }
+                }, "PixelStride-SaveCard").apply { isDaemon = true }.start()
             }
         }
     }
@@ -817,15 +864,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                 synchronized(engine) {
                     when (engine.phase) {
                         GamePhase.PLAYING -> engine.pressJump()
-                        GamePhase.TITLE, GamePhase.GAME_OVER -> {
-                            runCardPreview?.recycle()
-                            runCardPreview = null
-                            engine.startNewRun(meta)
-                            persistSave()
-                            synth.setBiome(engine.zoneIndex)
-                            synth.setBossMode(false)
-                            synth.startMusic()
-                        }
+                        GamePhase.TITLE, GamePhase.GAME_OVER -> beginRun()
                         GamePhase.PAUSED -> {
                             engine.phase = GamePhase.PLAYING
                             synth.startMusic()

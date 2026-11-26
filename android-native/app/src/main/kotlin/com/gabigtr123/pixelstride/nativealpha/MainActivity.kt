@@ -41,6 +41,8 @@ class MainActivity : AppCompatActivity() {
             )
             gameView.insetTopPx = bars.top.toFloat()
             gameView.insetBottomPx = bars.bottom.toFloat()
+            gameView.insetLeftPx = bars.left.toFloat()
+            gameView.insetRightPx = bars.right.toFloat()
             insets
         }
 

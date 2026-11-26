@@ -363,4 +363,116 @@ class GameEngineTest {
         assertTrue("Particles should stay within MAX_PARTICLES cap", engine.particles.size <= GameEngine.MAX_PARTICLES)
         assertTrue("Floating texts should stay within MAX_FLOATING_TEXTS cap", engine.floatingTexts.size <= GameEngine.MAX_FLOATING_TEXTS)
     }
+
+    @Test
+    fun bossStompGrantsGraceInvulnerabilityAgainstPhantomContactDamage() {
+        val fb = RecordingFeedback()
+        val engine = GameEngine(fb)
+        engine.hero = HeroId.STRIDE
+        engine.startNewRun()
+        val startHp = engine.hp
+
+        // Position charging boss so that even after stomp knockback (+45px), AABB still overlaps player on next frame
+        val boss = BossEntity(
+            kind = BossKind.IRON_BEETLE,
+            x = engine.playerX - 40f,
+            y = engine.groundY - 32f,
+            anchorX = engine.playerX + 4f,
+            hp = 3,
+            maxHp = 3,
+            charging = true,
+        )
+        engine.activeBoss = boss
+        engine.playerY = boss.y - engine.playerStandHeight + 3f
+        engine.playerVy = 210f
+        engine.onGround = false
+
+        // Frame 1: Stomp lands
+        engine.update(0.016f)
+        assertEquals(2, boss.hp)
+        assertTrue("Boss stomp should grant grace invulnerability", engine.invulnTimer >= 0.30f)
+
+        // Subsequent frames (past hitstop) while bouncing upward through boss AABB must NOT deal contact damage
+        repeat(6) { engine.update(0.02f) }
+        assertEquals("Player must not take phantom contact damage after stomping boss", startHp, engine.hp)
+        assertEquals(0, fb.hits)
+
+        // Verify ground boss visual Y sits flush on groundY (11 rows * scale)
+        val scale = 2.0f
+        val drawY = PixelSprites.bossSpriteY(BossKind.IRON_BEETLE, boss.y, engine.groundY, scale)
+        assertEquals(engine.groundY, drawY + 11f * scale, 0.01f)
+    }
+
+    @Test
+    fun bossProjectileCollisionMatchesCenteredVisualHitbox() {
+        val fb = RecordingFeedback()
+        val engine = GameEngine(fb)
+        engine.startNewRun()
+        val pLeft = engine.playerX + 3f
+        val pRight = engine.playerX + engine.playerWidth - 3f
+
+        // 1) Orb centered at (pLeft - 5f) with size 9f has right edge at (pLeft - 0.5f) -> must NOT hit!
+        engine.bossProjectiles.add(BossProjectile(x = pLeft - 5f, y = engine.playerY + 10f, vx = 0f, size = 9f))
+        engine.update(0.016f)
+        assertEquals("Orb visually to the left of player must not trigger false hit", 0, fb.hits)
+        engine.bossProjectiles.clear()
+
+        // 2) Orb centered at (pRight + 2f) with size 9f has left edge at (pRight - 2.5f) -> overlaps player right edge -> MUST hit!
+        engine.bossProjectiles.add(BossProjectile(x = pRight + 2f, y = engine.playerY + 10f, vx = 0f, size = 9f))
+        engine.update(0.016f)
+        assertEquals("Orb visually overlapping player's right edge must register hit", 1, fb.hits)
+    }
+
+    @Test
+    fun runnerTrailParticlesRespectMaxParticlesCap() {
+        val engine = GameEngine(RecordingFeedback())
+        engine.trailId = TrailId.PRIDE
+        engine.startNewRun()
+        engine.turboTimer = 4.0f
+
+        repeat(GameEngine.MAX_PARTICLES) {
+            engine.particles.add(
+                Particle(x = 50f, y = 100f, vx = 0f, vy = 0f, life = 5f, maxLife = 5f, size = 2f, color = 0xFFFFFFFF.toInt()),
+            )
+        }
+        repeat(10) { engine.update(0.035f) }
+
+        assertTrue("Trail emission must never exceed MAX_PARTICLES", engine.particles.size <= GameEngine.MAX_PARTICLES)
+    }
+
+    @Test
+    fun setDuckFalseOnPlatformNeverTeleportsToGround() {
+        val engine = GameEngine(RecordingFeedback())
+        engine.startNewRun()
+        val platY = engine.groundY - 60f
+        engine.platforms.add(PlatformEntity(id = 1, x = engine.playerX - 8f, y = platY, width = 72f, height = 10f))
+        engine.playerY = platY - engine.playerStandHeight - 2f
+        engine.playerVy = 120f
+        engine.onGround = false
+        engine.update(0.03f)
+
+        assertTrue(engine.onPlatform)
+        val expectedY = platY - engine.playerStandHeight
+        assertEquals(expectedY, engine.playerY, 0.5f)
+
+        engine.setDuck(false)
+        assertEquals("Releasing duck on a floating platform must keep player on platform", expectedY, engine.playerY, 0.5f)
+    }
+
+    @Test
+    fun runSnapshotCapturesWinterThemeFlag() {
+        val fb = RecordingFeedback()
+        val engine = GameEngine(fb)
+        engine.mode = GameMode.HARDCORE
+        engine.winterTheme = true
+        engine.startNewRun()
+
+        engine.hazards.add(
+            HazardEntity(x = engine.playerX + 4f, y = engine.groundY - 16f, width = 18f, height = 16f, type = HazardType.SPIKE),
+        )
+        engine.update(0.016f)
+
+        assertEquals(GamePhase.GAME_OVER, engine.phase)
+        assertTrue("RunSnapshot must preserve winterTheme for Run Card rendering", fb.lastSnapshot?.winterTheme == true)
+    }
 }
