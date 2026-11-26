@@ -153,14 +153,16 @@ class ChiptuneSynth {
                             val t = i.toDouble() / stepSamples
                             var mix = 0.0
                             if (leadFreq > 0.0) {
-                                leadPhase += 2.0 * PI * leadFreq / sampleRate
-                                val sq = if (sin(leadPhase) >= 0.0) 1.0 else -1.0
+                                leadPhase += leadFreq / sampleRate
+                                if (leadPhase >= 1.0) leadPhase -= 1.0
+                                val sq = if (leadPhase < 0.5) 1.0 else -1.0
                                 val env = if (t < 0.05) t / 0.05 else (1.0 - t * 0.78).coerceAtLeast(0.0)
                                 mix += sq * 0.065 * env
                             }
                             if (bassFreq > 0.0) {
-                                bassPhase += 2.0 * PI * bassFreq / sampleRate
-                                val tri = (2.0 / PI) * kotlin.math.asin(sin(bassPhase))
+                                bassPhase += bassFreq / sampleRate
+                                if (bassPhase >= 1.0) bassPhase -= 1.0
+                                val tri = 4.0 * abs(bassPhase - 0.5) - 1.0
                                 val env = (1.0 - t * 0.65).coerceAtLeast(0.0)
                                 mix += tri * 0.085 * env
                             }

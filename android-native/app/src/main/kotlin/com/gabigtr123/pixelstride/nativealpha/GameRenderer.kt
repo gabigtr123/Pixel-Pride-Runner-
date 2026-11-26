@@ -131,6 +131,29 @@ class GameRenderer(
 
     var toastMessage: String? = null
     var toastTimer: Float = 0f
+    private val activePillsBuilder = StringBuilder(48)
+
+    companion object {
+        // Hoisted constant parallax geometry (zero per-frame array allocations at 120Hz)
+        private val CLOUD_DEFS = arrayOf(
+            floatArrayOf(28f, -40f, 44f, 12f),
+            floatArrayOf(158f, -22f, 32f, 10f),
+            floatArrayOf(292f, -48f, 52f, 14f),
+            floatArrayOf(410f, -10f, 36f, 10f),
+        )
+        private val CITY_TOWERS = arrayOf(
+            floatArrayOf(6f, 22f, 68f),
+            floatArrayOf(32f, 28f, 86f),
+            floatArrayOf(64f, 20f, 58f),
+            floatArrayOf(88f, 26f, 74f),
+        )
+        private val MEGA_TOWERS = arrayOf(
+            floatArrayOf(4f, 26f, 78f, 0f),
+            floatArrayOf(34f, 32f, 94f, 1f),
+            floatArrayOf(70f, 22f, 64f, 0f),
+            floatArrayOf(96f, 22f, 84f, 1f),
+        )
+    }
 
     fun render(
         canvas: Canvas,
@@ -358,18 +381,12 @@ class GameRenderer(
             c.drawRect(celX - 8f, celY - 8f, celX + 6f, celY + 6f, paint)
         }
 
-        // 4. Exact v3.0.3 3-tier fluffy pixel clouds (4 varied silhouettes)
+        // 4. Exact v3.0.3 3-tier fluffy pixel clouds (4 varied silhouettes, zero per-frame allocs)
         val cloudScroll = engine.scrollX * 0.10f
         val cloudSpan = 480f + 90f
-        val cloudDefs = arrayOf(
-            floatArrayOf(28f, band1Y - 40f, 44f, 12f),
-            floatArrayOf(158f, band1Y - 22f, 32f, 10f),
-            floatArrayOf(292f, band1Y - 48f, 52f, 14f),
-            floatArrayOf(410f, band1Y - 10f, 36f, 10f),
-        )
-        for (cd in cloudDefs) {
+        for (cd in CLOUD_DEFS) {
             val cx = ((((cd[0] - cloudScroll) % cloudSpan) + cloudSpan) % cloudSpan - 60f).roundToInt().toFloat()
-            val cy = cd[1].roundToInt().toFloat()
+            val cy = (band1Y + cd[1]).roundToInt().toFloat()
             val cw = cd[2]
             val ch = cd[3]
             paint.color = biome.cloudShadow
@@ -407,13 +424,7 @@ class GameRenderer(
                 }
                 2 -> {
                     // Level 3: Starlight City — distant retro skyline towers + antennas + windows
-                    val towers = arrayOf(
-                        floatArrayOf(6f, 22f, 68f),
-                        floatArrayOf(32f, 28f, 86f),
-                        floatArrayOf(64f, 20f, 58f),
-                        floatArrayOf(88f, 26f, 74f),
-                    )
-                    for (t in towers) {
+                    for (t in CITY_TOWERS) {
                         val tx = bx + t[0]
                         val tw = t[1]
                         val th = t[2]
@@ -452,13 +463,7 @@ class GameRenderer(
                 }
                 4 -> {
                     // Level 5: Cyber Neon Skyway — stepped megatowers with cyan/magenta neon strips & holo billboards
-                    val megaTowers = arrayOf(
-                        floatArrayOf(4f, 26f, 78f, 0f),
-                        floatArrayOf(34f, 32f, 94f, 1f),
-                        floatArrayOf(70f, 22f, 64f, 0f),
-                        floatArrayOf(96f, 22f, 84f, 1f),
-                    )
-                    for (t in megaTowers) {
+                    for (t in MEGA_TOWERS) {
                         val tx = bx + t[0]
                         val tw = t[1]
                         val th = t[2]
@@ -1494,15 +1499,24 @@ class GameRenderer(
             PixelSprites.drawCollectible(c, CollectibleType.SHIELD, sx, topSafe + 49f * dp, 1.6f * dp, 0f)
         }
 
-        val activePills = mutableListOf<String>()
-        if (engine.turboTimer > 0f) activePills.add("TURBO")
-        if (engine.doubleScoreTimer > 0f) activePills.add("2X")
-        if (engine.magnetTimer > 0f) activePills.add("MAGNET")
-        if (engine.slowMoTimer > 0f) activePills.add("SLOW")
-        if (activePills.isNotEmpty()) {
+        activePillsBuilder.setLength(0)
+        if (engine.turboTimer > 0f) activePillsBuilder.append("TURBO")
+        if (engine.doubleScoreTimer > 0f) {
+            if (activePillsBuilder.isNotEmpty()) activePillsBuilder.append(" · ")
+            activePillsBuilder.append("2X")
+        }
+        if (engine.magnetTimer > 0f) {
+            if (activePillsBuilder.isNotEmpty()) activePillsBuilder.append(" · ")
+            activePillsBuilder.append("MAGNET")
+        }
+        if (engine.slowMoTimer > 0f) {
+            if (activePillsBuilder.isNotEmpty()) activePillsBuilder.append(" · ")
+            activePillsBuilder.append("SLOW")
+        }
+        if (activePillsBuilder.isNotEmpty()) {
             uiPaint.textSize = 10f * dp
             uiPaint.color = 0xFF78E8FF.toInt()
-            c.drawText(activePills.joinToString(" · "), 16f * dp, topSafe + 80f * dp, uiPaint)
+            c.drawText(activePillsBuilder, 0, activePillsBuilder.length, 16f * dp, topSafe + 80f * dp, uiPaint)
         }
 
         // Combo Multiplier pill + shrinking timer bar

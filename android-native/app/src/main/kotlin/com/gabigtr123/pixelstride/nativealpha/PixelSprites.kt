@@ -1,16 +1,26 @@
 package com.gabigtr123.pixelstride.nativealpha
 
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.RectF
 
 /**
  * Exact 1:1 port of Pixel Stride's hand-crafted 8-bit NES/Famicom sprite matrices & palettes.
+ * Sprites are pre-baked on first draw into tiny nearest-neighbor ARGB_8888 Bitmaps to cut
+ * per-frame JNI draw calls by >90% while preserving 100% crisp pixel art.
  */
 object PixelSprites {
     private val paint = Paint().apply {
         isAntiAlias = false
         style = Paint.Style.FILL
     }
+    private val bmpPaint = Paint().apply {
+        isAntiAlias = false
+        isFilterBitmap = false
+    }
+    private val dstRect = RectF()
+    private val spriteCache = HashMap<Int, Bitmap>(128)
 
     private val STRIDE_PALETTE = mapOf(
         'K' to 0xFF121324.toInt(),
@@ -923,17 +933,34 @@ object PixelSprites {
         scale: Float,
         whiteFlash: Boolean = false,
     ) {
-        for (row in grid.indices) {
-            val line = grid[row]
-            val py = startY + row * scale
-            for (col in line.indices) {
-                val ch = line[col]
-                if (ch == '.' || ch == ' ') continue
-                val color = if (whiteFlash) 0xFFFFFFFF.toInt() else (palette[ch] ?: continue)
-                paint.color = color
-                val px = startX + col * scale
-                canvas.drawRect(px, py, px + scale + 0.25f, py + scale + 0.25f, paint)
+        val rows = grid.size
+        if (rows == 0) return
+        val cols = grid[0].length
+        if (cols == 0) return
+
+        val key = (System.identityHashCode(grid) * 31 + palette.hashCode()) * 31 + (if (whiteFlash) 1 else 0)
+        var bmp = spriteCache[key]
+        if (bmp == null) {
+            if (spriteCache.size >= 256) {
+                for (old in spriteCache.values) old.recycle()
+                spriteCache.clear()
             }
+            val baked = Bitmap.createBitmap(cols, rows, Bitmap.Config.ARGB_8888)
+            for (r in 0 until rows) {
+                val line = grid[r]
+                val limit = minOf(cols, line.length)
+                for (c in 0 until limit) {
+                    val ch = line[c]
+                    if (ch == '.' || ch == ' ') continue
+                    val color = if (whiteFlash) 0xFFFFFFFF.toInt() else (palette[ch] ?: continue)
+                    baked.setPixel(c, r, color)
+                }
+            }
+            spriteCache[key] = baked
+            bmp = baked
         }
+
+        dstRect.set(startX, startY, startX + cols * scale, startY + rows * scale)
+        canvas.drawBitmap(bmp, null, dstRect, bmpPaint)
     }
 }

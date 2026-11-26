@@ -344,4 +344,23 @@ class GameEngineTest {
         engine.setDuck(false)
         assertFalse("Releasing duck while paused should still clear ducking state", engine.ducking)
     }
+
+    @Test
+    fun particleAndFloatingTextCapsEnforced() {
+        val engine = GameEngine(RecordingFeedback())
+        engine.startNewRun()
+        repeat(200) {
+            engine.floatingTexts.add(FloatingText(50f, 100f, "+15", 0xFFFFFFFF.toInt(), 1.0f))
+        }
+        repeat(40) {
+            engine.pressJump()
+            engine.playerY = engine.groundY - engine.playerStandHeight
+            engine.onGround = true
+            engine.jumpsRemaining = engine.maxJumps
+        }
+        engine.update(0.016f)
+
+        assertTrue("Particles should stay within MAX_PARTICLES cap", engine.particles.size <= GameEngine.MAX_PARTICLES)
+        assertTrue("Floating texts should stay within MAX_FLOATING_TEXTS cap", engine.floatingTexts.size <= GameEngine.MAX_FLOATING_TEXTS)
+    }
 }

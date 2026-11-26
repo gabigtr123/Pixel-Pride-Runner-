@@ -1165,6 +1165,9 @@ class GameEngine(private val feedback: EngineFeedback) {
 
     private fun spawnDust(x: Float, y: Float, count: Int, color: Int) {
         for (i in 0 until count) {
+            if (particles.size >= MAX_PARTICLES) {
+                particles.removeAt(0)
+            }
             val vx = Random.nextFloat() * 110f - 55f
             val vy = -Random.nextFloat() * 120f - 20f
             val life = 0.25f + Random.nextFloat() * 0.25f
@@ -1173,24 +1176,30 @@ class GameEngine(private val feedback: EngineFeedback) {
     }
 
     private fun updateParticles(dt: Float) {
-        val pIter = particles.iterator()
-        while (pIter.hasNext()) {
-            val p = pIter.next()
+        for (i in particles.lastIndex downTo 0) {
+            val p = particles[i]
             p.life -= dt
             if (p.life <= 0f) {
-                pIter.remove()
+                particles.removeAt(i)
                 continue
             }
             p.vy += 320f * dt
             p.x += p.vx * dt
             p.y += p.vy * dt
         }
-        val tIter = floatingTexts.iterator()
-        while (tIter.hasNext()) {
-            val ft = tIter.next()
+        while (floatingTexts.size > MAX_FLOATING_TEXTS) {
+            floatingTexts.removeAt(0)
+        }
+        for (i in floatingTexts.lastIndex downTo 0) {
+            val ft = floatingTexts[i]
             ft.life -= dt
             ft.y -= 26f * dt
-            if (ft.life <= 0f) tIter.remove()
+            if (ft.life <= 0f) floatingTexts.removeAt(i)
         }
+    }
+
+    companion object {
+        const val MAX_PARTICLES = 96
+        const val MAX_FLOATING_TEXTS = 24
     }
 }
