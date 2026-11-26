@@ -8,11 +8,11 @@ enum class AppLang(val code: String) {
 object Strings {
     fun startRun(l: AppLang) = if (l == AppLang.RO) "PORNESTE" else "START RUN"
     fun paused(l: AppLang) = if (l == AppLang.RO) "PAUZA" else "PAUSED"
-    fun resume(l: AppLang) = if (l == AppLang.RO) "▶ CONTINUA" else "▶ RESUME"
-    fun restart(l: AppLang) = if (l == AppLang.RO) "↻ REIA" else "↻ RESTART"
-    fun title(l: AppLang) = if (l == AppLang.RO) "⌂ MENIU" else "⌂ TITLE"
+    fun resume(l: AppLang) = if (l == AppLang.RO) "CONTINUA" else "RESUME"
+    fun restart(l: AppLang) = if (l == AppLang.RO) "REIA RUNDA" else "RESTART"
+    fun title(l: AppLang) = if (l == AppLang.RO) "MENIU" else "TITLE"
     fun runOver(l: AppLang) = if (l == AppLang.RO) "RUNDA INCHEIATA" else "RUN OVER"
-    fun tryAgain(l: AppLang) = if (l == AppLang.RO) "▶ DIN NOU" else "▶ TRY AGAIN"
+    fun tryAgain(l: AppLang) = if (l == AppLang.RO) "DIN NOU" else "TRY AGAIN"
     fun viewCard(l: AppLang) = if (l == AppLang.RO) "VEZI & TRIMITE RUN CARD" else "VIEW & SHARE RUN CARD"
     fun newBest(l: AppLang) = if (l == AppLang.RO) "★ RECORD NOU! ★" else "★ NEW HIGH SCORE! ★"
     fun jumpBtn(l: AppLang) = if (l == AppLang.RO) "▲ SARI" else "▲ JUMP"
@@ -51,7 +51,7 @@ object Strings {
             if (l == AppLang.RO) "ABIL: $perkLabel · REC: $best" else "PERK: $perkLabel · BEST: $best"
         }
     }
-    fun trophyUnlocked(l: AppLang, title: String) = if (l == AppLang.RO) "🏆 TROFEU DEBLOCAT: $title!" else "🏆 TROPHY UNLOCKED: $title!"
+    fun trophyUnlocked(l: AppLang, title: String) = if (l == AppLang.RO) "TROFEU DEBLOCAT: $title!" else "TROPHY UNLOCKED: $title!"
     fun runStatsSummary(l: AppLang, coins: Int, stomps: Int, bossKo: Int) = if (l == AppLang.RO) {
         "$coins MONEDE  ·  $stomps STOMP  ·  $bossKo BOSS KO"
     } else {

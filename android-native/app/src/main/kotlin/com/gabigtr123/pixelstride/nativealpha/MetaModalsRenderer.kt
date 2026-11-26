@@ -43,10 +43,11 @@ class MetaModalsRenderer(
 
         // Header + Coin Bank + X
         drawShadowTitle(c, Strings.shopTitle(lang), panelRect.left + 16f * dp, topY + 32f * dp, 12f * dp, 0xFFFFE05C.toInt(), dp, Paint.Align.LEFT)
+        PixelSprites.drawUiIcon(c, PixelSprites.UiIcon.COIN, panelRect.left + 16f * dp, topY + 38f * dp, 1.1f * dp)
         uiPaint.textAlign = Paint.Align.LEFT
         uiPaint.textSize = 10f * dp
         uiPaint.color = 0xFF78F0A8.toInt()
-        c.drawText("BANK: ${engine.totalCoins} COINS", panelRect.left + 16f * dp, topY + 48f * dp, uiPaint)
+        c.drawText("BANK: ${engine.totalCoins} COINS", panelRect.left + 31f * dp, topY + 48f * dp, uiPaint)
 
         val closeRect = RectF(panelRect.right - 44f * dp, topY + 12f * dp, panelRect.right - 14f * dp, topY + 40f * dp)
         drawSecondaryBtn(c, closeRect, "X", 10f * dp, dp, 0xFFF8F6EE.toInt())
@@ -97,8 +98,11 @@ class MetaModalsRenderer(
             val r = RectF(leftX + col * (colW + 5f * dp), y + row * 28f * dp, leftX + col * (colW + 5f * dp) + colW, y + row * 28f * dp + 24f * dp)
             val owned = meta.ownedHats.contains(hat)
             val eq = meta.equippedHat == hat
-            val label = if (eq) "✓${hat.label}" else if (owned) hat.label else "${hat.label} ${hat.price}C"
+            val label = if (eq) "  ${hat.label}" else if (owned) hat.label else "${hat.label} ${hat.price}C"
             drawModePill(c, r, label, eq, dp)
+            if (eq) {
+                PixelSprites.drawUiIcon(c, PixelSprites.UiIcon.CHECK, r.left + 4f * dp, r.centerY() - 4.5f * dp, 0.95f * dp)
+            }
             buttons.add(HitButton(UiAction.SHOP_HAT, r, hat.name))
         }
 
@@ -115,8 +119,11 @@ class MetaModalsRenderer(
             val r = RectF(leftX + col * (capeW + 6f * dp), y + row * 28f * dp, leftX + col * (capeW + 6f * dp) + capeW, y + row * 28f * dp + 24f * dp)
             val owned = meta.ownedCapes.contains(cape)
             val eq = meta.equippedCape == cape
-            val label = if (eq) "✓ ${cape.label}" else if (owned) cape.label else "${cape.label} ${cape.price}C"
+            val label = if (eq) "  ${cape.label}" else if (owned) cape.label else "${cape.label} ${cape.price}C"
             drawModePill(c, r, label, eq, dp)
+            if (eq) {
+                PixelSprites.drawUiIcon(c, PixelSprites.UiIcon.CHECK, r.left + 5f * dp, r.centerY() - 4.5f * dp, 1.0f * dp)
+            }
             buttons.add(HitButton(UiAction.SHOP_CAPE, r, cape.name))
         }
 
@@ -134,8 +141,11 @@ class MetaModalsRenderer(
             val eq = engine.pet == pet
             val price = meta.petPrice(pet)
             val priceStr = if (price == 0) "FREE" else "${price}C"
-            val label = if (eq) "✓ ${pet.displayName}" else if (owned) pet.displayName else "${pet.displayName} $priceStr"
+            val label = if (eq) "  ${pet.displayName}" else if (owned) pet.displayName else "${pet.displayName} $priceStr"
             drawModePill(c, r, label, eq, dp)
+            if (eq) {
+                PixelSprites.drawUiIcon(c, PixelSprites.UiIcon.CHECK, r.left + 5f * dp, r.centerY() - 4.5f * dp, 1.0f * dp)
+            }
             buttons.add(HitButton(UiAction.SHOP_PET, r, pet.name))
         }
 
@@ -151,8 +161,11 @@ class MetaModalsRenderer(
             val r = RectF(leftX + col * (capeW + 6f * dp), y + row * 28f * dp, leftX + col * (capeW + 6f * dp) + capeW, y + row * 28f * dp + 24f * dp)
             val owned = meta.ownedTrails.contains(trail)
             val eq = meta.equippedTrail == trail
-            val label = if (eq) "✓ ${trail.label}" else if (owned) trail.label else "${trail.label} ${trail.price}C"
+            val label = if (eq) "  ${trail.label}" else if (owned) trail.label else "${trail.label} ${trail.price}C"
             drawModePill(c, r, label, eq, dp)
+            if (eq) {
+                PixelSprites.drawUiIcon(c, PixelSprites.UiIcon.CHECK, r.left + 5f * dp, r.centerY() - 4.5f * dp, 1.0f * dp)
+            }
             buttons.add(HitButton(UiAction.SHOP_TRAIL, r, trail.name))
         }
     }
@@ -464,10 +477,11 @@ class MetaModalsRenderer(
         strokePaint.strokeWidth = 2f * dp
         c.drawRect(streakBox, strokePaint)
 
+        PixelSprites.drawUiIcon(c, PixelSprites.UiIcon.STREAK, streakBox.left + 10f * dp, streakBox.top + 9f * dp, 1.3f * dp)
         displayPaint.textAlign = Paint.Align.LEFT
-        displayPaint.textSize = 10f * dp
+        displayPaint.textSize = 9.2f * dp
         displayPaint.color = 0xFFFFE05C.toInt()
-        c.drawText("7-DAY STREAK: DAY ${meta.streakDays}/7", streakBox.left + 10f * dp, streakBox.top + 22f * dp, displayPaint)
+        c.drawText("7-DAY STREAK: DAY ${meta.streakDays}/7", streakBox.left + 27f * dp, streakBox.top + 22f * dp, displayPaint)
         uiPaint.textAlign = Paint.Align.LEFT
         uiPaint.textSize = 8.5f * dp
         uiPaint.color = 0xFF78F0A8.toInt()
@@ -512,7 +526,10 @@ class MetaModalsRenderer(
 
             val btn = RectF(r.right - 90f * dp, r.top + 20f * dp, r.right - 8f * dp, r.bottom - 20f * dp)
             when {
-                m.claimed -> drawSecondaryBtn(c, btn, "DONE", 8.5f * dp, dp, 0xFF78F0A8.toInt())
+                m.claimed -> {
+                    drawSecondaryBtn(c, btn, "  DONE", 7.8f * dp, dp, 0xFF78F0A8.toInt())
+                    PixelSprites.drawUiIcon(c, PixelSprites.UiIcon.CHECK, btn.left + 9f * dp, btn.centerY() - 5f * dp, 1.1f * dp)
+                }
                 m.completed -> {
                     drawPrimaryBtn(c, btn, "CLAIM", 8.5f * dp, dp)
                     buttons.add(HitButton(UiAction.CLAIM_DAILY, btn, i.toString()))
@@ -547,7 +564,8 @@ class MetaModalsRenderer(
         val panelRect = RectF(cx - panelW / 2f, topY, cx + panelW / 2f, topY + panelH)
         drawPixelPanel(c, panelRect, dp)
 
-        drawShadowTitle(c, Strings.trophyTitle(lang), panelRect.left + 16f * dp, topY + 32f * dp, 12f * dp, 0xFFFFE05C.toInt(), dp, Paint.Align.LEFT)
+        PixelSprites.drawUiIcon(c, PixelSprites.UiIcon.TROPHY, panelRect.left + 16f * dp, topY + 17f * dp, 1.6f * dp)
+        drawShadowTitle(c, Strings.trophyTitle(lang), panelRect.left + 36f * dp, topY + 32f * dp, 12f * dp, 0xFFFFE05C.toInt(), dp, Paint.Align.LEFT)
         val closeRect = RectF(panelRect.right - 44f * dp, topY + 12f * dp, panelRect.right - 14f * dp, topY + 40f * dp)
         drawSecondaryBtn(c, closeRect, "X", 10f * dp, dp, 0xFFF8F6EE.toInt())
         buttons.add(HitButton(UiAction.CLOSE_MODAL, closeRect))
@@ -581,10 +599,17 @@ class MetaModalsRenderer(
             strokePaint.strokeWidth = 2f * dp
             c.drawRect(r, strokePaint)
 
+            val textX = if (unlocked) {
+                PixelSprites.drawUiIcon(c, PixelSprites.UiIcon.TROPHY, r.left + 8f * dp, r.top + 8f * dp, 1.3f * dp)
+                r.left + 25f * dp
+            } else {
+                r.left + 10f * dp
+            }
+
             displayPaint.textAlign = Paint.Align.LEFT
-            displayPaint.textSize = 8.5f * dp
+            displayPaint.textSize = 8.2f * dp
             displayPaint.color = if (unlocked) 0xFFFFE05C.toInt() else 0xFF98ACDC.toInt()
-            c.drawText(def.title, r.left + 10f * dp, r.top + 20f * dp, displayPaint)
+            c.drawText(def.title, textX, r.top + 20f * dp, displayPaint)
 
             uiPaint.textAlign = Paint.Align.LEFT
             uiPaint.textSize = 9f * dp
@@ -593,7 +618,10 @@ class MetaModalsRenderer(
 
             val btn = RectF(r.right - 88f * dp, r.top + 10f * dp, r.right - 8f * dp, r.bottom - 10f * dp)
             when {
-                claimed -> drawSecondaryBtn(c, btn, "✓ DONE", 7.5f * dp, dp, 0xFF78F0A8.toInt())
+                claimed -> {
+                    drawSecondaryBtn(c, btn, "  DONE", 7.5f * dp, dp, 0xFF78F0A8.toInt())
+                    PixelSprites.drawUiIcon(c, PixelSprites.UiIcon.CHECK, btn.left + 8f * dp, btn.centerY() - 5f * dp, 1.05f * dp)
+                }
                 unlocked -> {
                     drawPrimaryBtn(c, btn, "+${def.rewardCoins}C", 8.5f * dp, dp)
                     buttons.add(HitButton(UiAction.CLAIM_TROPHY, btn, def.id))

@@ -475,4 +475,26 @@ class GameEngineTest {
         assertEquals(GamePhase.GAME_OVER, engine.phase)
         assertTrue("RunSnapshot must preserve winterTheme for Run Card rendering", fb.lastSnapshot?.winterTheme == true)
     }
+
+    @Test
+    fun nightModeAndWeatherIconsUpdateOnTitleScreen() {
+        val engine = GameEngine(RecordingFeedback())
+        assertEquals(GamePhase.TITLE, engine.phase)
+
+        engine.timeOfDayMode = TimeOfDayMode.DAY
+        assertEquals(0f, engine.nightFactor(), 0.001f)
+        assertEquals("SUN", engine.weatherBadgeLabel())
+        assertEquals(
+            PixelSprites.UiIcon.SUN,
+            PixelSprites.weatherUiIcon(engine.effectiveWeather(), engine.nightFactor() >= 0.62f),
+        )
+
+        engine.timeOfDayMode = TimeOfDayMode.NIGHT
+        assertEquals("Night mode must return nightFactor=1f on Title Screen", 1f, engine.nightFactor(), 0.001f)
+        assertEquals("MOON", engine.weatherBadgeLabel())
+        assertEquals(
+            PixelSprites.UiIcon.MOON,
+            PixelSprites.weatherUiIcon(engine.effectiveWeather(), engine.nightFactor() >= 0.62f),
+        )
+    }
 }

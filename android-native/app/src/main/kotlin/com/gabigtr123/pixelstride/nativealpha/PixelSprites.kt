@@ -937,6 +937,292 @@ object PixelSprites {
         BossKind.NEON_DRONE, BossKind.CRYSTAL_WYRM -> bossY + 2f
     }
 
+    enum class UiIcon(val cols: Int, val rows: Int) {
+        TROPHY(10, 10),
+        COIN(10, 10),
+        STREAK(10, 10),
+        SUN(10, 10),
+        MOON(10, 10),
+        RAIN(10, 10),
+        STORM(10, 10),
+        SNOW(10, 10),
+        FOG(10, 10),
+        SOUND_ON(11, 10),
+        SOUND_OFF(11, 10),
+        PAUSE(10, 10),
+        PLAY_DARK(9, 10),
+        RESTART(10, 10),
+        HOME(10, 10),
+        CHECK(9, 9),
+        STAR(9, 9),
+        HEART_EMPTY(9, 8),
+    }
+
+    private val UI_ICON_PALETTE = mapOf(
+        'K' to 0xFF121324.toInt(),
+        'D' to 0xFF1A1628.toInt(),
+        'W' to 0xFFF8F6EE.toInt(),
+        'Y' to 0xFFFFE05C.toInt(),
+        'y' to 0xFFFFF8B8.toInt(),
+        'O' to 0xFFF09028.toInt(),
+        'o' to 0xFFB86414.toInt(),
+        'R' to 0xFFFF5870.toInt(),
+        'r' to 0xFFC42438.toInt(),
+        'G' to 0xFF78F0A8.toInt(),
+        'g' to 0xFF2CA864.toInt(),
+        'C' to 0xFF78E8FF.toInt(),
+        'c' to 0xFF3898D8.toInt(),
+        'S' to 0xFFA2B2DC.toInt(),
+        's' to 0xFF586898.toInt(),
+        'E' to 0xFF272D4F.toInt(),
+        'e' to 0xFF3E4878.toInt(),
+    )
+
+    private val ICON_TROPHY = listOf(
+        ".KKKKKKKK.",
+        "KYyYYYYYOK",
+        "KYYYYYYYOK",
+        "KKYYYYYYKK",
+        ".KYYYYYOK.",
+        "..KYYYYK..",
+        "...KYYK...",
+        "..KYYYYK..",
+        ".KOOOOOOK.",
+        ".KKKKKKKK.",
+    )
+    private val ICON_COIN = listOf(
+        "..KKKKKK..",
+        ".KYYYYYYK.",
+        "KYyYYYYYOK",
+        "KYyYOOYYOK",
+        "KYYYOOYYOK",
+        "KYYYOOYYOK",
+        "KYYYYYYOOK",
+        "KYYYYOOOOK",
+        ".KOOOOOOK.",
+        "..KKKKKK..",
+    )
+    private val ICON_STREAK = listOf(
+        "....KK....",
+        "...KORK...",
+        "..KOYYRK..",
+        ".KOOYYORK.",
+        "KOOYyYYORK",
+        "KOYyWWYORK",
+        "KOYYWWYORK",
+        ".KOOYYORK.",
+        "..KOOOOK..",
+        "...KKKK...",
+    )
+    private val ICON_SUN = listOf(
+        "....YY....",
+        ".Y.KKKK.Y.",
+        "..KYYYYK..",
+        ".KYyYYYOK.",
+        "YKYYYYYYKY",
+        "YKYYYYYOKY",
+        ".KYYYYOOK.",
+        "..KOOOOK..",
+        ".Y.KKKK.Y.",
+        "....YY....",
+    )
+    private val ICON_MOON = listOf(
+        "...KKKK..y",
+        "..KYYYYK..",
+        ".KYyYYK...",
+        "KYYYYK....",
+        "KYYYYK..Y.",
+        "KYYYYK....",
+        ".KYYYYK...",
+        "..KYYYYKK.",
+        "...KYYYYK.",
+        "....KKKK..",
+    )
+    private val ICON_RAIN = listOf(
+        "..KKKKK...",
+        ".KWWWWWK..",
+        "KWWWWWWSK.",
+        "KSSSSSSSK.",
+        ".KKKKKKKK.",
+        "..C..C..C.",
+        ".C..C..C..",
+        "...C..C...",
+        "..C..C....",
+        "..........",
+    )
+    private val ICON_STORM = listOf(
+        "..KKKKK...",
+        ".KSSSSSK..",
+        "KSSSSssSK.",
+        ".KKKKKKKK.",
+        "....YYK...",
+        "...YYK....",
+        "..YYYYK...",
+        "....YYK...",
+        "...YK.....",
+        "..........",
+    )
+    private val ICON_SNOW = listOf(
+        "....WC....",
+        ".C..WC..C.",
+        "..C.WC.C..",
+        "...CWWC...",
+        "WWWWWWWWWW",
+        "...CWWC...",
+        "..C.WC.C..",
+        ".C..WC..C.",
+        "....WC....",
+        "..........",
+    )
+    private val ICON_FOG = listOf(
+        "..........",
+        ".CCCCCCCC.",
+        "WWWWWWWW..",
+        "..........",
+        "..WWWWWWWW",
+        ".SSSSSSSS.",
+        "..........",
+        "CCCCCCCC..",
+        "..SSSSSSSS",
+        "..........",
+    )
+    private val ICON_SOUND_ON = listOf(
+        ".....KK....",
+        "....KWWK.Y.",
+        "...KWWWK..Y",
+        "KKKKWWWKY.Y",
+        "KWWWWWWK..Y",
+        "KWWWWWWKY.Y",
+        "KKKKWWWK..Y",
+        "...KWWWK.Y.",
+        "....KWWK...",
+        ".....KK....",
+    )
+    private val ICON_SOUND_OFF = listOf(
+        ".....KK....",
+        "....KWWK...",
+        "...KWWWK...",
+        "KKKKWWWKRR.",
+        "KWWWWWWK.RR",
+        "KWWWWWWK.RR",
+        "KKKKWWWKRR.",
+        "...KWWWK..R",
+        "....KWWK...",
+        ".....KK....",
+    )
+    private val ICON_PAUSE = listOf(
+        ".KKKK.KKKK",
+        ".KWWK.KWWK",
+        ".KWWK.KWWK",
+        ".KWWK.KWWK",
+        ".KWWK.KWWK",
+        ".KWWK.KWWK",
+        ".KWWK.KWWK",
+        ".KWWK.KWWK",
+        ".KWWK.KWWK",
+        ".KKKK.KKKK",
+    )
+    private val ICON_PLAY_DARK = listOf(
+        ".KK......",
+        ".KKKK....",
+        ".KDWDKK..",
+        ".KDDWWDK.",
+        ".KDDDWWDK",
+        ".KDDDWWDK",
+        ".KDDWWDK.",
+        ".KDWDKK..",
+        ".KKKK....",
+        ".KK......",
+    )
+    private val ICON_RESTART = listOf(
+        "..KKKKKK..",
+        ".KWWWWWWKK",
+        "KWWKKKKWWK",
+        "KWWK..WWWW",
+        "KWWK...WW.",
+        "KWWK......",
+        "KWWK..KWWK",
+        "KWWKKKKWWK",
+        ".KWWWWWWK.",
+        "..KKKKKK..",
+    )
+    private val ICON_HOME = listOf(
+        "....KK....",
+        "...KRRK...",
+        "..KRRRRK..",
+        ".KRRRRRRK.",
+        "KRRRRRRRRK",
+        ".KWWWWWWK.",
+        ".KWKKKKWK.",
+        ".KWKOOOWK.",
+        ".KWKOOOWK.",
+        ".KKKKKKKK.",
+    )
+    private val ICON_CHECK = listOf(
+        ".......KK",
+        "......KGK",
+        ".....KGGK",
+        ".KK.KGGK.",
+        "KGGKKGGK.",
+        "KGGGGGK..",
+        ".KGGGGK..",
+        "..KGGK...",
+        "...KK....",
+    )
+    private val ICON_STAR = listOf(
+        "....K....",
+        "...KYK...",
+        "..KYyYK..",
+        "KKYYYYYKK",
+        ".KYYYYYK.",
+        "..KYYYK..",
+        ".KYYKYYK.",
+        ".KYK.KYK.",
+        "..K...K..",
+    )
+    private val ICON_HEART_EMPTY = listOf(
+        ".KKK.KKK.",
+        "KEeEKKEEK",
+        "KeEEEEEKK",
+        "KEEEEEEK.",
+        ".KEEEEK..",
+        "..KEEK...",
+        "...KK....",
+        ".........",
+    )
+
+    fun weatherUiIcon(cond: WeatherCondition, isNight: Boolean): UiIcon = when (cond) {
+        WeatherCondition.CLEAR -> if (isNight) UiIcon.MOON else UiIcon.SUN
+        WeatherCondition.RAIN -> UiIcon.RAIN
+        WeatherCondition.STORM -> UiIcon.STORM
+        WeatherCondition.SNOW -> UiIcon.SNOW
+        WeatherCondition.FOG -> UiIcon.FOG
+    }
+
+    fun drawUiIcon(canvas: Canvas, icon: UiIcon, x: Float, y: Float, scale: Float) {
+        val grid = when (icon) {
+            UiIcon.TROPHY -> ICON_TROPHY
+            UiIcon.COIN -> ICON_COIN
+            UiIcon.STREAK -> ICON_STREAK
+            UiIcon.SUN -> ICON_SUN
+            UiIcon.MOON -> ICON_MOON
+            UiIcon.RAIN -> ICON_RAIN
+            UiIcon.STORM -> ICON_STORM
+            UiIcon.SNOW -> ICON_SNOW
+            UiIcon.FOG -> ICON_FOG
+            UiIcon.SOUND_ON -> ICON_SOUND_ON
+            UiIcon.SOUND_OFF -> ICON_SOUND_OFF
+            UiIcon.PAUSE -> ICON_PAUSE
+            UiIcon.PLAY_DARK -> ICON_PLAY_DARK
+            UiIcon.RESTART -> ICON_RESTART
+            UiIcon.HOME -> ICON_HOME
+            UiIcon.CHECK -> ICON_CHECK
+            UiIcon.STAR -> ICON_STAR
+            UiIcon.HEART_EMPTY -> ICON_HEART_EMPTY
+        }
+        drawPixelGrid(canvas, grid, UI_ICON_PALETTE, x, y, scale)
+    }
+
     fun drawBoss(canvas: Canvas, kind: BossKind, x: Float, y: Float, scale: Float, whiteFlash: Boolean) {
         val (grid, pal) = when (kind) {
             BossKind.IRON_BEETLE -> BOSS_BEETLE_SPRITE to BOSS_BEETLE_PALETTE

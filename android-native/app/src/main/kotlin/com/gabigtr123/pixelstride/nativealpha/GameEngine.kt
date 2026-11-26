@@ -200,10 +200,11 @@ class GameEngine(private val feedback: EngineFeedback) {
 
     fun weatherBadgeLabel(): String {
         val cond = effectiveWeather()
+        val badge = if (cond == WeatherCondition.CLEAR && nightFactor() >= 0.62f) "MOON" else cond.badge
         return if (weatherSource == WeatherSource.LIVE && liveTemperatureC != null) {
-            "${cond.badge} ${liveTemperatureC}C"
+            "$badge ${liveTemperatureC}C"
         } else {
-            cond.badge
+            badge
         }
     }
 
