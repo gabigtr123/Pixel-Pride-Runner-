@@ -164,14 +164,11 @@ function shouldAutostart(): boolean {
   }
 }
 
-function hudChanged(a: HudSnapshot, b: HudSnapshot): boolean {
+function hudDiscreteChanged(a: HudSnapshot, b: HudSnapshot): boolean {
   return (
     a.phase !== b.phase ||
     a.gameMode !== b.gameMode ||
     a.characterId !== b.characterId ||
-    a.score !== b.score ||
-    a.bestScore !== b.bestScore ||
-    a.distance !== b.distance ||
     a.coins !== b.coins ||
     a.combo !== b.combo ||
     a.hp !== b.hp ||
@@ -192,6 +189,10 @@ function hudChanged(a: HudSnapshot, b: HudSnapshot): boolean {
     a.bossMaxHp !== b.bossMaxHp ||
     a.finalRun !== b.finalRun
   );
+}
+
+function hudContinuousChanged(a: HudSnapshot, b: HudSnapshot): boolean {
+  return a.score !== b.score || a.bestScore !== b.bestScore || a.distance !== b.distance;
 }
 
 export default function App() {
@@ -254,12 +255,14 @@ export default function App() {
   const [trophyOpen, setTrophyOpen] = useState(false);
   const [creatorOpen, setCreatorOpen] = useState(false);
   const [weatherOpen, setWeatherOpen] = useState(false);
+  const [runCardOpen, setRunCardOpen] = useState(false);
   const modalOpenRef = useRef(false);
-  modalOpenRef.current = dailyOpen || shopOpen || trophyOpen || creatorOpen || weatherOpen;
+  modalOpenRef.current = dailyOpen || shopOpen || trophyOpen || creatorOpen || weatherOpen || runCardOpen;
   const [newlyCompletedMissions, setNewlyCompletedMissions] = useState<DailyMission[]>([]);
   const [newlyUnlockedCosmetics, setNewlyUnlockedCosmetics] = useState<ColorOption[]>([]);
   const [newlyUnlockedTrophies, setNewlyUnlockedTrophies] = useState<AchievementDef[]>([]);
   const lastRecordedRunRef = useRef<GameState['finalRun']>(null);
+  const lastHudContinuousSyncRef = useRef<number>(0);
   const [hud, setHud] = useState<HudSnapshot>(() => {
     const initialPhase = typeof window !== 'undefined' && shouldAutostart() ? 'playing' : 'title';
     const initial = createInitialState(
@@ -366,7 +369,14 @@ export default function App() {
       }
     }
     const nextHud = extractHudSnapshot(nextState);
-    if (force || hudChanged(hudRef.current, nextHud)) {
+    const now = performance.now();
+    const shouldPush =
+      force ||
+      hudDiscreteChanged(hudRef.current, nextHud) ||
+      (hudContinuousChanged(hudRef.current, nextHud) &&
+        now - lastHudContinuousSyncRef.current >= 95);
+    if (shouldPush) {
+      lastHudContinuousSyncRef.current = now;
       hudRef.current = nextHud;
       setHud(nextHud);
     }
@@ -765,6 +775,7 @@ export default function App() {
           setTrophyOpen(false);
           setCreatorOpen(false);
           setWeatherOpen(false);
+          setRunCardOpen(false);
         }
         return;
       }
@@ -1038,12 +1049,18 @@ export default function App() {
     if (w.source !== 'live' || w.latitude === null || w.longitude === null) return;
     const isStale = !w.lastSyncedAt || Date.now() - w.lastSyncedAt > 15 * 60 * 1000;
     if (!isStale) return;
-    let cancelled = false;
-    fetchLiveWeather(w.latitude, w.longitude)
+    const targetLat = w.latitude;
+    const targetLon = w.longitude;
+    const ctrl = new AbortController();
+    fetchLiveWeather(targetLat, targetLon, ctrl.signal)
       .then((live) => {
-        if (cancelled) return;
+        if (ctrl.signal.aborted) return;
+        const curr = weatherRef.current;
+        if (curr.source !== 'live' || curr.latitude !== targetLat || curr.longitude !== targetLon) {
+          return;
+        }
         const next: WeatherSettings = {
-          ...weatherRef.current,
+          ...curr,
           liveWeather: live.weather,
           liveIsDay: live.isDay,
           temperatureC: live.temperatureC,
@@ -1057,11 +1074,10 @@ export default function App() {
         // Keep last cached weather offline
       });
     return () => {
-      cancelled = true;
+      ctrl.abort();
     };
   }, []);
 
-  const viewport = getRenderViewport(orientation);
   const completedMissions = daily.missions.filter((m) => m.completed).length;
   const hasUnclaimedTrophy = achievements.unlockedIds.some(
     (id) => !achievements.claimedIds.includes(id),
@@ -1087,8 +1103,6 @@ export default function App() {
       <div className="fixed inset-0 flex items-center justify-center bg-[#111324]">
         <canvas
           ref={canvasRef}
-          width={viewport.width}
-          height={viewport.height}
           data-testid="game-canvas"
           onPointerDown={handleCanvasPointerDown}
           onPointerUp={handleCanvasPointerUp}
@@ -1151,6 +1165,8 @@ export default function App() {
         newlyUnlockedTrophies={newlyUnlockedTrophies}
         completedMissions={completedMissions}
         totalMissions={daily.missions.length}
+        runCardOpen={runCardOpen}
+        onRunCardOpenChange={setRunCardOpen}
         onOpenDaily={() => setDailyOpen(true)}
         onOpenTrophy={() => setTrophyOpen(true)}
         onResume={handleTogglePause}

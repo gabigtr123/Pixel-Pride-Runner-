@@ -31,7 +31,9 @@ data class LiveWeatherResult(
 )
 
 object WeatherService {
-    private val ioExecutor = Executors.newSingleThreadScheduledExecutor()
+    private val ioExecutor = Executors.newScheduledThreadPool(2) { r ->
+        Thread(r, "PixelStride-Weather").apply { isDaemon = true }
+    }
     private val requestSeq = AtomicInteger(0)
 
     @Volatile
@@ -122,7 +124,8 @@ object WeatherService {
         activeGpsCancel?.let { runCatching { it.cancel() } }
         activeGpsCancel = null
 
-        val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+        val appCtx = context.applicationContext
+        val lm = appCtx.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
         if (lm == null) {
             onError("Location service unavailable. Pick a city below!")
             return
@@ -153,6 +156,7 @@ object WeatherService {
 
                     ioExecutor.schedule({
                         if (resolved.compareAndSet(false, true)) {
+                            if (activeGpsCancel === cancel) activeGpsCancel = null
                             runCatching { cancel.cancel() }
                             if (requestSeq.get() == mySeq) {
                                 if (cached != null) {
@@ -166,6 +170,7 @@ object WeatherService {
 
                     lm.getCurrentLocation(provider, cancel, ioExecutor) { loc ->
                         if (!resolved.compareAndSet(false, true)) return@getCurrentLocation
+                        if (activeGpsCancel === cancel) activeGpsCancel = null
                         if (requestSeq.get() != mySeq) return@getCurrentLocation
                         if (loc != null) {
                             onLocation(loc)

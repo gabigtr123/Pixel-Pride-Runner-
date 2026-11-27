@@ -424,6 +424,11 @@ function normalizeCharacterId(id: string): CharacterId {
   return 'stride';
 }
 
+function safeShopInt(value: unknown, min = 0, max = Number.MAX_SAFE_INTEGER): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return min;
+  return Math.min(max, Math.max(min, Math.round(value)));
+}
+
 export function loadShopState(): ShopState {
   try {
     const raw = window.localStorage.getItem(SHOP_STORAGE_KEY);
@@ -432,12 +437,18 @@ export function loadShopState(): ShopState {
     const def = createDefaultShopState();
     const extraGadgetSlot = Boolean(parsed.extraGadgetSlot);
     const maxSlots = extraGadgetSlot ? 3 : 2;
+    const validTrailIds = new Set(TRAIL_CATALOG.map((t) => t.id));
     const validHatIds = new Set(HAT_CATALOG.map((h) => h.id));
     const validCapeIds = new Set(CAPE_CATALOG.map((c) => c.id));
     const validPetIds = new Set(PET_CATALOG.map((p) => p.id));
     const validGadgetIds = new Set(GADGET_CATALOG.map((g) => g.id));
     const validBoosterIds = new Set(BOOSTER_CATALOG.map((b) => b.id));
 
+    const unlockedTrails = Array.isArray(parsed.unlockedTrails)
+      ? Array.from(
+          new Set<TrailId>(['classic', ...parsed.unlockedTrails.filter((t): t is TrailId => validTrailIds.has(t))]),
+        )
+      : def.unlockedTrails;
     const unlockedHats = Array.isArray(parsed.unlockedHats)
       ? Array.from(
           new Set<HatId>(['none', ...parsed.unlockedHats.filter((h): h is HatId => validHatIds.has(h))]),
@@ -468,9 +479,9 @@ export function loadShopState(): ShopState {
         ).slice(0, maxSlots)
       : [];
     const boosters: Record<BoosterId, number> = {
-      headStart: Math.max(0, Math.round(parsed.boosters?.headStart ?? 0)),
-      shieldPack: Math.max(0, Math.round(parsed.boosters?.shieldPack ?? 0)),
-      doublePotion: Math.max(0, Math.round(parsed.boosters?.doublePotion ?? 0)),
+      headStart: safeShopInt(parsed.boosters?.headStart, 0),
+      shieldPack: safeShopInt(parsed.boosters?.shieldPack, 0),
+      doublePotion: safeShopInt(parsed.boosters?.doublePotion, 0),
     };
     const armedBoosters = Array.isArray(parsed.armedBoosters)
       ? Array.from(
@@ -483,10 +494,7 @@ export function loadShopState(): ShopState {
       : [];
 
     return {
-      coinsBank:
-        typeof parsed.coinsBank === 'number' && Number.isFinite(parsed.coinsBank)
-          ? Math.max(0, Math.round(parsed.coinsBank))
-          : 0,
+      coinsBank: safeShopInt(parsed.coinsBank, 0),
       unlockedCharacters: Array.isArray(parsed.unlockedCharacters)
         ? Array.from(
             new Set<CharacterId>([
@@ -496,11 +504,9 @@ export function loadShopState(): ShopState {
             ]),
           )
         : def.unlockedCharacters,
-      unlockedTrails: Array.isArray(parsed.unlockedTrails)
-        ? Array.from(new Set<TrailId>(['classic', ...parsed.unlockedTrails]))
-        : def.unlockedTrails,
+      unlockedTrails,
       activeTrail:
-        parsed.activeTrail && TRAIL_CATALOG.some((t) => t.id === parsed.activeTrail)
+        parsed.activeTrail && unlockedTrails.includes(parsed.activeTrail)
           ? parsed.activeTrail
           : 'classic',
       unlockedHats,
@@ -518,15 +524,20 @@ export function loadShopState(): ShopState {
       boosters,
       armedBoosters,
       upgrades: {
-        magnetLevel: Math.min(3, Math.max(0, parsed.upgrades?.magnetLevel ?? 0)),
-        coinValueLevel: Math.min(3, Math.max(0, parsed.upgrades?.coinValueLevel ?? 0)),
-        powerupFreqLevel: Math.min(3, Math.max(0, parsed.upgrades?.powerupFreqLevel ?? 0)),
+        magnetLevel: safeShopInt(parsed.upgrades?.magnetLevel, 0, 3),
+        coinValueLevel: safeShopInt(parsed.upgrades?.coinValueLevel, 0, 3),
+        powerupFreqLevel: safeShopInt(parsed.upgrades?.powerupFreqLevel, 0, 3),
       },
       leaderboard: Array.isArray(parsed.leaderboard)
-        ? parsed.leaderboard.slice(0, 5).map((entry) => ({
-            ...entry,
-            characterId: normalizeCharacterId(String(entry.characterId)),
-          }))
+        ? parsed.leaderboard
+            .filter((entry) => entry && typeof entry === 'object' && Number.isFinite(entry.score))
+            .slice(0, 5)
+            .map((entry) => ({
+              ...entry,
+              score: safeShopInt(entry.score, 0),
+              distance: safeShopInt(entry.distance, 0),
+              characterId: normalizeCharacterId(String(entry.characterId)),
+            }))
         : [],
     };
   } catch {

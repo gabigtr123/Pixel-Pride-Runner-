@@ -588,9 +588,16 @@ class MetaProgressionManager(private val prefs: SharedPreferences) {
                 for (i in 0 until arr.length()) runCatching { equippedGadgets.add(GadgetId.valueOf(arr.getString(i))) }
             }
             thirdSlotUnlocked = j.optBoolean("thirdSlotUnlocked", false)
-            equippedHat = runCatching { HatId.valueOf(j.optString("equippedHat", "NONE")) }.getOrDefault(HatId.NONE)
-            equippedCape = runCatching { CapeId.valueOf(j.optString("equippedCape", "NONE")) }.getOrDefault(CapeId.NONE)
-            equippedTrail = runCatching { TrailId.valueOf(j.optString("equippedTrail", "CLASSIC")) }.getOrDefault(TrailId.CLASSIC)
+            equippedGadgets.retainAll(ownedGadgets)
+            while (equippedGadgets.size > maxGadgetSlots()) {
+                equippedGadgets.removeAt(equippedGadgets.lastIndex)
+            }
+            val loadedHat = runCatching { HatId.valueOf(j.optString("equippedHat", "NONE")) }.getOrDefault(HatId.NONE)
+            equippedHat = if (ownedHats.contains(loadedHat)) loadedHat else HatId.NONE
+            val loadedCape = runCatching { CapeId.valueOf(j.optString("equippedCape", "NONE")) }.getOrDefault(CapeId.NONE)
+            equippedCape = if (ownedCapes.contains(loadedCape)) loadedCape else CapeId.NONE
+            val loadedTrail = runCatching { TrailId.valueOf(j.optString("equippedTrail", "CLASSIC")) }.getOrDefault(TrailId.CLASSIC)
+            equippedTrail = if (ownedTrails.contains(loadedTrail)) loadedTrail else TrailId.CLASSIC
             upgradeLevels[UpgradeId.MAGNET_DURATION] = j.optInt("uMag", 0).coerceIn(0, UpgradeId.MAGNET_DURATION.maxLevel)
             upgradeLevels[UpgradeId.COIN_VALUE] = j.optInt("uCoin", 0).coerceIn(0, UpgradeId.COIN_VALUE.maxLevel)
             upgradeLevels[UpgradeId.SHIELD_INVULN] = j.optInt("uInvuln", 0).coerceIn(0, UpgradeId.SHIELD_INVULN.maxLevel)
@@ -616,9 +623,9 @@ class MetaProgressionManager(private val prefs: SharedPreferences) {
                         DailyMissionItem(
                             id = o.getString("id"),
                             title = o.getString("title"),
-                            target = o.getInt("target"),
-                            progress = o.getInt("progress"),
-                            rewardCoins = o.getInt("reward"),
+                            target = o.getInt("target").coerceAtLeast(1),
+                            progress = o.getInt("progress").coerceAtLeast(0),
+                            rewardCoins = o.getInt("reward").coerceAtLeast(0),
                             claimed = o.optBoolean("claimed", false),
                         ),
                     )
@@ -630,18 +637,19 @@ class MetaProgressionManager(private val prefs: SharedPreferences) {
             j.optJSONArray("claimedTrophies")?.let { arr ->
                 for (i in 0 until arr.length()) claimedTrophies.add(arr.getString(i))
             }
-            careerRuns = j.optInt("careerRuns", 0)
-            careerDistance = j.optInt("careerDistance", 0)
-            careerCoins = j.optInt("careerCoins", 0)
-            careerStomps = j.optInt("careerStomps", 0)
-            careerBosses = j.optInt("careerBosses", 0)
+            claimedTrophies.retainAll(unlockedTrophies)
+            careerRuns = j.optInt("careerRuns", 0).coerceAtLeast(0)
+            careerDistance = j.optInt("careerDistance", 0).coerceAtLeast(0)
+            careerCoins = j.optInt("careerCoins", 0).coerceAtLeast(0)
+            careerStomps = j.optInt("careerStomps", 0).coerceAtLeast(0)
+            careerBosses = j.optInt("careerBosses", 0).coerceAtLeast(0)
             topScores.clear()
             j.optJSONArray("topScores")?.let { arr ->
                 for (i in 0 until arr.length()) {
                     val o = arr.getJSONObject(i)
                     topScores.add(
                         LeaderboardEntry(
-                            score = o.getInt("score"),
+                            score = o.getInt("score").coerceAtLeast(0),
                             hero = o.getString("hero"),
                             mode = o.getString("mode"),
                             date = o.getString("date"),
@@ -657,7 +665,7 @@ class MetaProgressionManager(private val prefs: SharedPreferences) {
     fun exportSaveCode(engine: GameEngine): String {
         save()
         val payload = JSONObject().apply {
-            put("v", 423)
+            put("v", 425)
             put("best", engine.bestScore)
             put("coins", engine.totalCoins)
             put("hero", engine.hero.name)
@@ -683,6 +691,7 @@ class MetaProgressionManager(private val prefs: SharedPreferences) {
                 JSONObject(metaJson)
                 prefs.edit().putString("meta_v4_json", metaJson).apply()
                 load()
+                ensureDailyState()
             }
             engine.bestScore = best
             engine.totalCoins = coins
@@ -692,9 +701,10 @@ class MetaProgressionManager(private val prefs: SharedPreferences) {
             obj.optString("pet", "").takeIf { it.isNotEmpty() }?.let { p ->
                 runCatching {
                     val parsedPet = PetId.valueOf(p)
-                    if (ownedPets.contains(parsedPet)) engine.pet = parsedPet
+                    engine.pet = if (ownedPets.contains(parsedPet)) parsedPet else PetId.NONE
                 }
             }
+            if (!ownedPets.contains(engine.pet)) engine.pet = PetId.NONE
             obj.optString("mode", "").takeIf { it.isNotEmpty() }?.let { m ->
                 runCatching { engine.mode = GameMode.valueOf(m) }
             }

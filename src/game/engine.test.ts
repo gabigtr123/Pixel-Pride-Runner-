@@ -799,3 +799,166 @@ test('v3.0.3 Android 17 config script verifies FileProvider, permissions, Game M
   assert.throws(() => verifyFilePathsXml('<paths><external-path name="ext" path="." /></paths>'));
 });
 
+test('v4.2.5 Second Wind revive inside multi-hazard loop does not crash', () => {
+  const rng = makeSeededRng(425);
+  const st = startNewRun(createInitialState(0, 'title'), {
+    gadgets: ['secondWind'],
+  });
+  st.player.hp = 1;
+  st.player.invulnTimer = 0;
+
+  // Populate 4 hazards near player so Second Wind .filter() shrinks state.hazards mid-loop
+  for (let i = 0; i < 4; i++) {
+    st.hazards.push({
+      id: 900 + i,
+      kind: 'spike',
+      x: st.player.x + i * 10,
+      y: st.player.y - 14,
+      width: 16,
+      height: 14,
+      baseY: st.player.y - 14,
+      vx: 0,
+      vy: 0,
+      phaseTimer: 0,
+      telegraphTimer: 0,
+      telegraphSounded: false,
+      isActive: true,
+      stomped: false,
+      koTimer: 0,
+      koVx: 0,
+      koVy: 0,
+      hitFlash: 0,
+    });
+  }
+
+  assert.doesNotThrow(() => {
+    stepSimulation(st, 1 / 60, IDLE_INPUT, rng);
+  });
+  assert.equal(st.player.secondWindUsed, true);
+  assert.equal(st.player.hp, 2);
+  assert.equal(st.player.koActive, false);
+});
+
+test('v4.2.5 simultaneous multi-enemy stomp stomps both without damaging player', () => {
+  const rng = makeSeededRng(426);
+  const st = startNewRun(createInitialState(0, 'title'));
+  const startHp = st.player.hp;
+  const enemyY = st.player.y - 16;
+
+  // Two overlapping hoppers right beneath the falling player
+  for (let i = 0; i < 2; i++) {
+    st.hazards.push({
+      id: 950 + i,
+      kind: 'hopper',
+      x: st.player.x + i * 2,
+      y: enemyY,
+      width: 18,
+      height: 16,
+      baseY: enemyY,
+      vx: 0,
+      vy: 0,
+      phaseTimer: 1,
+      telegraphTimer: 0,
+      telegraphSounded: false,
+      isActive: false,
+      stomped: false,
+      koTimer: 0,
+      koVx: 0,
+      koVy: 0,
+      hitFlash: 0,
+    });
+  }
+  st.player.y = enemyY + 4;
+  st.player.vy = 180;
+  st.player.onGround = false;
+
+  stepSimulation(st, 1 / 60, IDLE_INPUT, rng);
+  assert.equal(st.player.hp, startHp, 'second overlapping enemy must not damage player during same-frame stomp');
+  assert.equal(st.stomps, 2, 'both enemies should be stomped cleanly');
+});
+
+test('v4.2.5 swooper in warning telegraph does not deal invisible damage', () => {
+  const rng = makeSeededRng(427);
+  const st = startNewRun(createInitialState(0, 'title'));
+  const startHp = st.player.hp;
+
+  st.hazards.push({
+    id: 980,
+    kind: 'swooper',
+    x: st.player.x,
+    y: st.player.y - 18,
+    width: 20,
+    height: 14,
+    baseY: st.player.y - 18,
+    vx: -48,
+    vy: 0,
+    phaseTimer: 0,
+    telegraphTimer: 0.25,
+    telegraphSounded: false,
+    isActive: true,
+    stomped: false,
+    koTimer: 0,
+    koVx: 0,
+    koVy: 0,
+    hitFlash: 0,
+  });
+
+  stepSimulation(st, 1 / 60, IDLE_INPUT, rng);
+  assert.equal(st.player.hp, startHp, 'telegraphing swooper must not deal invisible damage');
+});
+
+test('v4.2.5 corrupt NaN localStorage data is safely sanitized by shop and daily loaders', async () => {
+  const { loadShopState, SHOP_STORAGE_KEY } = await import('./shop');
+  const { loadDailyProgress, DAILY_STORAGE_KEY } = await import('./daily');
+
+  const store = new Map<string, string>();
+  const origWindow = globalThis.window;
+  (globalThis as unknown as { window: unknown }).window = {
+    localStorage: {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => store.set(k, v),
+    },
+  };
+
+  try {
+    store.set(
+      SHOP_STORAGE_KEY,
+      JSON.stringify({
+        coinsBank: 'corrupt',
+        activeTrail: 'rainbow',
+        unlockedTrails: ['classic'],
+        boosters: { headStart: null, shieldPack: -5, doublePotion: 'bad' },
+        upgrades: { magnetLevel: 99, coinValueLevel: -2, powerupFreqLevel: 'nan' },
+      }),
+    );
+    const shop = loadShopState();
+    assert.equal(shop.coinsBank, 0);
+    assert.equal(shop.activeTrail, 'classic', 'unowned trail must fall back to classic');
+    assert.equal(shop.boosters.headStart, 0);
+    assert.equal(shop.boosters.shieldPack, 0);
+    assert.equal(shop.upgrades.magnetLevel, 3);
+    assert.equal(shop.upgrades.coinValueLevel, 0);
+
+    store.set(
+      DAILY_STORAGE_KEY,
+      JSON.stringify({
+        dateKey: '2026-11-27',
+        streakDays: 'bad',
+        claimedToday: false,
+        lastActiveDate: '2026-11-27',
+        missions: [
+          { id: '2026-11-27-coins', kind: 'coins', title: 'Bad', target: 0, progress: -10, rewardPoints: 'x', completed: false },
+        ],
+      }),
+    );
+    const daily = loadDailyProgress('2026-11-27');
+    assert.equal(daily.streakDays, 1);
+    assert.ok(daily.missions[0].target >= 1);
+    assert.equal(daily.missions[0].progress, 0);
+    assert.equal(daily.missions[0].rewardPoints, 0);
+  } finally {
+    (globalThis as unknown as { window: unknown }).window = origWindow;
+  }
+});
+
+

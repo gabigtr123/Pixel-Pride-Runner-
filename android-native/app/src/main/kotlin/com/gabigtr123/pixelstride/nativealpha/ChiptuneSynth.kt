@@ -3,17 +3,18 @@ package com.gabigtr123.pixelstride.nativealpha
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
-import kotlin.math.PI
+import android.os.Process
 import kotlin.math.abs
-import kotlin.math.sin
 import kotlin.random.Random
 
 /**
- * 100% native procedural 8-bit chiptune SFX & 6-biome + Boss Battle music loop engine
+ * 100% native procedural 8-bit chiptune SFX & 7-biome + Boss Battle music loop engine
  * using Android AudioTrack (zero audio asset files).
+ * Static SFX are pre-baked once into compact PCM buffers for O(1) zero-allocation playback.
  */
 class ChiptuneSynth {
     private val sampleRate = 22050
+    private val sampleRateF = sampleRate.toFloat()
     private val musicLock = Any()
     private val sfxLock = Any()
 
@@ -24,6 +25,8 @@ class ChiptuneSynth {
     private var sfxRunning: Boolean = false
     @Volatile
     private var sfxGen: Int = 0
+    @Volatile
+    private var activeSfxTrack: AudioTrack? = null
     private var sfxThread: Thread? = null
 
     @Volatile
@@ -53,53 +56,104 @@ class ChiptuneSynth {
     private var musicRunning: Boolean = false
     @Volatile
     private var musicGen: Int = 0
+    @Volatile
+    private var activeMusicTrack: AudioTrack? = null
     private var musicThread: Thread? = null
 
-    private data class Theme(val lead: DoubleArray, val bass: DoubleArray)
+    private data class Theme(val lead: FloatArray, val bass: FloatArray)
 
     // Exact 16-step chiptune themes ported 1:1 from src/game/audio.ts
     private val biomeThemes = arrayOf(
         // 0: Sunlit Highlands (C-major adventure)
         Theme(
-            doubleArrayOf(523.25, 0.0, 659.25, 783.99, 659.25, 0.0, 880.0, 783.99, 659.25, 587.33, 523.25, 0.0, 587.33, 659.25, 783.99, 0.0),
-            doubleArrayOf(130.81, 130.81, 196.0, 130.81, 174.61, 174.61, 220.0, 174.61, 146.83, 146.83, 220.0, 146.83, 196.0, 196.0, 246.94, 196.0),
+            floatArrayOf(523.25f, 0f, 659.25f, 783.99f, 659.25f, 0f, 880f, 783.99f, 659.25f, 587.33f, 523.25f, 0f, 587.33f, 659.25f, 783.99f, 0f),
+            floatArrayOf(130.81f, 130.81f, 196f, 130.81f, 174.61f, 174.61f, 220f, 174.61f, 146.83f, 146.83f, 220f, 146.83f, 196f, 196f, 246.94f, 196f),
         ),
         // 1: Amber Canyon (D-minor desert groove)
         Theme(
-            doubleArrayOf(587.33, 0.0, 659.25, 698.46, 880.0, 0.0, 698.46, 659.25, 587.33, 523.25, 587.33, 0.0, 698.46, 659.25, 523.25, 0.0),
-            doubleArrayOf(146.83, 146.83, 220.0, 146.83, 174.61, 174.61, 220.0, 174.61, 130.81, 130.81, 196.0, 130.81, 164.81, 164.81, 220.0, 164.81),
+            floatArrayOf(587.33f, 0f, 659.25f, 698.46f, 880f, 0f, 698.46f, 659.25f, 587.33f, 523.25f, 587.33f, 0f, 698.46f, 659.25f, 523.25f, 0f),
+            floatArrayOf(146.83f, 146.83f, 220f, 146.83f, 174.61f, 174.61f, 220f, 174.61f, 130.81f, 130.81f, 196f, 130.81f, 164.81f, 164.81f, 220f, 164.81f),
         ),
         // 2: Starlight Citadel (A-minor synth arp)
         Theme(
-            doubleArrayOf(440.0, 523.25, 659.25, 880.0, 783.99, 0.0, 659.25, 523.25, 493.88, 587.33, 783.99, 0.0, 659.25, 587.33, 523.25, 0.0),
-            doubleArrayOf(110.0, 110.0, 164.81, 110.0, 130.81, 130.81, 196.0, 130.81, 123.47, 123.47, 185.0, 123.47, 164.81, 164.81, 220.0, 164.81),
+            floatArrayOf(440f, 523.25f, 659.25f, 880f, 783.99f, 0f, 659.25f, 523.25f, 493.88f, 587.33f, 783.99f, 0f, 659.25f, 587.33f, 523.25f, 0f),
+            floatArrayOf(110f, 110f, 164.81f, 110f, 130.81f, 130.81f, 196f, 130.81f, 123.47f, 123.47f, 185f, 123.47f, 164.81f, 164.81f, 220f, 164.81f),
         ),
         // 3: Dawn Peaks (G-major heroic climb)
         Theme(
-            doubleArrayOf(392.0, 0.0, 493.88, 587.33, 783.99, 0.0, 659.25, 587.33, 523.25, 587.33, 659.25, 0.0, 783.99, 659.25, 587.33, 0.0),
-            doubleArrayOf(196.0, 196.0, 146.83, 196.0, 164.81, 164.81, 246.94, 164.81, 130.81, 130.81, 196.0, 130.81, 146.83, 146.83, 220.0, 146.83),
+            floatArrayOf(392f, 0f, 493.88f, 587.33f, 783.99f, 0f, 659.25f, 587.33f, 523.25f, 587.33f, 659.25f, 0f, 783.99f, 659.25f, 587.33f, 0f),
+            floatArrayOf(196f, 196f, 146.83f, 196f, 164.81f, 164.81f, 246.94f, 164.81f, 130.81f, 130.81f, 196f, 130.81f, 146.83f, 146.83f, 220f, 146.83f),
         ),
         // 4: Frost Tundra (F-major crystalline sparkle)
         Theme(
-            doubleArrayOf(698.46, 0.0, 880.0, 1046.5, 880.0, 0.0, 783.99, 698.46, 659.25, 0.0, 783.99, 880.0, 698.46, 0.0, 523.25, 0.0),
-            doubleArrayOf(174.61, 174.61, 261.63, 174.61, 146.83, 146.83, 220.0, 146.83, 130.81, 130.81, 196.0, 130.81, 174.61, 174.61, 220.0, 174.61),
+            floatArrayOf(698.46f, 0f, 880f, 1046.5f, 880f, 0f, 783.99f, 698.46f, 659.25f, 0f, 783.99f, 880f, 698.46f, 0f, 523.25f, 0f),
+            floatArrayOf(174.61f, 174.61f, 261.63f, 174.61f, 146.83f, 146.83f, 220f, 146.83f, 130.81f, 130.81f, 196f, 130.81f, 174.61f, 174.61f, 220f, 174.61f),
         ),
         // 5: Volcanic Forge (E-minor intensity)
         Theme(
-            doubleArrayOf(659.25, 659.25, 0.0, 783.99, 739.99, 659.25, 0.0, 587.33, 659.25, 0.0, 987.77, 880.0, 783.99, 739.99, 659.25, 0.0),
-            doubleArrayOf(164.81, 164.81, 164.81, 246.94, 146.83, 146.83, 146.83, 220.0, 130.81, 130.81, 196.0, 130.81, 146.83, 164.81, 196.0, 246.94),
+            floatArrayOf(659.25f, 659.25f, 0f, 783.99f, 739.99f, 659.25f, 0f, 587.33f, 659.25f, 0f, 987.77f, 880f, 783.99f, 739.99f, 659.25f, 0f),
+            floatArrayOf(164.81f, 164.81f, 164.81f, 246.94f, 146.83f, 146.83f, 146.83f, 220f, 130.81f, 130.81f, 196f, 130.81f, 146.83f, 164.81f, 196f, 246.94f),
         ),
         // 6: Cyber Neon Skyway (Synthwave arp)
         Theme(
-            doubleArrayOf(659.25, 783.99, 987.77, 783.99, 659.25, 587.33, 659.25, 0.0, 523.25, 659.25, 783.99, 987.77, 880.0, 783.99, 659.25, 0.0),
-            doubleArrayOf(164.81, 164.81, 246.94, 164.81, 130.81, 130.81, 196.0, 130.81, 146.83, 146.83, 220.0, 146.83, 164.81, 164.81, 246.94, 196.0),
+            floatArrayOf(659.25f, 783.99f, 987.77f, 783.99f, 659.25f, 587.33f, 659.25f, 0f, 523.25f, 659.25f, 783.99f, 987.77f, 880f, 783.99f, 659.25f, 0f),
+            floatArrayOf(164.81f, 164.81f, 246.94f, 164.81f, 130.81f, 130.81f, 196f, 130.81f, 146.83f, 146.83f, 220f, 146.83f, 164.81f, 164.81f, 246.94f, 196f),
         ),
     )
 
     private val bossTheme = Theme(
-        doubleArrayOf(440.0, 466.16, 523.25, 0.0, 587.33, 523.25, 466.16, 440.0, 659.25, 0.0, 587.33, 523.25, 466.16, 440.0, 392.0, 0.0),
-        doubleArrayOf(110.0, 110.0, 146.83, 110.0, 130.81, 130.81, 164.81, 130.81, 116.54, 116.54, 146.83, 116.54, 110.0, 130.81, 146.83, 164.81),
+        floatArrayOf(440f, 466.16f, 523.25f, 0f, 587.33f, 523.25f, 466.16f, 440f, 659.25f, 0f, 587.33f, 523.25f, 466.16f, 440f, 392f, 0f),
+        floatArrayOf(110f, 110f, 146.83f, 110f, 130.81f, 130.81f, 164.81f, 130.81f, 116.54f, 116.54f, 146.83f, 116.54f, 110f, 130.81f, 146.83f, 164.81f),
     )
+
+    // Pre-baked static SFX PCM buffers (lazy-built once, ~110 KB total -> O(1) zero-alloc playback on UI thread!)
+    private val sfxJumpSingle by lazy { bakeTone(300f, 640f, 0.10f, 0.22f) }
+    private val sfxJumpDouble by lazy { bakeTone(420f, 860f, 0.10f, 0.22f) }
+    private val sfxCoins by lazy {
+        Array(8) { idx ->
+            val pitchScale = 1.0f + idx * 0.055f
+            bakeSequence(
+                floatArrayOf(987.77f * pitchScale, 1318.51f * pitchScale),
+                floatArrayOf(987.77f * pitchScale, 1318.51f * pitchScale),
+                floatArrayOf(0.055f, 0.11f),
+                volume = 0.20f,
+            )
+        }
+    }
+    private val sfxStomp by lazy {
+        bakeSequence(
+            floatArrayOf(520f, 680f),
+            floatArrayOf(260f, 920f),
+            floatArrayOf(0.06f, 0.08f),
+            volume = 0.24f,
+        )
+    }
+    private val sfxPowerUp by lazy {
+        bakeSequence(
+            floatArrayOf(523.25f, 659.25f, 783.99f, 1046.50f),
+            floatArrayOf(523.25f, 659.25f, 783.99f, 1046.50f),
+            floatArrayOf(0.055f, 0.055f, 0.055f, 0.12f),
+            volume = 0.22f,
+        )
+    }
+    private val sfxZap by lazy { bakeTone(1240f, 280f, 0.13f, 0.22f) }
+    private val sfxHit by lazy { bakeNoise(0.16f, 0.25f) }
+    private val sfxBossKo by lazy {
+        bakeSequence(
+            floatArrayOf(523.25f, 659.25f, 783.99f, 1046.50f),
+            floatArrayOf(523.25f, 659.25f, 783.99f, 1318.51f),
+            floatArrayOf(0.07f, 0.07f, 0.07f, 0.20f),
+            volume = 0.26f,
+        )
+    }
+    private val sfxGameOver by lazy {
+        bakeSequence(
+            floatArrayOf(440f, 392f, 349.23f),
+            floatArrayOf(415f, 370f, 220f),
+            floatArrayOf(0.11f, 0.11f, 0.24f),
+            volume = 0.22f,
+        )
+    }
 
     fun setBiome(zoneIndex: Int) {
         biomeIndex = abs(zoneIndex) % biomeThemes.size
@@ -115,6 +169,7 @@ class ChiptuneSynth {
             musicRunning = true
             val myGen = ++musicGen
             musicThread = Thread {
+                runCatching { Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO) }
                 var track: AudioTrack? = null
                 try {
                     val minBuf = AudioTrack.getMinBufferSize(
@@ -122,7 +177,9 @@ class ChiptuneSynth {
                         AudioFormat.CHANNEL_OUT_MONO,
                         AudioFormat.ENCODING_PCM_16BIT,
                     )
-                    val stepSamples = (sampleRate * 0.145).toInt()
+                    val stepSamples = (sampleRate * 0.145f).toInt()
+                    val invStepSamples = 1f / stepSamples
+                    val invSampleRate = 1f / sampleRateF
                     val bufBytes = maxOf(minBuf, stepSamples * 4)
                     track = AudioTrack.Builder()
                         .setAudioAttributes(
@@ -141,37 +198,45 @@ class ChiptuneSynth {
                         .setBufferSizeInBytes(bufBytes)
                         .setTransferMode(AudioTrack.MODE_STREAM)
                         .build()
+                    synchronized(musicLock) {
+                        if (musicGen != myGen || !musicRunning || musicMuted) return@Thread
+                        activeMusicTrack = track
+                    }
                     track.play()
 
                     val pcm = ShortArray(stepSamples)
                     var step = 0
-                    var leadPhase = 0.0
-                    var bassPhase = 0.0
+                    var leadPhase = 0f
+                    var bassPhase = 0f
 
                     while (musicRunning && musicGen == myGen && !musicMuted) {
                         val theme = if (bossMode) bossTheme else biomeThemes[biomeIndex]
-                        val leadFreq = theme.lead[step % theme.lead.size]
-                        val bassFreq = theme.bass[step % theme.bass.size]
-                        step = (step + 1) % 16
+                        val leadFreq = theme.lead[step]
+                        val bassFreq = theme.bass[step]
+                        val leadInc = leadFreq * invSampleRate
+                        val bassInc = bassFreq * invSampleRate
+                        step = (step + 1) and 15
 
                         for (i in 0 until stepSamples) {
-                            val t = i.toDouble() / stepSamples
-                            var mix = 0.0
-                            if (leadFreq > 0.0) {
-                                leadPhase += leadFreq / sampleRate
-                                if (leadPhase >= 1.0) leadPhase -= 1.0
-                                val sq = if (leadPhase < 0.5) 1.0 else -1.0
-                                val env = if (t < 0.05) t / 0.05 else (1.0 - t * 0.78).coerceAtLeast(0.0)
-                                mix += sq * 0.065 * env
+                            val t = i * invStepSamples
+                            // 4ms attack + 6ms release fade-to-zero eliminates periodic DC click artifacts
+                            val fadeOut = if (t > 0.94f) (1f - t) / 0.06f else 1f
+                            var mix = 0f
+                            if (leadFreq > 0f) {
+                                leadPhase += leadInc
+                                if (leadPhase >= 1f) leadPhase -= 1f
+                                val sq = if (leadPhase < 0.5f) 1f else -1f
+                                val env = (if (t < 0.04f) t / 0.04f else (1f - t * 0.78f).coerceAtLeast(0f)) * fadeOut
+                                mix += sq * 0.065f * env
                             }
-                            if (bassFreq > 0.0) {
-                                bassPhase += bassFreq / sampleRate
-                                if (bassPhase >= 1.0) bassPhase -= 1.0
-                                val tri = 4.0 * abs(bassPhase - 0.5) - 1.0
-                                val env = (1.0 - t * 0.65).coerceAtLeast(0.0)
-                                mix += tri * 0.085 * env
+                            if (bassFreq > 0f) {
+                                bassPhase += bassInc
+                                if (bassPhase >= 1f) bassPhase -= 1f
+                                val tri = 4f * abs(bassPhase - 0.5f) - 1f
+                                val env = (if (t < 0.03f) t / 0.03f else (1f - t * 0.65f).coerceAtLeast(0f)) * fadeOut
+                                mix += tri * 0.085f * env
                             }
-                            pcm[i] = (mix.coerceIn(-0.9, 0.9) * Short.MAX_VALUE).toInt().toShort()
+                            pcm[i] = (mix.coerceIn(-0.9f, 0.9f) * 32767f).toInt().toShort()
                         }
                         if (musicGen == myGen && musicRunning && !musicMuted) {
                             track.write(pcm, 0, pcm.size)
@@ -179,6 +244,9 @@ class ChiptuneSynth {
                     }
                 } catch (_: Throwable) {
                 } finally {
+                    synchronized(musicLock) {
+                        if (activeMusicTrack === track) activeMusicTrack = null
+                    }
                     try {
                         track?.stop()
                         track?.release()
@@ -187,6 +255,7 @@ class ChiptuneSynth {
                 }
             }.apply {
                 name = "PixelStrideMusicThread-$myGen"
+                isDaemon = true
                 start()
             }
         }
@@ -194,152 +263,127 @@ class ChiptuneSynth {
 
     fun stopMusic() {
         val t: Thread?
+        val track: AudioTrack?
         synchronized(musicLock) {
             musicRunning = false
             musicGen++
             t = musicThread
             musicThread = null
+            track = activeMusicTrack
+            activeMusicTrack = null
+        }
+        // Immediately flush & stop active AudioTrack so blocking write() unblocks with 0ms tail
+        if (track != null) {
+            runCatching {
+                track.pause()
+                track.flush()
+                track.stop()
+            }
         }
         t?.interrupt()
     }
 
     fun playJump(isDouble: Boolean = false) {
         if (sfxMuted) return
-        val f0 = if (isDouble) 420.0 else 300.0
-        val f1 = if (isDouble) 860.0 else 640.0
-        playTone(f0, f1, 0.10, 0.22, square = true)
+        enqueueSfxPcm(if (isDouble) sfxJumpDouble else sfxJumpSingle)
     }
 
     fun playCoin(combo: Int = 1) {
         if (sfxMuted) return
-        val pitchScale = 1.0 + (combo - 1).coerceIn(0, 7) * 0.055
-        playSequence(
-            listOf(
-                Triple(987.77 * pitchScale, 987.77 * pitchScale, 0.055),
-                Triple(1318.51 * pitchScale, 1318.51 * pitchScale, 0.11),
-            ),
-            volume = 0.20,
-        )
+        enqueueSfxPcm(sfxCoins[(combo - 1).coerceIn(0, sfxCoins.lastIndex)])
     }
 
     fun playStomp() {
         if (sfxMuted) return
-        playSequence(
-            listOf(
-                Triple(520.0, 260.0, 0.06),
-                Triple(680.0, 920.0, 0.08),
-            ),
-            volume = 0.24,
-        )
+        enqueueSfxPcm(sfxStomp)
     }
 
     fun playPowerUp() {
         if (sfxMuted) return
-        playSequence(
-            listOf(
-                Triple(523.25, 523.25, 0.055),
-                Triple(659.25, 659.25, 0.055),
-                Triple(783.99, 783.99, 0.055),
-                Triple(1046.50, 1046.50, 0.12),
-            ),
-            volume = 0.22,
-        )
+        enqueueSfxPcm(sfxPowerUp)
     }
 
     fun playZap() {
         if (sfxMuted) return
-        playTone(1240.0, 280.0, 0.13, 0.22, square = true)
+        enqueueSfxPcm(sfxZap)
     }
 
     fun playHit() {
         if (sfxMuted) return
-        playNoise(0.16, 0.25)
+        enqueueSfxPcm(sfxHit)
     }
 
     fun playBossKo() {
         if (sfxMuted) return
-        playSequence(
-            listOf(
-                Triple(523.25, 523.25, 0.07),
-                Triple(659.25, 659.25, 0.07),
-                Triple(783.99, 783.99, 0.07),
-                Triple(1046.50, 1318.51, 0.20),
-            ),
-            volume = 0.26,
-        )
+        enqueueSfxPcm(sfxBossKo)
     }
 
     fun playGameOver() {
         if (sfxMuted) return
-        playSequence(
-            listOf(
-                Triple(440.0, 415.0, 0.11),
-                Triple(392.0, 370.0, 0.11),
-                Triple(349.23, 220.0, 0.24),
-            ),
-            volume = 0.22,
-        )
+        enqueueSfxPcm(sfxGameOver)
     }
 
-    private fun playTone(
-        startFreq: Double,
-        endFreq: Double,
-        durationSec: Double,
-        volume: Double,
-        square: Boolean,
-    ) {
-        val count = (sampleRate * durationSec).toInt().coerceAtLeast(1)
+    private fun bakeTone(startFreq: Float, endFreq: Float, durationSec: Float, volume: Float): ShortArray {
+        val count = (sampleRateF * durationSec).toInt().coerceAtLeast(1)
+        val invCount = 1f / count
+        val invSr = 1f / sampleRateF
         val pcm = ShortArray(count)
-        var phase = 0.0
+        var phase = 0f
         for (i in 0 until count) {
-            val t = i.toDouble() / count
+            val t = i * invCount
             val freq = startFreq + (endFreq - startFreq) * t
-            val env = (1.0 - t).coerceIn(0.0, 1.0)
-            phase += freq / sampleRate
-            if (phase >= 1.0) phase -= 1.0
-            val sample = if (square) {
-                if (phase < 0.5) 1.0 else -1.0
-            } else {
-                sin(2.0 * PI * phase)
-            }
-            pcm[i] = (sample * volume * env * Short.MAX_VALUE).toInt().toShort()
+            val attack = if (t < 0.04f) t / 0.04f else 1f
+            val env = (1f - t).coerceIn(0f, 1f) * attack
+            phase += freq * invSr
+            if (phase >= 1f) phase -= 1f
+            val sample = if (phase < 0.5f) 1f else -1f
+            pcm[i] = (sample * volume * env * 32767f).toInt().toShort()
         }
-        enqueueSfxPcm(pcm)
+        return pcm
     }
 
-    private fun playSequence(notes: List<Triple<Double, Double, Double>>, volume: Double) {
-        val totalSamples = notes.sumOf { (sampleRate * it.third).toInt().coerceAtLeast(1) }
+    private fun bakeSequence(f0s: FloatArray, f1s: FloatArray, durs: FloatArray, volume: Float): ShortArray {
+        var totalSamples = 0
+        for (d in durs) totalSamples += (sampleRateF * d).toInt().coerceAtLeast(1)
         val pcm = ShortArray(totalSamples)
+        val invSr = 1f / sampleRateF
         var offset = 0
-        for ((f0, f1, dur) in notes) {
-            val count = (sampleRate * dur).toInt().coerceAtLeast(1)
-            var phase = 0.0
+        for (n in durs.indices) {
+            val f0 = f0s[n]
+            val f1 = f1s[n]
+            val count = (sampleRateF * durs[n]).toInt().coerceAtLeast(1)
+            val invCount = 1f / count
+            var phase = 0f
             for (i in 0 until count) {
-                val t = i.toDouble() / count
+                val t = i * invCount
                 val freq = f0 + (f1 - f0) * t
-                val env = (1.0 - t * 0.85).coerceIn(0.0, 1.0)
-                phase += freq / sampleRate
-                if (phase >= 1.0) phase -= 1.0
-                val wave = if (phase < 0.5) 1.0 else -1.0
+                val attack = if (t < 0.05f) t / 0.05f else 1f
+                val release = if (t > 0.90f) (1f - t) / 0.10f else 1f
+                val env = (1f - t * 0.85f).coerceIn(0f, 1f) * attack * release
+                phase += freq * invSr
+                if (phase >= 1f) phase -= 1f
+                val wave = if (phase < 0.5f) 1f else -1f
                 if (offset + i < pcm.size) {
-                    pcm[offset + i] = (wave * volume * env * Short.MAX_VALUE).toInt().toShort()
+                    pcm[offset + i] = (wave * volume * env * 32767f).toInt().toShort()
                 }
             }
             offset += count
         }
-        enqueueSfxPcm(pcm)
+        return pcm
     }
 
-    private fun playNoise(durationSec: Double, volume: Double) {
-        val count = (sampleRate * durationSec).toInt().coerceAtLeast(1)
+    private fun bakeNoise(durationSec: Float, volume: Float): ShortArray {
+        val count = (sampleRateF * durationSec).toInt().coerceAtLeast(1)
+        val invCount = 1f / count
         val pcm = ShortArray(count)
+        val rng = Random(0x51A7E)
         for (i in 0 until count) {
-            val t = i.toDouble() / count
-            val env = (1.0 - t) * (1.0 - t)
-            val n = Random.nextDouble(-1.0, 1.0)
-            pcm[i] = (n * volume * env * Short.MAX_VALUE).toInt().toShort()
+            val t = i * invCount
+            val env = (1f - t) * (1f - t)
+            val n = rng.nextFloat() * 2f - 1f
+            pcm[i] = (n * volume * env * 32767f).toInt().toShort()
         }
-        enqueueSfxPcm(pcm)
+        return pcm
     }
 
     private fun enqueueSfxPcm(pcm: ShortArray) {
@@ -358,6 +402,7 @@ class ChiptuneSynth {
         sfxRunning = true
         val myGen = ++sfxGen
         sfxThread = Thread {
+            runCatching { Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO) }
             var track: AudioTrack? = null
             try {
                 val chunkSamples = 441 // ~20ms low-latency mixing slice at 22050Hz
@@ -384,6 +429,10 @@ class ChiptuneSynth {
                     .setBufferSizeInBytes(bufBytes)
                     .setTransferMode(AudioTrack.MODE_STREAM)
                     .build()
+                synchronized(sfxLock) {
+                    if (sfxGen != myGen || !sfxRunning) return@Thread
+                    activeSfxTrack = track
+                }
                 track.play()
 
                 val mixBuf = ShortArray(chunkSamples)
@@ -438,6 +487,9 @@ class ChiptuneSynth {
                     }
                 }
             } finally {
+                synchronized(sfxLock) {
+                    if (activeSfxTrack === track) activeSfxTrack = null
+                }
                 try {
                     track?.stop()
                     track?.release()
@@ -446,18 +498,29 @@ class ChiptuneSynth {
             }
         }.apply {
             name = "PixelStrideSfxMixer-$myGen"
+            isDaemon = true
             start()
         }
     }
 
     private fun stopSfxMixer() {
         val t: Thread?
+        val track: AudioTrack?
         synchronized(sfxLock) {
             sfxRunning = false
             sfxGen++
             activeVoices.clear()
             t = sfxThread
             sfxThread = null
+            track = activeSfxTrack
+            activeSfxTrack = null
+        }
+        if (track != null) {
+            runCatching {
+                track.pause()
+                track.flush()
+                track.stop()
+            }
         }
         t?.interrupt()
     }

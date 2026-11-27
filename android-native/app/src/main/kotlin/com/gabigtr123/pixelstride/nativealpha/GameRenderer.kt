@@ -1,11 +1,13 @@
 package com.gabigtr123.pixelstride.nativealpha
 
 import android.graphics.Bitmap
+import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Paint
-import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.Typeface
 import kotlin.math.PI
 import kotlin.math.abs
@@ -112,7 +114,31 @@ class GameRenderer(
         isAntiAlias = false
         typeface = uiFont
     }
-    private val path = Path()
+
+    // Cached BitmapShaders eliminate ~1,100 JNI drawRect calls/frame (underground bricks + sky dither seams!)
+    private val brickPaint = Paint().apply {
+        isAntiAlias = false
+        isFilterBitmap = false
+    }
+    private val brickMatrix = Matrix()
+    private var cachedBrickMain = 0
+    private var cachedBrickDark = 0
+    private var cachedBrickAccent = 0
+    private var brickShader: BitmapShader? = null
+
+    private val ditherPaint1 = Paint().apply {
+        isAntiAlias = false
+        isFilterBitmap = false
+    }
+    private val ditherPaint2 = Paint().apply {
+        isAntiAlias = false
+        isFilterBitmap = false
+    }
+    private val ditherMatrix = Matrix()
+    private var cachedDither1 = 0
+    private var cachedDither2 = 0
+    private var ditherShader1: BitmapShader? = null
+    private var ditherShader2: BitmapShader? = null
 
     val buttons = mutableListOf<HitButton>()
 
@@ -132,9 +158,11 @@ class GameRenderer(
     var toastMessage: String? = null
     var toastTimer: Float = 0f
     private val activePillsBuilder = StringBuilder(48)
+    private val hudScoreBuilder = StringBuilder(16)
+    private val hudStatsBuilder = StringBuilder(40)
 
     companion object {
-        // Hoisted constant parallax geometry (zero per-frame array allocations at 120Hz)
+        // Hoisted constant parallax & UI option geometry (zero per-frame array allocations at 120Hz)
         private val CLOUD_DEFS = arrayOf(
             floatArrayOf(28f, -40f, 44f, 12f),
             floatArrayOf(158f, -22f, 32f, 10f),
@@ -152,6 +180,32 @@ class GameRenderer(
             floatArrayOf(34f, 32f, 94f, 1f),
             floatArrayOf(70f, 22f, 64f, 0f),
             floatArrayOf(96f, 22f, 84f, 1f),
+        )
+        private val HERO_ACTIONS = arrayOf(
+            HeroId.STRIDE to UiAction.SELECT_HERO_STRIDE,
+            HeroId.LILY to UiAction.SELECT_HERO_LILY,
+            HeroId.KNIGHT to UiAction.SELECT_HERO_KNIGHT,
+            HeroId.NINJA to UiAction.SELECT_HERO_NINJA,
+            HeroId.ASTRO to UiAction.SELECT_HERO_ASTRO,
+            HeroId.CUSTOM to UiAction.SELECT_HERO_CUSTOM,
+        )
+        private val MODE_ACTIONS = arrayOf(
+            GameMode.ENDLESS to UiAction.SELECT_MODE_ENDLESS,
+            GameMode.DAILY to UiAction.SELECT_MODE_DAILY,
+            GameMode.HARDCORE to UiAction.SELECT_MODE_HARDCORE,
+            GameMode.BOSS_RUSH to UiAction.SELECT_MODE_BOSS_RUSH,
+        )
+        private val TOD_OPTIONS = arrayOf(
+            TimeOfDayMode.AUTO to UiAction.SET_TOD_AUTO,
+            TimeOfDayMode.DAY to UiAction.SET_TOD_DAY,
+            TimeOfDayMode.NIGHT to UiAction.SET_TOD_NIGHT,
+        )
+        private val CITY_ACTIONS = arrayOf(
+            UiAction.CITY_0,
+            UiAction.CITY_1,
+            UiAction.CITY_2,
+            UiAction.CITY_3,
+            UiAction.CITY_4,
         )
     }
 
@@ -192,8 +246,8 @@ class GameRenderer(
         canvas.scale(scale, scale)
 
         if ((engine.phase == GamePhase.PLAYING || engine.phase == GamePhase.GAME_OVER) && engine.screenShake > 0.2f) {
-            val sx = ((engine.elapsed * 90f).toInt() % 3 - 1) * engine.screenShake * 0.5f
-            val sy = ((engine.elapsed * 70f).toInt() % 3 - 1) * engine.screenShake * 0.4f
+            val sx = ((engine.shakePhase * 90f).toInt() % 3 - 1) * engine.screenShake * 0.5f
+            val sy = ((engine.shakePhase * 70f).toInt() % 3 - 1) * engine.screenShake * 0.4f
             canvas.translate(sx, sy)
         }
 
@@ -342,19 +396,16 @@ class GameRenderer(
         paint.color = biome.skyHorizon
         c.drawRect(worldLeft, band2Y, worldRight, groundY, paint)
 
-        val ditherStart = (floor(worldLeft / 4f) * 4f)
-        paint.color = biome.skyMid
-        var dx = ditherStart
-        while (dx < worldRight) {
-            c.drawRect(dx, band1Y - 2f, dx + 2f, band1Y, paint)
-            dx += 4f
-        }
-        paint.color = biome.skyHorizon
-        dx = ditherStart + 2f
-        while (dx < worldRight) {
-            c.drawRect(dx, band2Y - 2f, dx + 2f, band2Y, paint)
-            dx += 4f
-        }
+        // Cached 4x2px sky dither seams (2 drawRect calls instead of ~240 JNI calls/frame!)
+        val sh1 = ensureDitherShader(1, biome.skyMid)
+        ditherMatrix.setTranslate(0f, band1Y - 2f)
+        sh1.setLocalMatrix(ditherMatrix)
+        c.drawRect(worldLeft, band1Y - 2f, worldRight, band1Y, ditherPaint1)
+
+        val sh2 = ensureDitherShader(2, biome.skyHorizon)
+        ditherMatrix.setTranslate(2f, band2Y - 2f)
+        sh2.setLocalMatrix(ditherMatrix)
+        c.drawRect(worldLeft, band2Y - 2f, worldRight, band2Y, ditherPaint2)
 
         // 2. Deterministic 42-star twinkling starfield
         if (biome.starAlpha > 0.02f) {
@@ -688,6 +739,13 @@ class GameRenderer(
         val scrollOffset = -floor(((engine.scrollX % tileSize) + tileSize) % tileSize)
         val startTileX = floor(worldLeft / tileSize) * tileSize + scrollOffset
         val baseTileIndex = floor((engine.scrollX + startTileX) / tileSize).toInt()
+
+        // Single BitmapShader drawRect replaces ~880 underground brick JNI drawRect calls/frame!
+        val bShader = ensureBrickShader(biome.dirtMain, biome.dirtDark, biome.dirtAccent)
+        brickMatrix.setTranslate(startTileX, groundY + 14f)
+        bShader.setLocalMatrix(brickMatrix)
+        c.drawRect(worldLeft, groundY + 14f, worldRight, worldBottom, brickPaint)
+
         var tx = startTileX - tileSize
         var tIdx = -1
         while (tx < worldRight + tileSize) {
@@ -696,21 +754,6 @@ class GameRenderer(
             paint.color = if (isSnow) 0xFFC4E8FF.toInt() else biome.grassTrim
             c.drawRect(tx + 4f, groundY + 9f, tx + 8f, groundY + 11f, paint)
             c.drawRect(tx + 12f, groundY + 9f, tx + 14f, groundY + 12f, paint)
-
-            // Repeating staggered 13px underground brick rows with mortar & stone highlights
-            var rowY = groundY + 14f
-            var rowIdx = 0
-            while (rowY < worldBottom) {
-                val stagger = if (rowIdx % 2 == 0) 8f else 0f
-                paint.color = biome.dirtDark
-                c.drawRect(tx, rowY, tx + tileSize - 1f, rowY + 1f, paint)
-                c.drawRect(tx + stagger, rowY, tx + stagger + 1f, rowY + 13f, paint)
-                paint.color = biome.dirtAccent
-                val ax = tx + ((stagger + 2f) % tileSize)
-                c.drawRect(ax, rowY + 2f, ax + 4f, rowY + 4f, paint)
-                rowY += 13f
-                rowIdx++
-            }
 
             // Rain / Storm: glistening puddles + animated splash crowns + underground water trickles
             if (isWet) {
@@ -749,7 +792,8 @@ class GameRenderer(
         }
 
         // 7b. Exact v3.0.3 Floating Platforms (16px masonry + wet drips / snow icicles)
-        for (plat in engine.platforms) {
+        for (i in 0 until engine.platforms.size) {
+            val plat = engine.platforms[i]
             val px = plat.x.roundToInt().toFloat()
             val py = plat.y.roundToInt().toFloat()
             paint.color = 0xFF121526.toInt()
@@ -798,14 +842,16 @@ class GameRenderer(
         }
 
         // 8. Collectibles (exact v3.0.3 pixel sprites)
-        for (col in engine.collectibles) {
+        for (i in 0 until engine.collectibles.size) {
+            val col = engine.collectibles[i]
             val cy = col.y + sin(col.bobPhase) * 2.5f
             PixelSprites.drawCollectible(c, col.type, (col.x - 6f).roundToInt().toFloat(), (cy - 6f).roundToInt().toFloat(), 1.25f, col.bobPhase)
         }
 
         // 9. Hazards (exact v3.0.3 telegraphs, upside-down KO topple & cycling stone brazier flame jet)
         val warningX = w - 18f
-        for (hz in engine.hazards) {
+        for (i in 0 until engine.hazards.size) {
+            val hz = engine.hazards[i]
             val hx = hz.x.roundToInt().toFloat()
             val hy = hz.y.roundToInt().toFloat()
             when (hz.type) {
@@ -844,27 +890,30 @@ class GameRenderer(
                     }
                 }
                 HazardType.FLAME -> {
-                    // Exact v3.0.3 stone brazier base + idle / telegraph embers / flickering 3-color flame jet
+                    // Anchor stone brazier to (hy + hz.height) so defeated braziers tumble off-screen cleanly!
+                    val baseY = hy + hz.height
                     paint.color = 0xFF141628.toInt()
-                    c.drawRect(hx, groundY - 12f, hx + 16f, groundY, paint)
+                    c.drawRect(hx, baseY - 12f, hx + 16f, baseY, paint)
                     paint.color = 0xFF586484.toInt()
-                    c.drawRect(hx + 2f, groundY - 10f, hx + 14f, groundY, paint)
+                    c.drawRect(hx + 2f, baseY - 10f, hx + 14f, baseY, paint)
                     paint.color = 0xFF92A2C8.toInt()
-                    c.drawRect(hx + 2f, groundY - 10f, hx + 6f, groundY - 2f, paint)
-                    if (hz.telegraphTimer > 0f) {
-                        val pulse = ((engine.elapsed * 24f).toInt() % 2) == 0
-                        paint.color = if (pulse) 0xFFFFF4A8.toInt() else 0xFFFF8828.toInt()
-                        c.drawRect(hx + 3f, groundY - 16f, hx + 13f, groundY - 11f, paint)
-                        c.drawRect(hx + 5f, groundY - 20f, hx + 11f, groundY - 16f, paint)
-                    } else if (hz.isActive) {
-                        val flicker = ((engine.elapsed * 18f).toInt() % 2).toFloat()
-                        paint.color = 0xFFE83828.toInt()
-                        c.drawRect(hx + 2f, groundY - 35f + flicker, hx + 14f, groundY - 11f + flicker, paint)
-                        c.drawRect(hx + 4f, groundY - 39f - flicker, hx + 12f, groundY - 33f - flicker, paint)
-                        paint.color = 0xFFFF9C28.toInt()
-                        c.drawRect(hx + 4f, groundY - 32f, hx + 12f, groundY - 11f, paint)
-                        paint.color = 0xFFFFF4A8.toInt()
-                        c.drawRect(hx + 6f, groundY - 26f + flicker, hx + 10f, groundY - 11f + flicker, paint)
+                    c.drawRect(hx + 2f, baseY - 10f, hx + 6f, baseY - 2f, paint)
+                    if (!hz.defeated) {
+                        if (hz.telegraphTimer > 0f) {
+                            val pulse = ((engine.elapsed * 24f).toInt() % 2) == 0
+                            paint.color = if (pulse) 0xFFFFF4A8.toInt() else 0xFFFF8828.toInt()
+                            c.drawRect(hx + 3f, baseY - 16f, hx + 13f, baseY - 11f, paint)
+                            c.drawRect(hx + 5f, baseY - 20f, hx + 11f, baseY - 16f, paint)
+                        } else if (hz.isActive) {
+                            val flicker = ((engine.elapsed * 18f).toInt() % 2).toFloat()
+                            paint.color = 0xFFE83828.toInt()
+                            c.drawRect(hx + 2f, baseY - 35f + flicker, hx + 14f, baseY - 11f + flicker, paint)
+                            c.drawRect(hx + 4f, baseY - 39f - flicker, hx + 12f, baseY - 33f - flicker, paint)
+                            paint.color = 0xFFFF9C28.toInt()
+                            c.drawRect(hx + 4f, baseY - 32f, hx + 12f, baseY - 11f, paint)
+                            paint.color = 0xFFFFF4A8.toInt()
+                            c.drawRect(hx + 6f, baseY - 26f + flicker, hx + 10f, baseY - 11f + flicker, paint)
+                        }
                     }
                 }
             }
@@ -915,7 +964,8 @@ class GameRenderer(
         }
 
         // 10b. Enraged Boss Energy Orb Projectiles
-        for (proj in engine.bossProjectiles) {
+        for (i in 0 until engine.bossProjectiles.size) {
+            val proj = engine.bossProjectiles[i]
             val px = proj.x.roundToInt().toFloat()
             val py = proj.y.roundToInt().toFloat()
             val half = (proj.size * 0.5f).roundToInt().toFloat()
@@ -1025,15 +1075,19 @@ class GameRenderer(
         }
 
         // 13. Particles
-        for (p in engine.particles) {
+        for (i in 0 until engine.particles.size) {
+            val p = engine.particles[i]
+            val px = p.x.roundToInt().toFloat()
+            val py = p.y.roundToInt().toFloat()
             paint.color = p.color
-            c.drawRect(p.x.roundToInt().toFloat(), p.y.roundToInt().toFloat(), p.x.roundToInt() + p.size, p.y.roundToInt() + p.size, paint)
+            c.drawRect(px, py, px + p.size, py + p.size, paint)
         }
 
         // 14. Floating score popups (Press Start 2P)
         displayPaint.textAlign = Paint.Align.CENTER
         displayPaint.textSize = 6.5f
-        for (ft in engine.floatingTexts) {
+        for (i in 0 until engine.floatingTexts.size) {
+            val ft = engine.floatingTexts[i]
             val fx = ft.x.coerceIn(36f, w - 36f).roundToInt().toFloat()
             val fy = ft.y.roundToInt().toFloat()
             displayPaint.color = 0xFF121324.toInt()
@@ -1207,20 +1261,6 @@ class GameRenderer(
         )
         buttons.add(HitButton(UiAction.TOGGLE_MUTE, muteRect))
 
-        val heroActions = listOf(
-            HeroId.STRIDE to UiAction.SELECT_HERO_STRIDE,
-            HeroId.LILY to UiAction.SELECT_HERO_LILY,
-            HeroId.KNIGHT to UiAction.SELECT_HERO_KNIGHT,
-            HeroId.NINJA to UiAction.SELECT_HERO_NINJA,
-            HeroId.ASTRO to UiAction.SELECT_HERO_ASTRO,
-            HeroId.CUSTOM to UiAction.SELECT_HERO_CUSTOM,
-        )
-        val modeActions = listOf(
-            GameMode.ENDLESS to UiAction.SELECT_MODE_ENDLESS,
-            GameMode.DAILY to UiAction.SELECT_MODE_DAILY,
-            GameMode.HARDCORE to UiAction.SELECT_MODE_HARDCORE,
-            GameMode.BOSS_RUSH to UiAction.SELECT_MODE_BOSS_RUSH,
-        )
         val perkText = if (engine.hero == HeroId.CUSTOM) {
             Strings.tapCustomEdit(lang, engine.bestScore)
         } else {
@@ -1260,10 +1300,7 @@ class GameRenderer(
             val perkY = startY + startH + 8f * ldp
             paint.color = 0xC0111324.toInt()
             c.drawRect(leftSafe, perkY, leftSafe + leftW, perkY + perkH, paint)
-            uiPaint.textAlign = Paint.Align.CENTER
-            uiPaint.textSize = 7.4f * ldp
-            uiPaint.color = 0xFF78F0A8.toInt()
-            c.drawText(perkText, leftCx, perkY + 13.5f * ldp, uiPaint)
+            drawFittedUiText(c, perkText, leftCx, perkY + 13.5f * ldp, 7.4f * ldp, leftW - 8f * ldp, 0xFF78F0A8.toInt())
 
             val heroRowH = 34f * ldp
             val heroRowGap = 5f * ldp
@@ -1273,8 +1310,8 @@ class GameRenderer(
 
             val heroGap = 4f * ldp
             val heroW = (rightW - heroGap * 2f) / 3f
-            for (i in heroActions.indices) {
-                val (hId, action) = heroActions[i]
+            for (i in HERO_ACTIONS.indices) {
+                val (hId, action) = HERO_ACTIONS[i]
                 val col = i % 3
                 val row = i / 3
                 val rx = rightLeft + col * (heroW + heroGap)
@@ -1287,8 +1324,8 @@ class GameRenderer(
             val modeY = rightTopY + heroRowH * 2f + heroRowGap + 10f * ldp
             val modeGap = 4f * ldp
             val modeW = (rightW - modeGap * 3f) / 4f
-            for (i in modeActions.indices) {
-                val (m, action) = modeActions[i]
+            for (i in MODE_ACTIONS.indices) {
+                val (m, action) = MODE_ACTIONS[i]
                 val rx = rightLeft + i * (modeW + modeGap)
                 val rect = RectF(rx, modeY, rx + modeW, modeY + modeH)
                 drawModePill(c, rect, m.shortLabel, engine.mode == m, ldp)
@@ -1334,8 +1371,8 @@ class GameRenderer(
             val modeY = startY + startH + 12f * dp
             val modeGap = 5f * dp
             val modeW = (stackW - modeGap * 3f) / 4f
-            for (i in modeActions.indices) {
-                val (m, action) = modeActions[i]
+            for (i in MODE_ACTIONS.indices) {
+                val (m, action) = MODE_ACTIONS[i]
                 val rx = cx - stackW / 2f + i * (modeW + modeGap)
                 val rect = RectF(rx, modeY, rx + modeW, modeY + modeH)
                 drawModePill(c, rect, m.shortLabel, engine.mode == m, dp)
@@ -1346,8 +1383,8 @@ class GameRenderer(
             val heroTopY = modeY + modeH + 9f * dp
             val heroGap = 4f * dp
             val heroW = (stackW - heroGap * 2f) / 3f
-            for (i in heroActions.indices) {
-                val (hId, action) = heroActions[i]
+            for (i in HERO_ACTIONS.indices) {
+                val (hId, action) = HERO_ACTIONS[i]
                 val col = i % 3
                 val row = i / 3
                 val rx = cx - stackW / 2f + col * (heroW + heroGap)
@@ -1362,10 +1399,7 @@ class GameRenderer(
             val perkW = minOf(stackW, 320f * dp)
             paint.color = 0xC0111324.toInt()
             c.drawRect(cx - perkW / 2f, perkY, cx + perkW / 2f, perkY + perkH, paint)
-            uiPaint.textAlign = Paint.Align.CENTER
-            uiPaint.textSize = 8f * dp
-            uiPaint.color = 0xFF78F0A8.toInt()
-            c.drawText(perkText, cx, perkY + 13.5f * dp, uiPaint)
+            drawFittedUiText(c, perkText, cx, perkY + 13.5f * dp, 8f * dp, perkW - 10f * dp, 0xFF78F0A8.toInt())
         }
     }
 
@@ -1415,13 +1449,8 @@ class GameRenderer(
         c.drawText("DAY / NIGHT CYCLE", leftX, curY, displayPaint)
         curY += 10f * dp
         val todW = (innerW - 12f * dp) / 3f
-        val todOpts = listOf(
-            TimeOfDayMode.AUTO to UiAction.SET_TOD_AUTO,
-            TimeOfDayMode.DAY to UiAction.SET_TOD_DAY,
-            TimeOfDayMode.NIGHT to UiAction.SET_TOD_NIGHT,
-        )
-        for (i in todOpts.indices) {
-            val (tod, act) = todOpts[i]
+        for (i in TOD_OPTIONS.indices) {
+            val (tod, act) = TOD_OPTIONS[i]
             val r = RectF(leftX + i * (todW + 6f * dp), curY, leftX + i * (todW + 6f * dp) + todW, curY + 32f * dp)
             drawModePill(c, r, tod.label, engine.timeOfDayMode == tod, dp)
             buttons.add(HitButton(act, r))
@@ -1434,23 +1463,50 @@ class GameRenderer(
         displayPaint.color = 0xFFFFE05C.toInt()
         c.drawText("WEATHER ENGINE", leftX, curY, displayPaint)
         curY += 10f * dp
-        val wxBtns = listOf(
-            Triple("AUTO", engine.weatherSource == WeatherSource.AUTO, UiAction.SET_WX_AUTO),
-            Triple("SUN", engine.weatherSource == WeatherSource.MANUAL && engine.manualWeather == WeatherCondition.CLEAR, UiAction.SET_WX_CLEAR),
-            Triple("RAIN", engine.weatherSource == WeatherSource.MANUAL && engine.manualWeather == WeatherCondition.RAIN, UiAction.SET_WX_RAIN),
-            Triple("STORM", engine.weatherSource == WeatherSource.MANUAL && engine.manualWeather == WeatherCondition.STORM, UiAction.SET_WX_STORM),
-            Triple("SNOW", engine.weatherSource == WeatherSource.MANUAL && engine.manualWeather == WeatherCondition.SNOW, UiAction.SET_WX_SNOW),
-            Triple("FOG", engine.weatherSource == WeatherSource.MANUAL && engine.manualWeather == WeatherCondition.FOG, UiAction.SET_WX_FOG),
-        )
         val wxColW = (innerW - 10f * dp) / 3f
-        for (i in wxBtns.indices) {
+        for (i in 0 until 6) {
             val col = i % 3
             val row = i / 3
             val rx = leftX + col * (wxColW + 5f * dp)
             val ry = curY + row * 36f * dp
             val r = RectF(rx, ry, rx + wxColW, ry + 30f * dp)
-            drawModePill(c, r, wxBtns[i].first, wxBtns[i].second, dp)
-            buttons.add(HitButton(wxBtns[i].third, r))
+            val label: String
+            val active: Boolean
+            val act: UiAction
+            when (i) {
+                0 -> {
+                    label = "AUTO"
+                    active = engine.weatherSource == WeatherSource.AUTO
+                    act = UiAction.SET_WX_AUTO
+                }
+                1 -> {
+                    label = "SUN"
+                    active = engine.weatherSource == WeatherSource.MANUAL && engine.manualWeather == WeatherCondition.CLEAR
+                    act = UiAction.SET_WX_CLEAR
+                }
+                2 -> {
+                    label = "RAIN"
+                    active = engine.weatherSource == WeatherSource.MANUAL && engine.manualWeather == WeatherCondition.RAIN
+                    act = UiAction.SET_WX_RAIN
+                }
+                3 -> {
+                    label = "STORM"
+                    active = engine.weatherSource == WeatherSource.MANUAL && engine.manualWeather == WeatherCondition.STORM
+                    act = UiAction.SET_WX_STORM
+                }
+                4 -> {
+                    label = "SNOW"
+                    active = engine.weatherSource == WeatherSource.MANUAL && engine.manualWeather == WeatherCondition.SNOW
+                    act = UiAction.SET_WX_SNOW
+                }
+                else -> {
+                    label = "FOG"
+                    active = engine.weatherSource == WeatherSource.MANUAL && engine.manualWeather == WeatherCondition.FOG
+                    act = UiAction.SET_WX_FOG
+                }
+            }
+            drawModePill(c, r, label, active, dp)
+            buttons.add(HitButton(act, r))
         }
 
         // Section 3: Live Open-Meteo GPS Sync + Preset Cities
@@ -1467,7 +1523,6 @@ class GameRenderer(
 
         // Preset Cities row
         curY += 52f * dp
-        val cityActions = listOf(UiAction.CITY_0, UiAction.CITY_1, UiAction.CITY_2, UiAction.CITY_3, UiAction.CITY_4)
         val cityW = (innerW - 8f * dp) / 3f
         for (i in WeatherService.PRESET_CITIES.indices) {
             val col = i % 3
@@ -1478,7 +1533,7 @@ class GameRenderer(
             val city = WeatherService.PRESET_CITIES[i]
             val active = engine.weatherSource == WeatherSource.LIVE && engine.liveLocationName == city.label
             drawModePill(c, r, city.name.uppercase(), active, dp)
-            buttons.add(HitButton(cityActions[i], r))
+            buttons.add(HitButton(CITY_ACTIONS[i], r))
         }
 
         // Status line
@@ -1487,10 +1542,7 @@ class GameRenderer(
         } else {
             "Tap GPS or pick a city for real-time weather!"
         }
-        uiPaint.textAlign = Paint.Align.CENTER
-        uiPaint.textSize = 9.5f * dp
-        uiPaint.color = 0xFF78F0A8.toInt()
-        c.drawText(status, cx, panelRect.bottom - 18f * dp, uiPaint)
+        drawFittedUiText(c, status, cx, panelRect.bottom - 18f * dp, 9.5f * dp, innerW, 0xFF78F0A8.toInt())
     }
 
     /**
@@ -1631,13 +1683,22 @@ class GameRenderer(
         val hudRight = vw - rightSafe - 4f * dp
         val hudCx = leftSafe + (vw - leftSafe - rightSafe) / 2f
 
-        // Top-left Score + Level + Hearts (respects camera cutout in Landscape!)
-        drawShadowDisplayText(c, "${engine.score.toInt()}", hudLeft, topSafe + 22f * dp, 16f * dp, 0xFFFFFFFF.toInt(), dp, Paint.Align.LEFT)
+        // Top-left Score + Level + Hearts (zero per-frame String allocations via StringBuilders!)
+        hudScoreBuilder.setLength(0)
+        hudScoreBuilder.append(engine.score.toInt())
+        displayPaint.textAlign = Paint.Align.LEFT
+        displayPaint.textSize = 16f * dp
+        displayPaint.color = 0xFF0F1120.toInt()
+        c.drawText(hudScoreBuilder, 0, hudScoreBuilder.length, hudLeft + 2.5f * dp, topSafe + 24.5f * dp, displayPaint)
+        displayPaint.color = 0xFFFFFFFF.toInt()
+        c.drawText(hudScoreBuilder, 0, hudScoreBuilder.length, hudLeft, topSafe + 22f * dp, displayPaint)
 
+        hudStatsBuilder.setLength(0)
+        hudStatsBuilder.append("LV ").append(engine.level).append(" · ").append(engine.distance.toInt()).append("M · ").append(engine.runCoins).append('C')
         uiPaint.textAlign = Paint.Align.LEFT
         uiPaint.textSize = 11f * dp
         uiPaint.color = 0xFFFFE05C.toInt()
-        c.drawText("LV ${engine.level} · ${engine.distance.toInt()}M · ${engine.runCoins}C", hudLeft, topSafe + 42f * dp, uiPaint)
+        c.drawText(hudStatsBuilder, 0, hudStatsBuilder.length, hudLeft, topSafe + 42f * dp, uiPaint)
 
         // Crisp pixel heart sprites + hollow 8-bit sockets in HUD!
         for (i in 0 until engine.maxHp) {
@@ -1704,13 +1765,13 @@ class GameRenderer(
             c.drawText(cbLabel, cbX + cbW / 2f, cbBaseline, displayPaint)
         }
 
-        // Retro Level-Up / Biome / Boss / Daily Seed Banner
+        // Retro Level-Up / Biome / Boss / Daily Seed Banner (shifts below activePills when present!)
         engine.bannerText?.let { bTxt ->
             if (engine.bannerTimer > 0f) {
                 val bW = minOf(vw - leftSafe - rightSafe - 16f * dp, 268f * dp)
                 val bH = 28f * dp
                 val bX = hudCx - bW / 2f
-                val bY = topSafe + 78f * dp
+                val bY = topSafe + (if (activePillsBuilder.isNotEmpty()) 92f else 78f) * dp
                 paint.color = 0xE6121526.toInt()
                 c.drawRect(bX, bY, bX + bW, bY + bH, paint)
                 strokePaint.color = engine.bannerColor
@@ -2128,19 +2189,98 @@ class GameRenderer(
         c.drawText(text, x, y, displayPaint)
     }
 
+    private fun drawFittedUiText(
+        c: Canvas,
+        text: String,
+        cx: Float,
+        y: Float,
+        baseSize: Float,
+        maxW: Float,
+        color: Int,
+    ) {
+        uiPaint.textAlign = Paint.Align.CENTER
+        uiPaint.textSize = baseSize
+        val safeW = maxW.coerceAtLeast(24f)
+        val measured = uiPaint.measureText(text)
+        if (measured > safeW && measured > 0f) {
+            uiPaint.textSize *= (safeW / measured)
+        }
+        uiPaint.color = color
+        c.drawText(text, cx, y, uiPaint)
+    }
+
     private fun drawToast(c: Canvas, vw: Float, y: Float, msg: String) {
-        val w = minOf(vw - 36f, 560f)
-        val rect = RectF(vw / 2f - w / 2f, y - 26f, vw / 2f + w / 2f, y + 26f)
+        val dp = (vw / 360f).coerceIn(0.75f, 1.8f)
+        val w = minOf(vw - 24f * dp, 324f * dp)
+        val h = 30f * dp
+        val rect = RectF(vw / 2f - w / 2f, y - h / 2f, vw / 2f + w / 2f, y + h / 2f)
         paint.color = 0xEE142A26.toInt()
         c.drawRect(rect, paint)
         strokePaint.color = 0xFF78F0A8.toInt()
-        strokePaint.strokeWidth = 3f
+        strokePaint.strokeWidth = 2f * dp
         c.drawRect(rect, strokePaint)
         uiPaint.textAlign = Paint.Align.CENTER
-        uiPaint.textSize = 20f
+        uiPaint.textSize = 10f * dp
+        val maxTextW = (w - 14f * dp).coerceAtLeast(24f)
+        val measured = uiPaint.measureText(msg)
+        if (measured > maxTextW && measured > 0f) {
+            uiPaint.textSize *= (maxTextW / measured)
+        }
         uiPaint.color = 0xFF78F0A8.toInt()
         val baseline = rect.centerY() - (uiPaint.descent() + uiPaint.ascent()) / 2f
         c.drawText(msg, rect.centerX(), baseline, uiPaint)
+    }
+
+    private fun ensureBrickShader(dirtMain: Int, dirtDark: Int, dirtAccent: Int): BitmapShader {
+        val existing = brickShader
+        if (existing != null && cachedBrickMain == dirtMain && cachedBrickDark == dirtDark && cachedBrickAccent == dirtAccent) {
+            return existing
+        }
+        val bmp = Bitmap.createBitmap(16, 26, Bitmap.Config.ARGB_8888)
+        bmp.eraseColor(dirtMain)
+        for (rowIdx in 0 until 2) {
+            val baseY = rowIdx * 13
+            val stagger = if (rowIdx == 0) 8 else 0
+            // Horizontal mortar line (15px wide)
+            for (x in 0 until 15) bmp.setPixel(x, baseY, dirtDark)
+            // Vertical mortar line (13px tall)
+            for (y in baseY until baseY + 13) bmp.setPixel(stagger, y, dirtDark)
+            // 4x2 stone highlight
+            val ax = (stagger + 2) % 16
+            for (dx in 0 until 4) {
+                val px = (ax + dx) % 16
+                bmp.setPixel(px, baseY + 2, dirtAccent)
+                bmp.setPixel(px, baseY + 3, dirtAccent)
+            }
+        }
+        val shader = BitmapShader(bmp, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+        cachedBrickMain = dirtMain
+        cachedBrickDark = dirtDark
+        cachedBrickAccent = dirtAccent
+        brickShader = shader
+        brickPaint.shader = shader
+        return shader
+    }
+
+    private fun ensureDitherShader(slot: Int, color: Int): BitmapShader {
+        if (slot == 1 && ditherShader1 != null && cachedDither1 == color) return ditherShader1!!
+        if (slot == 2 && ditherShader2 != null && cachedDither2 == color) return ditherShader2!!
+        val bmp = Bitmap.createBitmap(4, 2, Bitmap.Config.ARGB_8888)
+        bmp.setPixel(0, 0, color)
+        bmp.setPixel(1, 0, color)
+        bmp.setPixel(0, 1, color)
+        bmp.setPixel(1, 1, color)
+        val shader = BitmapShader(bmp, Shader.TileMode.REPEAT, Shader.TileMode.REPEAT)
+        if (slot == 1) {
+            cachedDither1 = color
+            ditherShader1 = shader
+            ditherPaint1.shader = shader
+        } else {
+            cachedDither2 = color
+            ditherShader2 = shader
+            ditherPaint2.shader = shader
+        }
+        return shader
     }
 
     private fun blendColor(c1: Int, c2: Int, factor: Float): Int {

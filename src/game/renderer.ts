@@ -482,6 +482,46 @@ function drawParallaxWorld(
   }
 }
 
+const groundBrickPatternCache = new Map<string, CanvasPattern>();
+
+function getGroundBrickPattern(
+  ctx: CanvasRenderingContext2D,
+  dirtDark: string,
+  dirtAccent: string,
+): CanvasPattern | null {
+  if (typeof document === 'undefined' || typeof ctx.createPattern !== 'function') return null;
+  const key = `${dirtDark}|${dirtAccent}`;
+  const cached = groundBrickPatternCache.get(key);
+  if (cached) return cached;
+
+  const tile = document.createElement('canvas');
+  tile.width = 16;
+  tile.height = 26;
+  const tctx = tile.getContext('2d');
+  if (!tctx) return null;
+
+  // Row 0 (stagger = 8)
+  tctx.fillStyle = dirtDark;
+  tctx.fillRect(0, 0, 15, 1);
+  tctx.fillRect(8, 0, 1, 13);
+  tctx.fillStyle = dirtAccent;
+  tctx.fillRect(10, 2, 4, 2);
+
+  // Row 1 (stagger = 0)
+  tctx.fillStyle = dirtDark;
+  tctx.fillRect(0, 13, 15, 1);
+  tctx.fillRect(0, 13, 1, 13);
+  tctx.fillStyle = dirtAccent;
+  tctx.fillRect(2, 15, 4, 2);
+
+  const pattern = ctx.createPattern(tile, 'repeat');
+  if (pattern) {
+    if (groundBrickPatternCache.size > 32) groundBrickPatternCache.clear();
+    groundBrickPatternCache.set(key, pattern);
+  }
+  return pattern;
+}
+
 function drawGround(
   ctx: CanvasRenderingContext2D,
   state: GameState,
@@ -509,7 +549,19 @@ function drawGround(
   ctx.fillStyle = isSnow ? '#A8DCF8' : biome.grassTrim;
   ctx.fillRect(left, GROUND_Y + 6, width, 3);
 
-  // Classic NES checkerboard / brick ground masonry repeating to bottom
+  // Classic NES checkerboard / brick ground masonry repeating to bottom (cached pattern)
+  const brickTopY = GROUND_Y + 14;
+  if (groundBottom > brickTopY) {
+    const pattern = getGroundBrickPattern(ctx, biome.dirtDark, biome.dirtAccent);
+    if (pattern) {
+      ctx.save();
+      ctx.translate(scrollOffset, brickTopY);
+      ctx.fillStyle = pattern;
+      ctx.fillRect(left - scrollOffset, 0, width + tileSize, groundBottom - brickTopY);
+      ctx.restore();
+    }
+  }
+
   const maxX = view.cameraX + view.width + tileSize;
   const baseTileIndex = Math.floor(state.worldScroll / tileSize);
   for (let x = scrollOffset - tileSize, idx = 0; x < maxX; x += tileSize, idx++) {
@@ -518,17 +570,6 @@ function drawGround(
     ctx.fillStyle = isSnow ? '#C4E8FF' : biome.grassTrim;
     ctx.fillRect(x + 4, GROUND_Y + 9, 4, 2);
     ctx.fillRect(x + 12, GROUND_Y + 9, 2, 3);
-
-    // Repeating underground brick rows
-    for (let rowY = GROUND_Y + 14, rowIdx = 0; rowY < groundBottom; rowY += 13, rowIdx++) {
-      const stagger = rowIdx % 2 === 0 ? 8 : 0;
-      ctx.fillStyle = biome.dirtDark;
-      ctx.fillRect(x, rowY, tileSize - 1, 1);
-      ctx.fillRect(x + stagger, rowY, 1, 13);
-
-      ctx.fillStyle = biome.dirtAccent;
-      ctx.fillRect(x + ((stagger + 2) % tileSize), rowY + 2, 4, 2);
-    }
 
     // Rain / Storm: glistening puddles on top + water trickling down the terrain masonry
     if (isWet) {
@@ -1027,18 +1068,18 @@ function drawPet(ctx: CanvasRenderingContext2D, state: GameState): void {
   }
 }
 
+const BOSS_SPRITE_MAP = {
+  beetle: { grid: BOSS_BEETLE_SPRITE, palette: BOSS_BEETLE_PALETTE },
+  golem: { grid: BOSS_GOLEM_SPRITE, palette: BOSS_GOLEM_PALETTE },
+  drone: { grid: BOSS_DRONE_SPRITE, palette: BOSS_DRONE_PALETTE },
+  wyrm: { grid: BOSS_WYRM_SPRITE, palette: BOSS_WYRM_PALETTE },
+} as const;
+
 function drawBoss(ctx: CanvasRenderingContext2D, state: GameState): void {
   const boss = state.boss;
   if (!boss) return;
 
-  const spriteMap = {
-    beetle: { grid: BOSS_BEETLE_SPRITE, palette: BOSS_BEETLE_PALETTE },
-    golem: { grid: BOSS_GOLEM_SPRITE, palette: BOSS_GOLEM_PALETTE },
-    drone: { grid: BOSS_DRONE_SPRITE, palette: BOSS_DRONE_PALETTE },
-    wyrm: { grid: BOSS_WYRM_SPRITE, palette: BOSS_WYRM_PALETTE },
-  } as const;
-
-  const { grid, palette } = spriteMap[boss.kind];
+  const { grid, palette } = BOSS_SPRITE_MAP[boss.kind];
   const bx = Math.round(boss.x);
   const by = Math.round(boss.y);
 

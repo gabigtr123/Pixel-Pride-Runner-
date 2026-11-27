@@ -260,6 +260,10 @@ export function applyRunToDailyMissions(
   };
 }
 
+function safeDailyInt(value: unknown, min = 0): number {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(min, Math.round(value)) : min;
+}
+
 export function loadDailyProgress(todayKey: string = getLocalDateKey()): DailyProgressState {
   try {
     const raw = window.localStorage.getItem(DAILY_STORAGE_KEY);
@@ -268,7 +272,25 @@ export function loadDailyProgress(todayKey: string = getLocalDateKey()): DailyPr
     if (!parsed || typeof parsed.dateKey !== 'string' || !Array.isArray(parsed.missions)) {
       return syncDailyStateForDate(null, todayKey);
     }
-    return syncDailyStateForDate(parsed, todayKey);
+    const sanitized: DailyProgressState = {
+      ...parsed,
+      streakDays: safeDailyInt(parsed.streakDays, 1),
+      claimedToday: Boolean(parsed.claimedToday),
+      missions: parsed.missions
+        .filter((m) => m && typeof m === 'object' && typeof m.id === 'string' && typeof m.kind === 'string')
+        .map((m) => {
+          const target = safeDailyInt(m.target, 1);
+          const progress = Math.min(target, safeDailyInt(m.progress, 0));
+          return {
+            ...m,
+            target,
+            progress,
+            rewardPoints: safeDailyInt(m.rewardPoints, 0),
+            completed: Boolean(m.completed) || progress >= target,
+          };
+        }),
+    };
+    return syncDailyStateForDate(sanitized, todayKey);
   } catch {
     return syncDailyStateForDate(null, todayKey);
   }

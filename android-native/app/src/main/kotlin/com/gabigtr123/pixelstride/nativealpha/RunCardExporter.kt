@@ -22,7 +22,7 @@ import java.util.Date
 import java.util.Locale
 
 object RunCardExporter {
-    fun renderCardBitmap(context: Context, snapshot: RunSnapshot): Bitmap {
+    fun renderCardBitmap(context: Context, snapshot: RunSnapshot, fontOverride: Typeface? = null): Bitmap {
         val w = 640
         val h = 900
         val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
@@ -32,7 +32,8 @@ object RunCardExporter {
             isAntiAlias = false
             style = Paint.Style.STROKE
         }
-        val displayFont = ResourcesCompat.getFont(context, R.font.press_start_2p)
+        val displayFont = fontOverride
+            ?: ResourcesCompat.getFont(context, R.font.press_start_2p)
             ?: Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
         val textPaint = Paint().apply {
             isAntiAlias = true
@@ -209,7 +210,7 @@ object RunCardExporter {
         textPaint.textAlign = Paint.Align.CENTER
         textPaint.textSize = 11f
         textPaint.color = 0xFF78F0A8.toInt()
-        val levelName = LEVEL_NAMES[(snapshot.level - 1) % LEVEL_NAMES.size]
+        val levelName = LEVEL_NAMES[(snapshot.level - 1).coerceAtLeast(0) % LEVEL_NAMES.size]
         c.drawText("LV ${snapshot.level} $levelName · ${snapshot.zoneName}", w / 2f, 513f, textPaint)
 
         // 5. Primary Score Box
@@ -262,7 +263,7 @@ object RunCardExporter {
         textPaint.textSize = 9f
         textPaint.textAlign = Paint.Align.LEFT
         textPaint.color = 0xFF8898C8.toInt()
-        c.drawText("PIXEL STRIDE v4.2.4 · $dateStr", 52f, h - 50f, textPaint)
+        c.drawText("PIXEL STRIDE v4.2.5 · $dateStr", 52f, h - 50f, textPaint)
         textPaint.textAlign = Paint.Align.RIGHT
         textPaint.color = accent
         c.drawText("100% NATIVE ANDROID 17", w - 52f, h - 50f, textPaint)

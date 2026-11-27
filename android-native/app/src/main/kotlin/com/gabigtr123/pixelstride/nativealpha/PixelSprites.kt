@@ -5,17 +5,15 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
 
+import java.util.IdentityHashMap
+
 /**
  * Exact 1:1 port of Pixel Stride's hand-crafted 8-bit NES/Famicom sprite matrices & palettes.
  * Sprites are pre-baked on first draw into tiny nearest-neighbor ARGB_8888 Bitmaps to cut
  * per-frame JNI draw calls by >90% while preserving 100% crisp pixel art.
  */
 object PixelSprites {
-    private data class SpriteCacheKey(
-        val grid: List<String>,
-        val palette: Map<Char, Int>,
-        val whiteFlash: Boolean,
-    )
+    private val DEFAULT_CUSTOM_HERO = CustomHeroConfig()
 
     private val fillPaintTl = object : ThreadLocal<Paint>() {
         override fun initialValue(): Paint = Paint().apply {
@@ -32,7 +30,9 @@ object PixelSprites {
     private val dstRectTl = object : ThreadLocal<RectF>() {
         override fun initialValue(): RectF = RectF()
     }
-    private val spriteCache = HashMap<SpriteCacheKey, Bitmap>(128)
+    // Zero-allocation pointer-identity cache: grid -> palette -> [normalBmp, whiteFlashBmp]
+    private val spriteCache = IdentityHashMap<List<String>, IdentityHashMap<Map<Char, Int>, Array<Bitmap?>>>(64)
+    private var spriteCacheEntries = 0
 
     private val STRIDE_PALETTE = mapOf(
         'K' to 0xFF121324.toInt(),
@@ -673,7 +673,7 @@ object PixelSprites {
         'o' to 0xFFB88418.toInt(),
     )
 
-    fun paletteFor(hero: HeroId, custom: CustomHeroConfig = CustomHeroConfig()): Map<Char, Int> = when (hero) {
+    fun paletteFor(hero: HeroId, custom: CustomHeroConfig = DEFAULT_CUSTOM_HERO): Map<Char, Int> = when (hero) {
         HeroId.STRIDE -> STRIDE_PALETTE
         HeroId.LILY -> LILY_PALETTE
         HeroId.KNIGHT -> KNIGHT_PALETTE
@@ -682,7 +682,7 @@ object PixelSprites {
         HeroId.CUSTOM -> custom.toPalette()
     }
 
-    fun heroFrame(hero: HeroId, onGround: Boolean, ducking: Boolean, animTime: Float, custom: CustomHeroConfig = CustomHeroConfig()): List<String> {
+    fun heroFrame(hero: HeroId, onGround: Boolean, ducking: Boolean, animTime: Float, custom: CustomHeroConfig = DEFAULT_CUSTOM_HERO): List<String> {
         val isLily = hero == HeroId.LILY || (hero == HeroId.CUSTOM && custom.isFemale)
         if (ducking) return if (isLily) LILY_DUCK else RUNNER_DUCK
         if (!onGround) return if (isLily) LILY_JUMP else RUNNER_JUMP
@@ -714,7 +714,7 @@ object PixelSprites {
         ducking: Boolean,
         animTime: Float,
         whiteFlash: Boolean = false,
-        custom: CustomHeroConfig = CustomHeroConfig(),
+        custom: CustomHeroConfig = DEFAULT_CUSTOM_HERO,
         hat: HatId = HatId.NONE,
         cape: CapeId = CapeId.NONE,
     ) {
@@ -1247,13 +1247,26 @@ object PixelSprites {
         val cols = grid[0].length
         if (cols == 0) return
 
-        val key = SpriteCacheKey(grid, palette, whiteFlash)
+        val flashIdx = if (whiteFlash) 1 else 0
         val bmp = synchronized(spriteCache) {
-            var cached = spriteCache[key]
+            var byPalette = spriteCache[grid]
+            var pair = byPalette?.get(palette)
+            var cached = pair?.get(flashIdx)
             if (cached == null) {
-                if (spriteCache.size >= 256) {
+                if (spriteCacheEntries >= 256) {
                     // Evict without calling recycle() in case another thread is mid-drawBitmap
                     spriteCache.clear()
+                    spriteCacheEntries = 0
+                    byPalette = null
+                    pair = null
+                }
+                if (byPalette == null) {
+                    byPalette = IdentityHashMap(4)
+                    spriteCache[grid] = byPalette
+                }
+                if (pair == null) {
+                    pair = arrayOfNulls(2)
+                    byPalette[palette] = pair
                 }
                 val baked = Bitmap.createBitmap(cols, rows, Bitmap.Config.ARGB_8888)
                 for (r in 0 until rows) {
@@ -1266,7 +1279,8 @@ object PixelSprites {
                         baked.setPixel(c, r, color)
                     }
                 }
-                spriteCache[key] = baked
+                pair[flashIdx] = baked
+                spriteCacheEntries++
                 cached = baked
             }
             cached

@@ -128,14 +128,35 @@ export function getEffectiveWeather(settings: WeatherSettings): WeatherCondition
   return null;
 }
 
+async function fetchWithTimeout(url: string, signal?: AbortSignal, timeoutMs = 8000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const onExternalAbort = () => controller.abort();
+  if (signal) {
+    if (signal.aborted) {
+      clearTimeout(timer);
+      controller.abort();
+    } else {
+      signal.addEventListener('abort', onExternalAbort, { once: true });
+    }
+  }
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', onExternalAbort);
+  }
+}
+
 export async function fetchLiveWeather(
   latitude: number,
   longitude: number,
+  signal?: AbortSignal,
 ): Promise<{ weather: WeatherCondition; temperatureC: number; isDay: boolean }> {
   const url =
     `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(latitude.toFixed(4))}` +
     `&longitude=${encodeURIComponent(longitude.toFixed(4))}&current=weather_code,temperature_2m,is_day`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url, signal);
   if (!res.ok) {
     throw new Error(`Weather API error (${res.status})`);
   }
@@ -152,11 +173,11 @@ export async function fetchLiveWeather(
   };
 }
 
-export async function searchCity(query: string): Promise<CitySearchResult[]> {
+export async function searchCity(query: string, signal?: AbortSignal): Promise<CitySearchResult[]> {
   const trimmed = query.trim();
   if (trimmed.length < 2) return [];
   const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(trimmed)}&count=4&language=en&format=json`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url, signal);
   if (!res.ok) {
     throw new Error(`Geocoding API error (${res.status})`);
   }

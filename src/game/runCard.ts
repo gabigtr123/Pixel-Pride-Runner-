@@ -181,8 +181,8 @@ export function renderRunCardToCanvas(
   ctx.imageSmoothingEnabled = false;
   const { summary, characterId, customCharacter, hatId, capeId, petId } = data;
   const rarityInfo = getCardRarity(summary);
-  const biome = BIOMES[summary.zoneIndex % BIOMES.length] ?? BIOMES[0];
-  const levelName = LEVEL_NAMES[(summary.level - 1) % LEVEL_NAMES.length];
+  const biome = BIOMES[Math.max(0, summary.zoneIndex) % BIOMES.length] ?? BIOMES[0];
+  const levelName = LEVEL_NAMES[Math.max(0, summary.level - 1) % LEVEL_NAMES.length];
 
   // 1. Outer trading card base & holographic pixel border
   ctx.fillStyle = '#0D1022';
@@ -454,7 +454,9 @@ export function renderRunCardToCanvas(
   }
 
   // 8. Trading Card Footer
-  const dateStr = data.dateLabel ?? new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const dateStr = data.dateLabel ?? localDate;
   ctx.font = 'bold 10px "Press Start 2P", monospace';
   ctx.textAlign = 'left';
   ctx.fillStyle = '#8898C8';
@@ -589,15 +591,17 @@ export async function shareRunCardPng(
 
   const blob = await runCardCanvasToBlob(canvas);
   if (!blob) return { ok: false, status: 'SHARE FAILED' };
-  const file = new File([blob], fileName, { type: 'image/png' });
   try {
     if (
+      typeof File !== 'undefined' &&
       typeof navigator !== 'undefined' &&
-      typeof navigator.canShare === 'function' &&
-      navigator.canShare({ files: [file] })
+      typeof navigator.canShare === 'function'
     ) {
-      await navigator.share({ title: 'Pixel Stride Run Card', text, files: [file] });
-      return { ok: true, status: 'SHARED!' };
+      const file = new File([blob], fileName, { type: 'image/png' });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ title: 'Pixel Stride Run Card', text, files: [file] });
+        return { ok: true, status: 'SHARED!' };
+      }
     }
     // Fallback on desktop browsers without Web Share file support
     triggerBrowserDownload(blob, fileName);

@@ -3,6 +3,66 @@
 
 export type PixelGrid = readonly string[];
 
+const spriteCache = new WeakMap<PixelGrid, WeakMap<Record<string, string>, Map<number, HTMLCanvasElement>>>();
+const flashSpriteCache = new WeakMap<PixelGrid, Map<number, HTMLCanvasElement>>();
+
+function getCachedSpriteCanvas(
+  grid: PixelGrid,
+  palette: Record<string, string>,
+  pixelSize: number,
+  whiteFlash: boolean,
+): HTMLCanvasElement | null {
+  if (typeof document === 'undefined' || grid.length === 0) return null;
+  let sizeMap: Map<number, HTMLCanvasElement> | undefined;
+  if (whiteFlash) {
+    sizeMap = flashSpriteCache.get(grid);
+    if (!sizeMap) {
+      sizeMap = new Map();
+      flashSpriteCache.set(grid, sizeMap);
+    }
+  } else {
+    let palMap = spriteCache.get(grid);
+    if (!palMap) {
+      palMap = new WeakMap();
+      spriteCache.set(grid, palMap);
+    }
+    sizeMap = palMap.get(palette);
+    if (!sizeMap) {
+      sizeMap = new Map();
+      palMap.set(palette, sizeMap);
+    }
+  }
+
+  const existing = sizeMap.get(pixelSize);
+  if (existing) return existing;
+
+  let maxCols = 0;
+  for (let r = 0; r < grid.length; r++) {
+    if (grid[r].length > maxCols) maxCols = grid[r].length;
+  }
+  if (maxCols === 0) return null;
+
+  const offscreen = document.createElement('canvas');
+  offscreen.width = Math.max(1, Math.ceil(maxCols * pixelSize));
+  offscreen.height = Math.max(1, Math.ceil(grid.length * pixelSize));
+  const octx = offscreen.getContext('2d');
+  if (!octx) return null;
+  octx.imageSmoothingEnabled = false;
+  for (let row = 0; row < grid.length; row++) {
+    const line = grid[row];
+    for (let col = 0; col < line.length; col++) {
+      const ch = line[col];
+      if (ch === '.' || ch === ' ') continue;
+      const color = whiteFlash ? '#FFFFFF' : palette[ch];
+      if (!color) continue;
+      octx.fillStyle = color;
+      octx.fillRect(col * pixelSize, row * pixelSize, pixelSize, pixelSize);
+    }
+  }
+  sizeMap.set(pixelSize, offscreen);
+  return offscreen;
+}
+
 export function drawPixelGrid(
   ctx: CanvasRenderingContext2D,
   grid: PixelGrid,
@@ -14,6 +74,11 @@ export function drawPixelGrid(
 ): void {
   const bx = Math.round(x);
   const by = Math.round(y);
+  const cached = getCachedSpriteCanvas(grid, palette, pixelSize, whiteFlash);
+  if (cached && typeof ctx.drawImage === 'function') {
+    ctx.drawImage(cached, bx, by);
+    return;
+  }
   for (let row = 0; row < grid.length; row++) {
     const line = grid[row];
     for (let col = 0; col < line.length; col++) {

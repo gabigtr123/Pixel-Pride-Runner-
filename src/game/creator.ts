@@ -183,7 +183,12 @@ export function getNewlyUnlockedCosmetics(before: CareerStats, after: CareerStat
   return all.filter((opt) => !isOptionUnlocked(opt, before) && isOptionUnlocked(opt, after));
 }
 
+const customSpriteCache = new WeakMap<CustomCharacterConfig, CharacterSpriteSet>();
+
 export function buildCustomSpriteSet(config: CustomCharacterConfig): CharacterSpriteSet {
+  const cached = customSpriteCache.get(config);
+  if (cached) return cached;
+
   const skin = SKIN_OPTIONS.find((o) => o.id === config.skinId) ?? SKIN_OPTIONS[0];
   const hair = HAIR_OPTIONS.find((o) => o.id === config.hairId) ?? HAIR_OPTIONS[0];
   const scarf = SCARF_OPTIONS.find((o) => o.id === config.scarfId) ?? SCARF_OPTIONS[0];
@@ -207,13 +212,19 @@ export function buildCustomSpriteSet(config: CustomCharacterConfig): CharacterSp
     o: '#9E4C14',
   };
 
-  return {
+  const result: CharacterSpriteSet = {
     id: 'custom',
     name: (config.name.trim() || 'HERO').slice(0, 12).toUpperCase(),
     perk: '+15% COIN & STOMP',
     palette,
     frames: config.gender === 'female' ? LILY_FRAMES : RUNNER_FRAMES,
   };
+  customSpriteCache.set(config, result);
+  return result;
+}
+
+function safeInt(value: unknown, min = 0): number {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(min, Math.floor(value)) : min;
 }
 
 export function loadCreatorState(): CreatorStorageState {
@@ -248,13 +259,13 @@ export function loadCreatorState(): CreatorStorageState {
           : def.config.outfitId,
       },
       stats: {
-        totalRuns: Math.max(0, parsed.stats?.totalRuns ?? 0),
-        totalCoins: Math.max(0, parsed.stats?.totalCoins ?? 0),
-        totalDistance: Math.max(0, parsed.stats?.totalDistance ?? 0),
-        totalStomps: Math.max(0, parsed.stats?.totalStomps ?? 0),
-        bestScore: Math.max(0, parsed.stats?.bestScore ?? 0),
-        maxZoneReached: Math.max(1, parsed.stats?.maxZoneReached ?? 1),
-        dailyMissionsCompleted: Math.max(0, parsed.stats?.dailyMissionsCompleted ?? 0),
+        totalRuns: safeInt(parsed.stats?.totalRuns, 0),
+        totalCoins: safeInt(parsed.stats?.totalCoins, 0),
+        totalDistance: safeInt(parsed.stats?.totalDistance, 0),
+        totalStomps: safeInt(parsed.stats?.totalStomps, 0),
+        bestScore: safeInt(parsed.stats?.bestScore, 0),
+        maxZoneReached: safeInt(parsed.stats?.maxZoneReached, 1),
+        dailyMissionsCompleted: safeInt(parsed.stats?.dailyMissionsCompleted, 0),
       },
     };
   } catch {

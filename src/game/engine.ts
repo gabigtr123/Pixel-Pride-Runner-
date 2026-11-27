@@ -363,6 +363,7 @@ export function returnToTitle(state: GameState): GameState {
   next.hatId = state.hatId;
   next.capeId = state.capeId;
   next.petId = state.petId;
+  next.trailId = state.trailId;
   next.gameMode = state.gameMode;
   next.gadgets = [...state.gadgets];
   return next;
@@ -1123,6 +1124,9 @@ export function stepSimulation(
   // Update hazards + collisions
   const playerBox = getPlayerHitbox(p);
 
+  // Capture pre-collision vertical velocity so multi-enemy stomps on the same frame all register cleanly
+  const initialVy = p.vy;
+
   // Update active Mini-Boss encounter
   if (state.boss) {
     const boss = state.boss;
@@ -1139,7 +1143,7 @@ export function stepSimulation(
       const cycle = boss.phaseTimer % 4.6;
 
       if (boss.kind === 'drone' || boss.kind === 'wyrm') {
-        boss.y = boss.baseY + Math.sin(boss.phaseTimer * 3.1) * 16;
+        boss.y = boss.baseY + Math.sin(state.elapsed * 3.1) * 16;
       }
 
       if (cycle >= 2.2 && cycle < 3.6) {
@@ -1209,7 +1213,7 @@ export function stepSimulation(
     };
 
     if (checkAABB(playerBox, bossBox)) {
-      const playerFallingFromAbove = p.vy > 0 && prevY <= boss.y + boss.height * 0.78;
+      const playerFallingFromAbove = initialVy > 0 && prevY <= boss.y + boss.height * 0.78;
       if (boss.stompCooldown <= 0 && (p.turboDashTimer > 0 || playerFallingFromAbove)) {
         boss.hp -= 1;
         boss.hitFlash = 0.2;
@@ -1217,6 +1221,7 @@ export function stepSimulation(
         // Recoil boss back toward right side after taking a hit
         boss.phaseTimer = 3.6;
         p.vy = STOMP_BOUNCE_VELOCITY * 1.1;
+        p.onGround = false;
         p.jumpsRemaining = p.maxJumps - 1;
         p.scaleX = 1.24;
         p.scaleY = 0.78;
@@ -1304,6 +1309,7 @@ export function stepSimulation(
 
   for (let i = state.hazards.length - 1; i >= 0; i--) {
     const h = state.hazards[i];
+    if (!h) continue;
     if (h.hitFlash > 0) h.hitFlash = Math.max(0, h.hitFlash - dt);
 
     if (h.stomped) {
@@ -1391,6 +1397,11 @@ export function stepSimulation(
       continue;
     }
 
+    // Swoopers still in warning telegraph are not yet physically active
+    if (h.kind === 'swooper' && h.telegraphTimer > 0) {
+      continue;
+    }
+
     // Inset hazard hitbox slightly for fair retro precision
     const hazardBox: Rect = {
       x: h.x + 2,
@@ -1401,7 +1412,7 @@ export function stepSimulation(
 
     if (checkAABB(playerBox, hazardBox)) {
       const stompable = h.kind === 'hopper' || h.kind === 'swooper';
-      const playerFallingFromAbove = p.vy > 0 && prevY <= h.y + h.height * 0.72;
+      const playerFallingFromAbove = initialVy > 0 && prevY <= h.y + h.height * 0.72;
 
       if (p.turboDashTimer > 0) {
         // Invincible Turbo Dash smashes straight through any hazard!
@@ -1422,6 +1433,7 @@ export function stepSimulation(
         h.vy = -175;
         h.hitFlash = 0.08;
         p.vy = STOMP_BOUNCE_VELOCITY;
+        p.onGround = false;
         p.jumpsRemaining = p.maxJumps - 1;
         p.scaleX = 1.24;
         p.scaleY = 0.78;
@@ -1443,9 +1455,17 @@ export function stepSimulation(
         spawnFloatingText(state, h.x + 4, h.y - 6, `STOMP +${pts}`, '#FFF4A8');
         state.audioQueue.push({ type: 'stomp' });
       } else {
-        applyDamageToPlayer(state, rng);
+        if (applyDamageToPlayer(state, rng)) {
+          // Second Wind replaces state.hazards and lethal hits set koActive — exit loop safely!
+          break;
+        }
       }
     }
+  }
+
+  // Stop processing pickups on the frame the player is KO'd
+  if (p.koActive || state.phase !== 'playing') {
+    return;
   }
 
   // Update pickups (coins & powerups)
@@ -1470,8 +1490,9 @@ export function stepSimulation(
       const cy = p.y - p.height * 0.5;
       const dx = cx - (item.x + item.width * 0.5);
       const dy = cy - (item.y + item.height * 0.5);
-      const dist = Math.hypot(dx, dy);
-      if (dist < pullRadius && dist > 1) {
+      const distSq = dx * dx + dy * dy;
+      if (distSq < pullRadius * pullRadius && distSq > 1) {
+        const dist = Math.sqrt(distSq);
         const pull = (p.magnetTimer > 0 ? 280 : state.petId === 'fox' ? 235 : 195) * dt;
         item.x += (dx / dist) * pull;
         item.y += (dy / dist) * pull;
@@ -1550,7 +1571,7 @@ export function stepSimulation(
         state.audioQueue.push({ type: 'powerup', kind: 'magnet' });
       } else if (item.kind === 'doubleScore') {
         p.doubleScoreTimer = Math.max(p.doubleScoreTimer, 7.0);
-        state.bonusScore += 100;
+        state.bonusScore += Math.round(100 * scoreMult);
         spawnParticles(state, item.x + 7, item.y + 7, 14, ['#FFE048', '#FFFDF0', '#F08820'], 40, 115, 80, rng, -25);
         spawnFloatingText(state, item.x, item.y - 6, '2X SCORE!', '#FFE05C');
         state.audioQueue.push({ type: 'powerup', kind: 'doubleScore' });

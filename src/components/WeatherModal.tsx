@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   detectDeviceLocation,
   fetchLiveWeather,
@@ -31,16 +31,39 @@ export function WeatherModal({ open, settings, onChange, onClose }: WeatherModal
   const [results, setResults] = useState<CitySearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      abortRef.current?.abort();
+      abortRef.current = null;
+    }
+    return () => {
+      abortRef.current?.abort();
+      abortRef.current = null;
+    };
+  }, [open]);
 
   if (!open) return null;
 
+  const beginRequest = () => {
+    abortRef.current?.abort();
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
+    return ctrl;
+  };
+
   const syncCoordinates = async (lat: number, lon: number, label: string) => {
+    const ctrl = beginRequest();
     setLoading(true);
     setStatusMsg(null);
     try {
-      const live = await fetchLiveWeather(lat, lon);
+      const live = await fetchLiveWeather(lat, lon, ctrl.signal);
+      if (ctrl.signal.aborted) return;
       onChange({
-        ...settings,
+        ...settingsRef.current,
         source: 'live',
         liveWeather: live.weather,
         liveIsDay: live.isDay,
@@ -55,16 +78,22 @@ export function WeatherModal({ open, settings, onChange, onClose }: WeatherModal
         `Synced: ${label} (${live.weather.toUpperCase()}, ${live.temperatureC}°C, ${live.isDay ? 'DAY' : 'NIGHT'})`,
       );
     } catch {
+      if (ctrl.signal.aborted) return;
       setStatusMsg('Could not reach Open-Meteo weather service. Check internet connection.');
     } finally {
-      setLoading(false);
+      if (abortRef.current === ctrl) {
+        abortRef.current = null;
+        setLoading(false);
+      }
     }
   };
 
   const handleDetectLocation = async () => {
+    const ctrl = beginRequest();
     setLoading(true);
     setStatusMsg('Detecting device location...');
     const loc = await detectDeviceLocation();
+    if (ctrl.signal.aborted) return;
     if (!loc.ok) {
       setLoading(false);
       setStatusMsg(loc.message);
@@ -76,23 +105,29 @@ export function WeatherModal({ open, settings, onChange, onClose }: WeatherModal
   const handleSearchCity = async (e: React.FormEvent) => {
     e.preventDefault();
     if (cityQuery.trim().length < 2) return;
+    const ctrl = beginRequest();
     setLoading(true);
     setStatusMsg(null);
     try {
-      const found = await searchCity(cityQuery);
+      const found = await searchCity(cityQuery, ctrl.signal);
+      if (ctrl.signal.aborted) return;
       setResults(found);
       if (found.length === 0) {
         setStatusMsg('No matching city found. Try another name.');
       }
     } catch {
+      if (ctrl.signal.aborted) return;
       setStatusMsg('City search failed. Check internet connection.');
     } finally {
-      setLoading(false);
+      if (abortRef.current === ctrl) {
+        abortRef.current = null;
+        setLoading(false);
+      }
     }
   };
 
   const setSource = (source: WeatherSource) => {
-    onChange({ ...settings, source });
+    onChange({ ...settingsRef.current, source });
   };
 
   return (
@@ -327,6 +362,7 @@ export function WeatherModal({ open, settings, onChange, onClose }: WeatherModal
                     <button
                       key={`${c.name}-${c.latitude}-${c.longitude}`}
                       type="button"
+                      disabled={loading}
                       onClick={() =>
                         void syncCoordinates(
                           c.latitude,
@@ -334,7 +370,7 @@ export function WeatherModal({ open, settings, onChange, onClose }: WeatherModal
                           c.country ? `${c.name}, ${c.country}` : c.name,
                         )
                       }
-                      className="text-left px-2 py-1.5 bg-[#192040] border border-[#4C5C96] hover:border-[#FFE05C] font-pixel-ui text-[11px] text-[#F8F6EE] cursor-pointer"
+                      className="text-left px-2 py-1.5 bg-[#192040] border border-[#4C5C96] hover:border-[#FFE05C] font-pixel-ui text-[11px] text-[#F8F6EE] cursor-pointer disabled:opacity-60"
                     >
                       📍 {c.name}
                       {c.country ? `, ${c.country}` : ''}

@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { CYCLES_PER_LEVEL, LEVEL_NAMES } from '../game/constants';
 import type { HudSnapshot, OrientationMode } from '../game/types';
 import {
@@ -23,7 +24,7 @@ interface GameHudProps {
   onTouchDuckEnd: () => void;
 }
 
-export function GameHud({
+export const GameHud = memo(function GameHud({
   hud,
   muted,
   orientation,
@@ -331,4 +332,4 @@ export function GameHud({
       </div>
     </div>
   );
-}
+});

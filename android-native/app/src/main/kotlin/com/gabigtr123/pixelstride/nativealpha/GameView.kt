@@ -29,6 +29,8 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
     @Volatile
     private var running = false
+    @Volatile
+    private var renderDirty = true
     private var lastFrameNs: Long = 0L
     private var runCardPreview: Bitmap? = null
     private var shopTab: ShopTab = ShopTab.WARDROBE
@@ -38,6 +40,19 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     private var lang: AppLang = AppLang.EN
     private var leftHanded: Boolean = false
     private var showTouchButtons: Boolean = true
+
+    private val cachedVibrator: Vibrator? by lazy {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                (context.applicationContext.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)?.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                context.applicationContext.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+            }
+        } catch (_: Throwable) {
+            null
+        }
+    }
 
     var insetTopPx: Float = 48f
     var insetBottomPx: Float = 32f
@@ -113,24 +128,20 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     private fun vibrate(ms: Long, amplitude: Int = 80) {
         if (!hapticsEnabled) return
         try {
-            val vib = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                (context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)?.defaultVibrator
-            } else {
-                @Suppress("DEPRECATION")
-                context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-            }
-            vib?.vibrate(VibrationEffect.createOneShot(ms, amplitude))
+            cachedVibrator?.vibrate(VibrationEffect.createOneShot(ms, amplitude))
         } catch (_: Throwable) {
         }
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         engine.configureViewport(isPortrait = height >= width)
+        renderDirty = true
         startLoop()
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
         engine.configureViewport(isPortrait = height >= width)
+        renderDirty = true
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -149,6 +160,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
     fun handleBackPress(): Boolean {
         synchronized(engine) {
+            renderDirty = true
             return when (engine.phase) {
                 GamePhase.SHOP, GamePhase.CREATOR, GamePhase.DAILY, GamePhase.TROPHY, GamePhase.WEATHER -> {
                     engine.phase = GamePhase.TITLE
@@ -181,6 +193,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     }
 
     fun onHostResume() {
+        renderDirty = true
         if (holder.surface?.isValid == true) {
             startLoop()
         }
@@ -191,6 +204,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             resetTouchPointers()
             if (engine.phase == GamePhase.PLAYING) {
                 engine.phase = GamePhase.PAUSED
+                renderDirty = true
             }
         }
         stopLoop()
@@ -209,11 +223,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         if (!granted) {
             synchronized(engine) {
                 engine.weatherStatusMsg = "Location denied. Pick a city below!"
+                renderDirty = true
             }
             return
         }
         synchronized(engine) {
             engine.weatherStatusMsg = "Getting GPS fix..."
+            renderDirty = true
         }
         WeatherService.requestCurrentLocation(
             context = context,
@@ -223,6 +239,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             onError = { errMsg ->
                 synchronized(engine) {
                     engine.weatherStatusMsg = errMsg
+                    renderDirty = true
                 }
             },
         )
@@ -231,6 +248,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     private fun syncWeatherForCoords(lat: Double, lon: Double, label: String) {
         synchronized(engine) {
             engine.weatherStatusMsg = "Syncing $label..."
+            renderDirty = true
         }
         WeatherService.fetchAsync(
             lat = lat,
@@ -244,12 +262,14 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                     engine.liveTemperatureC = res.temperatureC
                     engine.liveLocationName = res.locationLabel
                     engine.weatherStatusMsg = "${res.locationLabel}: ${res.condition.label} ${res.temperatureC}C (${if (res.isDay) "DAY" else "NIGHT"})"
+                    renderDirty = true
                     persistSave()
                 }
             },
             onError = { errMsg ->
                 synchronized(engine) {
                     engine.weatherStatusMsg = errMsg
+                    renderDirty = true
                 }
             },
         )
@@ -261,15 +281,25 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             val dt = if (lastFrameNs == 0L) 0.016f else ((frameTimeNanos - lastFrameNs) / 1_000_000_000f).coerceIn(0f, 0.05f)
             lastFrameNs = frameTimeNanos
 
+            var shouldRender = true
             synchronized(engine) {
                 engine.update(dt)
                 if (renderer.toastTimer > 0f) {
                     renderer.toastTimer = (renderer.toastTimer - dt).coerceAtLeast(0f)
                     if (renderer.toastTimer <= 0f) renderer.toastMessage = null
+                    renderDirty = true
+                }
+                val isStaticPhase = engine.phase == GamePhase.PAUSED ||
+                    engine.phase == GamePhase.RUN_CARD ||
+                    (engine.phase == GamePhase.GAME_OVER && engine.screenShake <= 0f && renderer.toastTimer <= 0f)
+                if (isStaticPhase && !renderDirty) {
+                    shouldRender = false
+                } else {
+                    renderDirty = false
                 }
             }
 
-            if (holder.surface?.isValid == true && width > 0 && height > 0) {
+            if (shouldRender && holder.surface?.isValid == true && width > 0 && height > 0) {
                 val canvas = try {
                     holder.lockHardwareCanvas()
                 } catch (_: Throwable) {
@@ -313,17 +343,25 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         }
     }
 
+    private val startLoopRunnable = Runnable {
+        if (running) {
+            Choreographer.getInstance().removeFrameCallback(frameCallback)
+            Choreographer.getInstance().postFrameCallback(frameCallback)
+        }
+    }
+
     private fun startLoop() {
         if (running) return
         running = true
+        renderDirty = true
         lastFrameNs = 0L
-        post {
-            if (running) Choreographer.getInstance().postFrameCallback(frameCallback)
-        }
+        removeCallbacks(startLoopRunnable)
+        post(startLoopRunnable)
     }
 
     private fun stopLoop() {
         running = false
+        removeCallbacks(startLoopRunnable)
         Choreographer.getInstance().removeFrameCallback(frameCallback)
     }
 
@@ -332,6 +370,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         runCardPreview?.recycle()
         runCardPreview = null
         engine.startNewRun(meta)
+        renderDirty = true
         persistSave()
         synth.setBiome(engine.zoneIndex)
         synth.setBossMode(engine.activeBoss != null)
@@ -348,10 +387,13 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         synchronized(engine) {
             when (action) {
                 MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
-                    val hit = renderer.buttons.lastOrNull { it.rect.contains(x, y) }
-                    if (hit != null) {
-                        handleButtonPress(hit, pointerId)
-                        return true
+                    renderDirty = true
+                    if (action == MotionEvent.ACTION_DOWN || engine.phase == GamePhase.PLAYING) {
+                        val hit = renderer.buttons.lastOrNull { it.rect.contains(x, y) }
+                        if (hit != null) {
+                            handleButtonPress(hit, pointerId)
+                            return true
+                        }
                     }
                     if (engine.phase == GamePhase.PLAYING) {
                         swipePointerId = pointerId
@@ -692,9 +734,10 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
                 post {
                     runCatching {
                         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-                        val clip = cm?.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString() ?: ""
+                        val clip = cm?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString() ?: ""
                         synchronized(engine) {
                             val msg = meta.importSaveCode(clip, engine)
+                            renderDirty = true
                             persistSave()
                             showToast(msg)
                         }
@@ -714,13 +757,31 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             }
             UiAction.VIEW_RUN_CARD -> {
                 val snap = engine.lastRun ?: return
-                runCardPreview?.recycle()
-                runCardPreview = RunCardExporter.renderCardBitmap(context, snap)
-                engine.phase = GamePhase.RUN_CARD
+                if (cardExportBusy) return
+                cardExportBusy = true
                 vibrate(10, 50)
+                val appCtx = context.applicationContext
+                val font = displayFont
+                Thread({
+                    val bmp = runCatching { RunCardExporter.renderCardBitmap(appCtx, snap, font) }.getOrNull()
+                    post {
+                        synchronized(engine) {
+                            cardExportBusy = false
+                            if (bmp != null && engine.phase == GamePhase.GAME_OVER && engine.lastRun === snap) {
+                                runCardPreview?.recycle()
+                                runCardPreview = bmp
+                                engine.phase = GamePhase.RUN_CARD
+                                renderDirty = true
+                            } else {
+                                bmp?.recycle()
+                            }
+                        }
+                    }
+                }, "PixelStride-RenderCard").apply { isDaemon = true }.start()
             }
             UiAction.CLOSE_RUN_CARD -> {
                 engine.phase = GamePhase.GAME_OVER
+                renderDirty = true
             }
             UiAction.SHARE_CARD -> {
                 val snap = engine.lastRun ?: return
@@ -803,6 +864,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         synchronized(engine) {
             renderer.toastMessage = msg
             renderer.toastTimer = 2.4f
+            renderDirty = true
         }
     }
 
@@ -850,6 +912,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
 
     override fun onGameOver(snapshot: RunSnapshot) {
         resetTouchPointers()
+        renderDirty = true
         synth.stopMusic()
         synth.playGameOver()
         vibrate(80, 200)
@@ -862,6 +925,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
         return when (keyCode) {
             KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_W, KeyEvent.KEYCODE_BUTTON_A -> {
                 synchronized(engine) {
+                    renderDirty = true
                     when (engine.phase) {
                         GamePhase.PLAYING -> engine.pressJump()
                         GamePhase.TITLE, GamePhase.GAME_OVER -> beginRun()
@@ -876,6 +940,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             }
             KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_S, KeyEvent.KEYCODE_BUTTON_B -> {
                 synchronized(engine) {
+                    renderDirty = true
                     if (engine.phase == GamePhase.PLAYING) engine.setDuck(true)
                 }
                 true
@@ -885,6 +950,7 @@ class GameView(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
             }
             KeyEvent.KEYCODE_M -> {
                 synchronized(engine) {
+                    renderDirty = true
                     synth.muted = !synth.muted
                     if (!synth.muted && engine.phase == GamePhase.PLAYING) synth.startMusic()
                     persistSave()

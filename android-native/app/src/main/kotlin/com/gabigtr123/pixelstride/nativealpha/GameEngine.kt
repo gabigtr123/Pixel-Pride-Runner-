@@ -103,6 +103,7 @@ class GameEngine(private val feedback: EngineFeedback) {
     var level: Int = 1
     var zoneIndex: Int = 0
     var screenShake: Float = 0f
+    var shakePhase: Float = 0f
     var hitstopTimer: Float = 0f
     var playerScaleX: Float = 1f
     var playerScaleY: Float = 1f
@@ -398,6 +399,7 @@ class GameEngine(private val feedback: EngineFeedback) {
         activeBoss = null
         feedback.onBossActiveChanged(false)
         screenShake = 0f
+        shakePhase = 0f
         hitstopTimer = 0f
         playerScaleX = 1f
         playerScaleY = 1f
@@ -426,6 +428,7 @@ class GameEngine(private val feedback: EngineFeedback) {
     private fun tryConsumeJump() {
         if (jumpBufferTimer <= 0f) return
         if (onGround || coyoteTimer > 0f) {
+            val feetY = playerY + currentPlayerHeight()
             preJumpY = playerY
             preJumpOnGround = onGround
             preJumpOnPlatform = onPlatform
@@ -440,9 +443,14 @@ class GameEngine(private val feedback: EngineFeedback) {
             ducking = false
             playerScaleX = 0.82f
             playerScaleY = 1.22f
-            spawnDust(playerX + 10f, groundY, 6, 0xFFE8EEF8.toInt())
+            spawnDust(playerX + 10f, feetY, 6, 0xFFE8EEF8.toInt())
             feedback.onJump(false)
         } else if (jumpsRemaining > 0) {
+            preJumpY = playerY
+            preJumpOnGround = false
+            preJumpOnPlatform = false
+            preJumpJumps = jumpsRemaining
+            lastGroundJumpElapsed = elapsed
             playerVy = -325f
             jumpsRemaining--
             jumpBufferTimer = 0f
@@ -469,7 +477,10 @@ class GameEngine(private val feedback: EngineFeedback) {
             return
         }
         if (phase == GamePhase.GAME_OVER || phase == GamePhase.RUN_CARD) {
-            if (screenShake > 0f) screenShake = max(0f, screenShake - dt * 18f)
+            if (screenShake > 0f) {
+                shakePhase += dt
+                screenShake = max(0f, screenShake - dt * 18f)
+            }
             return
         }
         if (phase != GamePhase.PLAYING) return
@@ -477,9 +488,13 @@ class GameEngine(private val feedback: EngineFeedback) {
         // Arcade Hitstop freeze-frame (decays before physics)
         if (hitstopTimer > 0f) {
             hitstopTimer = max(0f, hitstopTimer - dt)
-            if (screenShake > 0f) screenShake = max(0f, screenShake - dt * 18f)
+            if (screenShake > 0f) {
+                shakePhase += dt
+                screenShake = max(0f, screenShake - dt * 18f)
+            }
             return
         }
+        if (screenShake > 0f) shakePhase += dt
 
         // Smooth elastic spring back for Squash & Stretch
         val springRate = (dt * 14f).coerceAtMost(1f)
@@ -550,7 +565,14 @@ class GameEngine(private val feedback: EngineFeedback) {
         if (pet == PetId.DRAGON) {
             dragonZapTimer -= dt
             if (dragonZapTimer <= 0f) {
-                val target = hazards.firstOrNull { !it.defeated && it.x > playerX + 24f && it.x < worldWidth - 10f }
+                var target: HazardEntity? = null
+                for (i in 0 until hazards.size) {
+                    val h = hazards[i]
+                    if (!h.defeated && h.x > playerX + 24f && h.x < worldWidth - 10f) {
+                        target = h
+                        break
+                    }
+                }
                 if (target != null) {
                     target.defeated = true
                     target.stomped = true
@@ -607,7 +629,8 @@ class GameEngine(private val feedback: EngineFeedback) {
         if (playerVy >= 0f && !ducking) {
             val pLeft = playerX + 4f
             val pRight = playerX + playerWidth - 4f
-            for (plat in platforms) {
+            for (i in 0 until platforms.size) {
+                val plat = platforms[i]
                 val horizOverlap = pRight > plat.x + 2f && pLeft < plat.x + plat.width - 2f
                 if (horizOverlap && prevBottom <= plat.y + 6f && newBottom >= plat.y) {
                     if (!onGround) {
@@ -615,10 +638,10 @@ class GameEngine(private val feedback: EngineFeedback) {
                         playerScaleY = 0.78f
                         spawnDust(playerX + 10f, plat.y, 4, 0xFFD8E4F8.toInt())
                     }
-                    playerY = plat.y - pH
-                    playerVy = 0f
                     onGround = true
                     onPlatform = true
+                    playerY = plat.y - currentPlayerHeight()
+                    playerVy = 0f
                     landedOnPlat = true
                     jumpsRemaining = maxJumps
                     coyoteTimer = 0.11f
@@ -637,9 +660,10 @@ class GameEngine(private val feedback: EngineFeedback) {
                     playerScaleY = 0.78f
                     spawnDust(playerX + 10f, groundY, 5, 0xFFD8E4F8.toInt())
                 }
-                playerY = targetGroundTop
-                playerVy = 0f
+                // Set onGround BEFORE snapping playerY so landing while holding Duck snaps cleanly to duck height!
                 onGround = true
+                playerY = groundY - currentPlayerHeight()
+                playerVy = 0f
                 jumpsRemaining = maxJumps
                 coyoteTimer = 0.11f
                 tryConsumeJump()
@@ -665,6 +689,7 @@ class GameEngine(private val feedback: EngineFeedback) {
             floatingTexts.add(FloatingText(worldWidth * 0.35f, 110f, "BOSS: ${kind.displayName}!", 0xFFFF6880.toInt(), 1.5f))
         }
         updateBoss(dt, scoreMult)
+        if (phase != GamePhase.PLAYING) return
 
         // Spawning hazards (paused while boss is active except gentle cadence)
         hazardSpawnTimer -= dt
@@ -686,6 +711,7 @@ class GameEngine(private val feedback: EngineFeedback) {
         }
 
         updateHazards(dt, scoreMult)
+        if (phase != GamePhase.PLAYING) return
         updateCollectibles(dt, scoreMult)
 
         // Runner Trail particles (exact v3.0.3 cadence & Turbo Dash sparks)
@@ -821,6 +847,8 @@ class GameEngine(private val feedback: EngineFeedback) {
         val pRight = playerX + playerWidth - 3f
         val pTop = playerY + 2f
         val pBottom = playerY + pH
+        val initialVy = playerVy
+        val wasFalling = initialVy > 0f
 
         for (i in hazards.lastIndex downTo 0) {
             val h = hazards[i]
@@ -891,13 +919,13 @@ class GameEngine(private val feedback: EngineFeedback) {
                     spawnDust(h.x + h.width / 2f, h.y + h.height / 2f, 10, 0xFFFFE05C.toInt())
                     floatingTexts.add(FloatingText(h.x, h.y - 8f, "SMASH!", 0xFFFFE05C.toInt()))
                     feedback.onStomp()
-                } else if ((h.type == HazardType.HOPPER || h.type == HazardType.SWOOPER) && playerVy > 0f && pBottom - playerVy * dt <= h.y + h.height * 0.65f) {
+                } else if ((h.type == HazardType.HOPPER || h.type == HazardType.SWOOPER) && wasFalling && pBottom - initialVy * dt <= h.y + h.height * 0.65f) {
                     // Stomp KO with upside-down topple! (Stride gets +25% stomp bonus)
                     h.defeated = true
                     h.stomped = true
                     h.vy = -140f
                     playerVy = -290f
-                    jumpsRemaining = 1
+                    jumpsRemaining = maxJumps - 1
                     stomps++
                     bumpCombo()
                     val stompPts = (if (hero == HeroId.STRIDE) 62.5f else 50f) * scoreMult
@@ -911,6 +939,7 @@ class GameEngine(private val feedback: EngineFeedback) {
                     feedback.onStomp()
                 } else {
                     damagePlayer()
+                    if (phase != GamePhase.PLAYING) return
                 }
             }
         }
@@ -940,6 +969,7 @@ class GameEngine(private val feedback: EngineFeedback) {
                     spawnDust(pr.x, pr.y, 6, 0xFFFFE05C.toInt())
                 } else {
                     damagePlayer()
+                    if (phase != GamePhase.PLAYING) return
                 }
             }
         }
@@ -996,7 +1026,9 @@ class GameEngine(private val feedback: EngineFeedback) {
                 boss.stateTimer = idleCooldown
                 boss.x = max(boss.x + 45f, boss.anchorX)
                 playerVy = -310f
-                jumpsRemaining = 1
+                onGround = false
+                onPlatform = false
+                jumpsRemaining = maxJumps - 1
                 invulnTimer = max(invulnTimer, 0.35f) // Grace invuln prevents phantom contact damage on bounce-up!
                 screenShake = 6f
                 hitstopTimer = 0.05f

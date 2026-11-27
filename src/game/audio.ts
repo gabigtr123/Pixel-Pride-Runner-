@@ -59,6 +59,8 @@ export class ChiptuneAudio {
       if (this.ctx && this.ctx.state === 'running') {
         void this.ctx.suspend().catch(() => {});
       }
+    } else if (this.ctx && this.ctx.state === 'suspended') {
+      void this.ctx.resume().catch(() => {});
     }
   }
 
@@ -105,7 +107,7 @@ export class ChiptuneAudio {
     delay = 0,
   ): void {
     const ctx = this.ensureContext();
-    if (!ctx) return;
+    if (!ctx || ctx.state !== 'running') return;
     const now = ctx.currentTime + delay;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -129,7 +131,7 @@ export class ChiptuneAudio {
 
   private playNoise(duration: number, gainPeak: number): void {
     const ctx = this.ensureContext();
-    if (!ctx) return;
+    if (!ctx || ctx.state !== 'running') return;
     const src = ctx.createBufferSource();
     src.buffer = this.getNoiseBuffer(ctx);
     const gain = ctx.createGain();
@@ -255,6 +257,7 @@ export class ChiptuneAudio {
 
   public dispose(): void {
     this.stopMusic();
+    this.noiseBuffer = null;
     if (this.ctx) {
       void this.ctx.close().catch(() => {});
       this.ctx = null;

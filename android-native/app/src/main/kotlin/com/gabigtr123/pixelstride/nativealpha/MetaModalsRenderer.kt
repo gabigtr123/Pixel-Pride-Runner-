@@ -573,16 +573,16 @@ class MetaModalsRenderer(
         val innerW = panelW - 28f * dp
         val leftX = cx - innerW / 2f
 
-        // Career Stats Strip
+        // Career Stats Strip (auto-fitted so large lifetime numbers never overflow)
+        val careerText = "RUNS:${meta.careerRuns} · ${meta.careerDistance}M · ${meta.careerStomps} STOMP · ${meta.careerBosses} BOSS"
         uiPaint.textAlign = Paint.Align.LEFT
         uiPaint.textSize = 8.5f * dp
+        val careerW = uiPaint.measureText(careerText)
+        if (careerW > innerW && careerW > 0f) {
+            uiPaint.textSize = (8.5f * dp * (innerW / careerW)).coerceAtLeast(5.5f * dp)
+        }
         uiPaint.color = 0xFF78E8FF.toInt()
-        c.drawText(
-            "RUNS:${meta.careerRuns} · ${meta.careerDistance}M · ${meta.careerStomps} STOMP · ${meta.careerBosses} BOSS",
-            leftX,
-            topY + 52f * dp,
-            uiPaint,
-        )
+        c.drawText(careerText, leftX, topY + 52f * dp, uiPaint)
 
         // Paginated 6 achievements per page (12 total)
         val perPage = 6

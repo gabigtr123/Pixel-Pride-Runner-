@@ -497,4 +497,138 @@ class GameEngineTest {
             PixelSprites.weatherUiIcon(engine.effectiveWeather(), engine.nightFactor() >= 0.62f),
         )
     }
+
+    @Test
+    fun holdingDuckWhileLandingSnapsCleanlyWithoutInfiniteBounce() {
+        val engine = GameEngine(RecordingFeedback())
+        engine.startNewRun()
+        engine.pressJump()
+        engine.update(0.016f)
+        assertTrue(!engine.onGround)
+
+        // Hold duck while falling back onto the ground
+        engine.setDuck(true)
+        engine.playerY = engine.groundY - engine.playerDuckHeight - 2f
+        engine.playerVy = 220f
+        engine.update(0.02f)
+
+        assertTrue("Landing while holding duck must settle on ground", engine.onGround)
+        assertEquals(engine.groundY - engine.playerDuckHeight, engine.playerY, 0.01f)
+
+        // Next frame must remain grounded (no hover-jitter loop)
+        engine.update(0.016f)
+        assertTrue("Player must stay grounded on subsequent frames while ducking", engine.onGround)
+        assertEquals(engine.groundY - engine.playerDuckHeight, engine.playerY, 0.01f)
+    }
+
+    @Test
+    fun fatalDamageStopsSameFrameCollectiblePickup() {
+        val fb = RecordingFeedback()
+        val engine = GameEngine(fb)
+        engine.mode = GameMode.HARDCORE
+        engine.startNewRun()
+        val startCoins = engine.runCoins
+
+        engine.hazards.add(
+            HazardEntity(x = engine.playerX + 4f, y = engine.groundY - 16f, width = 18f, height = 16f, type = HazardType.SPIKE),
+        )
+        engine.collectibles.add(
+            CollectibleEntity(x = engine.playerX + 6f, y = engine.playerY + 6f, kind = CollectibleKind.COIN),
+        )
+        engine.update(0.016f)
+
+        assertEquals(GamePhase.GAME_OVER, engine.phase)
+        assertEquals("Fatal hit must abort frame before collecting coins", startCoins, engine.runCoins)
+    }
+
+    @Test
+    fun stompingEnemyAndBossPreservesTripleJumpGadget() {
+        val engine = GameEngine(RecordingFeedback())
+        engine.startNewRun()
+        engine.maxJumps = 3
+        engine.jumpsRemaining = 1
+
+        // Enemy stomp restores maxJumps - 1 (= 2) instead of hardcoding 1
+        val enemy = HazardEntity(
+            x = engine.playerX + 2f,
+            y = engine.groundY - 18f,
+            width = 18f,
+            height = 18f,
+            type = HazardType.GOOMBA,
+        )
+        engine.hazards.add(enemy)
+        engine.playerY = enemy.y - engine.playerStandHeight + 3f
+        engine.playerVy = 180f
+        engine.onGround = false
+        engine.update(0.016f)
+
+        assertTrue(enemy.defeated)
+        assertEquals("Enemy stomp must restore maxJumps - 1 jumps", 2, engine.jumpsRemaining)
+
+        // Boss stomp also restores maxJumps - 1 (= 2)
+        engine.hitstopTimer = 0f
+        engine.invulnTimer = 0f
+        engine.jumpsRemaining = 0
+        val boss = BossEntity(
+            kind = BossKind.IRON_BEETLE,
+            x = engine.playerX - 4f,
+            y = engine.groundY - 32f,
+            anchorX = engine.playerX,
+            hp = 3,
+            maxHp = 3,
+        )
+        engine.activeBoss = boss
+        engine.playerY = boss.y - engine.playerStandHeight + 4f
+        engine.playerVy = 200f
+        engine.onGround = false
+        engine.update(0.016f)
+
+        assertEquals(2, boss.hp)
+        assertEquals("Boss stomp must restore maxJumps - 1 jumps", 2, engine.jumpsRemaining)
+    }
+
+    @Test
+    fun midAirSwipeDownCancelsAccidentalDoubleJump() {
+        val engine = GameEngine(RecordingFeedback())
+        engine.startNewRun()
+        engine.pressJump()
+        engine.update(0.05f)
+        val yBeforeDouble = engine.playerY
+        val jumpsBeforeDouble = engine.jumpsRemaining
+
+        // Accidental double-jump from tap before swipe-down
+        engine.pressJump()
+        assertEquals(jumpsBeforeDouble - 1, engine.jumpsRemaining)
+
+        // Quick swipe-down (<95ms) cancels the accidental double-jump and enters fast-fall duck
+        engine.cancelRecentJumpAndDuck()
+        assertTrue(engine.ducking)
+        assertEquals("Mid-air swipe-down must refund the accidental double-jump", jumpsBeforeDouble, engine.jumpsRemaining)
+        assertEquals(yBeforeDouble, engine.playerY, 0.5f)
+    }
+
+    @Test
+    fun screenShakePhaseAdvancesDuringHitstopAndGameOver() {
+        val engine = GameEngine(RecordingFeedback())
+        engine.mode = GameMode.HARDCORE
+        engine.startNewRun()
+
+        engine.hitstopTimer = 0.08f
+        engine.screenShake = 0.25f
+        val p0 = engine.shakePhase
+        engine.update(0.016f)
+        assertTrue("shakePhase must advance during hitstop", engine.shakePhase > p0)
+
+        // Fatal hit -> GAME_OVER with active screenShake
+        engine.hitstopTimer = 0f
+        engine.hazards.add(
+            HazardEntity(x = engine.playerX + 4f, y = engine.groundY - 16f, width = 18f, height = 16f, type = HazardType.SPIKE),
+        )
+        engine.update(0.016f)
+        assertEquals(GamePhase.GAME_OVER, engine.phase)
+        val p1 = engine.shakePhase
+        engine.update(0.02f)
+        assertTrue("shakePhase must continue oscillating during GAME_OVER shake", engine.shakePhase > p1)
+    }
 }
+

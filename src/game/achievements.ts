@@ -194,6 +194,10 @@ export function evaluateAchievements(
   check('marathon_runner', stats.totalDistance >= 3000);
   check('high_roller', stats.bestScore >= 10000);
 
+  if (!lastRun && newlyUnlocked.length === 0) {
+    return { next: current, newlyUnlocked };
+  }
+
   return {
     next: {
       ...current,
@@ -222,31 +226,36 @@ export function claimAchievementReward(
   };
 }
 
+function safeTrophyInt(value: unknown, min = 0): number {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(min, Math.round(value)) : min;
+}
+
 export function loadAchievementsState(): AchievementsStorageState {
   try {
     const raw = window.localStorage.getItem(ACHIEVEMENTS_STORAGE_KEY);
     if (!raw) return createDefaultAchievementsState();
     const parsed = JSON.parse(raw) as Partial<AchievementsStorageState>;
-    const def = createDefaultAchievementsState();
     const validIds = new Set(ACHIEVEMENTS_CATALOG.map((a) => a.id));
+    const unlockedIds = Array.isArray(parsed.unlockedIds)
+      ? Array.from(new Set(parsed.unlockedIds.filter((id) => validIds.has(id))))
+      : [];
+    const unlockedSet = new Set(unlockedIds);
     return {
-      unlockedIds: Array.isArray(parsed.unlockedIds)
-        ? Array.from(new Set(parsed.unlockedIds.filter((id) => validIds.has(id))))
-        : [],
+      unlockedIds,
       claimedIds: Array.isArray(parsed.claimedIds)
-        ? Array.from(new Set(parsed.claimedIds.filter((id) => validIds.has(id))))
+        ? Array.from(new Set(parsed.claimedIds.filter((id) => unlockedSet.has(id))))
         : [],
       stats: {
-        totalRuns: Math.max(0, parsed.stats?.totalRuns ?? def.stats.totalRuns),
-        totalDistance: Math.max(0, parsed.stats?.totalDistance ?? def.stats.totalDistance),
-        totalCoins: Math.max(0, parsed.stats?.totalCoins ?? def.stats.totalCoins),
-        totalStomps: Math.max(0, parsed.stats?.totalStomps ?? def.stats.totalStomps),
-        bossesDefeated: Math.max(0, parsed.stats?.bossesDefeated ?? def.stats.bossesDefeated),
-        bestScore: Math.max(0, parsed.stats?.bestScore ?? def.stats.bestScore),
-        bestLevel: Math.max(1, parsed.stats?.bestLevel ?? def.stats.bestLevel),
-        hardcoreRuns: Math.max(0, parsed.stats?.hardcoreRuns ?? def.stats.hardcoreRuns),
-        stormRuns: Math.max(0, parsed.stats?.stormRuns ?? def.stats.stormRuns),
-        winterRuns: Math.max(0, parsed.stats?.winterRuns ?? def.stats.winterRuns),
+        totalRuns: safeTrophyInt(parsed.stats?.totalRuns, 0),
+        totalDistance: safeTrophyInt(parsed.stats?.totalDistance, 0),
+        totalCoins: safeTrophyInt(parsed.stats?.totalCoins, 0),
+        totalStomps: safeTrophyInt(parsed.stats?.totalStomps, 0),
+        bossesDefeated: safeTrophyInt(parsed.stats?.bossesDefeated, 0),
+        bestScore: safeTrophyInt(parsed.stats?.bestScore, 0),
+        bestLevel: safeTrophyInt(parsed.stats?.bestLevel, 1),
+        hardcoreRuns: safeTrophyInt(parsed.stats?.hardcoreRuns, 0),
+        stormRuns: safeTrophyInt(parsed.stats?.stormRuns, 0),
+        winterRuns: safeTrophyInt(parsed.stats?.winterRuns, 0),
       },
     };
   } catch {

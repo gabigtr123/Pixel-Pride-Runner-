@@ -17,6 +17,8 @@ interface StatusModalProps {
   newlyUnlockedTrophies: AchievementDef[];
   completedMissions: number;
   totalMissions: number;
+  runCardOpen: boolean;
+  onRunCardOpenChange: (open: boolean) => void;
   onOpenDaily: () => void;
   onOpenTrophy: () => void;
   onResume: () => void;
@@ -35,13 +37,16 @@ export function StatusModal({
   newlyUnlockedTrophies,
   completedMissions,
   totalMissions,
+  runCardOpen,
+  onRunCardOpenChange,
   onOpenDaily,
   onOpenTrophy,
   onResume,
   onRestart,
   onTitle,
 }: StatusModalProps) {
-  const [showCard, setShowCard] = useState(false);
+  const showCard = runCardOpen;
+  const setShowCard = onRunCardOpenChange;
   const [cardStatus, setCardStatus] = useState<string | null>(null);
   const [cardBusy, setCardBusy] = useState(false);
   const cardCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -64,11 +69,11 @@ export function StatusModal({
 
   useEffect(() => {
     if (!isGameOver) {
-      setShowCard(false);
+      onRunCardOpenChange(false);
       setCardStatus(null);
       setCardBusy(false);
     }
-  }, [isGameOver]);
+  }, [isGameOver, onRunCardOpenChange]);
 
   useEffect(() => {
     return () => {
