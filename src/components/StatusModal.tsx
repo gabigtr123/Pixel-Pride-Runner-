@@ -220,25 +220,28 @@ export function StatusModal({
         </div>
 
         {/* Clean 3-stat tabular readout grid */}
-        <div className="w-full grid grid-cols-3 gap-3 py-3 border-y-2 border-[#303A68]">
-          <div className="flex flex-col items-center gap-1">
+        <div className="w-full grid grid-cols-3 gap-2 sm:gap-3 py-3 border-y-2 border-[#303A68]">
+          <div className="flex flex-col items-center gap-1 min-w-0">
             <span className="font-pixel-ui text-[10px] text-[#A2B0D8] tracking-widest">SCORE</span>
-            <span className="font-pixel-display text-sm sm:text-base text-[#FFFFFF]" data-testid="modal-score">
-              {summary.score}
+            <span
+              className="font-pixel-display text-xs sm:text-sm text-[#FFFFFF] tabular-nums truncate max-w-full"
+              data-testid="modal-score"
+            >
+              {Math.round(summary.score)}
             </span>
           </div>
 
-          <div className="flex flex-col items-center gap-1">
+          <div className="flex flex-col items-center gap-1 min-w-0">
             <span className="font-pixel-ui text-[10px] text-[#A2B0D8] tracking-widest">BEST</span>
-            <span className="font-pixel-display text-sm sm:text-base text-[#FFE05C]">
-              {summary.bestScore}
+            <span className="font-pixel-display text-xs sm:text-sm text-[#FFE05C] tabular-nums truncate max-w-full">
+              {Math.round(summary.bestScore)}
             </span>
           </div>
 
-          <div className="flex flex-col items-center gap-1">
+          <div className="flex flex-col items-center gap-1 min-w-0">
             <span className="font-pixel-ui text-[10px] text-[#A2B0D8] tracking-widest">DIST</span>
-            <span className="font-pixel-display text-sm sm:text-base text-[#78E8FF]">
-              {summary.distance}M
+            <span className="font-pixel-display text-xs sm:text-sm text-[#78E8FF] tabular-nums truncate max-w-full">
+              {Math.round(summary.distance)}M
             </span>
           </div>
         </div>

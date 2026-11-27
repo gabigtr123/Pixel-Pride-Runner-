@@ -961,4 +961,33 @@ test('v4.2.5 corrupt NaN localStorage data is safely sanitized by shop and daily
   }
 });
 
+test('v4.2.5 score, bestScore, and finalRun.bestScore stay exact integers under 2x/Hardcore/Owl multipliers', () => {
+  const rng = makeSeededRng(428);
+  const st = startNewRun(createInitialState(0, 'title'), {
+    gameMode: 'hardcore',
+    petId: 'owl',
+    startDoubleScoreSeconds: 5,
+  });
+
+  // Run several frames so fractional distDelta accumulates in bonusScore
+  for (let i = 0; i < 45; i++) {
+    stepSimulation(st, 1 / 60, IDLE_INPUT, rng);
+  }
+  assert.ok(Number.isInteger(st.score), `state.score must be integer, got ${st.score}`);
+  assert.ok(Number.isInteger(st.bestScore), `state.bestScore must be integer, got ${st.bestScore}`);
+
+  // Trigger KO -> gameover snapshot
+  st.player.hp = 1;
+  st.player.invulnTimer = 0;
+  applyDamageToPlayer(st, rng);
+  for (let i = 0; i < 60 && st.phase !== 'gameover'; i++) {
+    stepSimulation(st, 1 / 60, IDLE_INPUT, rng);
+  }
+  assert.equal(st.phase, 'gameover');
+  assert.ok(st.finalRun);
+  assert.ok(Number.isInteger(st.finalRun!.score), `finalRun.score must be integer, got ${st.finalRun!.score}`);
+  assert.ok(Number.isInteger(st.finalRun!.bestScore), `finalRun.bestScore must be integer, got ${st.finalRun!.bestScore}`);
+});
+
+
 

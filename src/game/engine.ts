@@ -824,7 +824,7 @@ export function stepSimulation(
     if (state.gameOverDelayTimer <= 0) {
       const finalScore = Math.round(state.score);
       const isNewBest = finalScore > state.runStartBestScore;
-      const bestScore = Math.max(state.bestScore, finalScore);
+      const bestScore = Math.max(Math.round(state.bestScore), finalScore);
       state.bestScore = bestScore;
       state.finalRun = {
         score: finalScore,
@@ -1593,8 +1593,8 @@ export function stepSimulation(
     }
   }
 
-  // Update total score
-  state.score = Math.floor(state.distance * 10) + state.bonusScore;
+  // Update total score (always exact integer even with fractional 2x/Hardcore/Owl distance bonuses)
+  state.score = Math.floor(state.distance * 10 + state.bonusScore);
   if (state.score > state.bestScore) {
     state.bestScore = state.score;
   }
