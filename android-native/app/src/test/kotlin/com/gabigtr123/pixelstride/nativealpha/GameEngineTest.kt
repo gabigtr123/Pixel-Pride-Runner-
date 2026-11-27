@@ -533,7 +533,7 @@ class GameEngineTest {
             HazardEntity(x = engine.playerX + 4f, y = engine.groundY - 16f, width = 18f, height = 16f, type = HazardType.SPIKE),
         )
         engine.collectibles.add(
-            CollectibleEntity(x = engine.playerX + 6f, y = engine.playerY + 6f, kind = CollectibleKind.COIN),
+            CollectibleEntity(x = engine.playerX + 6f, y = engine.playerY + 6f, type = CollectibleType.COIN),
         )
         engine.update(0.016f)
 
@@ -554,7 +554,7 @@ class GameEngineTest {
             y = engine.groundY - 18f,
             width = 18f,
             height = 18f,
-            type = HazardType.GOOMBA,
+            type = HazardType.HOPPER,
         )
         engine.hazards.add(enemy)
         engine.playerY = enemy.y - engine.playerStandHeight + 3f
